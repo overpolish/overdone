@@ -1,7 +1,7 @@
-import { IconCheck, IconClock } from "@tabler/icons-react";
+import { IconCheck, IconClock, IconProgress } from "@tabler/icons-react";
 
 /** The lifecycle states a todo item can be in. `todo` is the default. */
-export type TodoState = "todo" | "onHold" | "done";
+export type TodoState = "todo" | "inProgress" | "onHold" | "done";
 
 export interface TodoStateMeta {
   value: TodoState;
@@ -25,6 +25,7 @@ export interface TodoStateMeta {
 /** Ordered for display in the status popover. */
 export const TODO_STATES: TodoStateMeta[] = [
   { value: "todo", label: "Todo", color: null, icon: null },
+  { value: "inProgress", label: "In progress", color: "blue", icon: IconProgress },
   { value: "onHold", label: "On hold", color: "amber", icon: IconClock, iconNudgeY: -0.03 },
   { value: "done", label: "Done", color: "green", icon: IconCheck },
 ];

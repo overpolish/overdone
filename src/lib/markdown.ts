@@ -20,6 +20,7 @@ import { type TodoState } from "./todo";
 
 const STATE_TO_MARKER: Record<TodoState, string> = {
   todo: " ",
+  inProgress: "/",
   onHold: "-",
   done: "x",
 };
@@ -27,8 +28,8 @@ const STATE_TO_MARKER: Record<TodoState, string> = {
 const MARKER_TO_STATE: Record<string, TodoState> = {
   " ": "todo",
   "": "todo",
+  "/": "inProgress", // the Obsidian/Tasks in-progress convention
   "-": "onHold",
-  "/": "onHold", // also accept the in-progress convention on read
   x: "done",
   X: "done",
 };
