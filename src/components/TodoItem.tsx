@@ -1,6 +1,7 @@
 import { Box, Group, Textarea } from "@mantine/core";
 import { useEffect, useRef } from "react";
 
+import { useDrag } from "../lib/reorder";
 import { type TodoData, useTodos } from "../lib/todos";
 import { StateCheckbox } from "./StateCheckbox";
 
@@ -24,6 +25,7 @@ export function TodoItem({ item }: TodoItemProps) {
   const deleteItemFocusNeighbor = useTodos((s) => s.deleteItemFocusNeighbor);
   const focusId = useTodos((s) => s.focusId);
   const clearFocus = useTodos((s) => s.clearFocus);
+  const dragging = useDrag((s) => s.id === item.id);
   const done = item.state === "done";
 
   // When this item was just created (type-to-create), grab focus and place the
@@ -41,7 +43,16 @@ export function TodoItem({ item }: TodoItemProps) {
   }, [focusId, item.id, clearFocus]);
 
   return (
-    <Group gap={8} wrap="nowrap" align="flex-start">
+    <Group
+      gap={8}
+      wrap="nowrap"
+      align="flex-start"
+      data-todo-row
+      style={{
+        opacity: dragging ? 0.4 : 1,
+        transition: "opacity 120ms ease",
+      }}
+    >
       <Box
         style={{
           display: "flex",

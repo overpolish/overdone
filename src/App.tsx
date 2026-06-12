@@ -9,8 +9,31 @@ import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
 import { bindMainWindow } from "./lib/main-sync";
 import { type StatusAction } from "./lib/panel";
+import { useDrag } from "./lib/reorder";
 import { useSettings } from "./lib/settings";
 import { useTodos } from "./lib/todos";
+
+/** Line showing where a dragged item will land (positioned via the drag store). */
+function DropIndicator() {
+  const id = useDrag((s) => s.id);
+  const dropY = useDrag((s) => s.dropY);
+  if (id === null || dropY === null) return null;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "var(--mantine-spacing-sm)",
+        right: "var(--mantine-spacing-sm)",
+        top: dropY,
+        height: 2,
+        marginTop: -1,
+        borderRadius: 2,
+        background: "var(--mantine-primary-color-filled)",
+        pointerEvents: "none",
+      }}
+    />
+  );
+}
 
 /** Whether focus is currently in a text field (input/textarea/contenteditable). */
 function isEditableFocused() {
@@ -103,10 +126,11 @@ function App() {
       <Titlebar />
 
       <ScrollArea style={{ flex: 1 }}>
-        <Stack gap={0} p="sm">
+        <Stack gap={0} p="sm" pos="relative">
           {items.map((item) => (
             <TodoItem key={item.id} item={item} />
           ))}
+          <DropIndicator />
         </Stack>
       </ScrollArea>
 

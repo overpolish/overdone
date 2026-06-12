@@ -42,6 +42,11 @@ interface TodosState {
   deleteItem: (id: string) => void;
   /** Delete an item and move focus to its neighbour (previous, else next). */
   deleteItemFocusNeighbor: (id: string) => void;
+  /**
+   * Move an item to a new position. `dropIndex` is the gap it's dropped into,
+   * 0..length (as computed from the drop indicator).
+   */
+  moveItem: (id: string, dropIndex: number) => void;
   /** Insert a new (empty by default) item at the top and focus it. */
   addItem: (initialText?: string) => void;
   clearFocus: () => void;
@@ -109,6 +114,21 @@ export const useTodos = create<TodosState>((set, get) => {
       const neighbor = items[idx - 1] ?? items[idx + 1];
       commit((items) => items.filter((i) => i.id !== id), null);
       set({ focusId: neighbor ? neighbor.id : null });
+    },
+
+    moveItem: (id, dropIndex) => {
+      const { items } = get();
+      const from = items.findIndex((i) => i.id === id);
+      if (from === -1) return;
+      // Removing the item first shifts every later gap down by one.
+      const to = dropIndex > from ? dropIndex - 1 : dropIndex;
+      if (to === from) return; // dropped back in place
+      commit((items) => {
+        const next = items.slice();
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        return next;
+      }, null);
     },
 
     addItem: (initialText = "") => {
