@@ -12,9 +12,15 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "overdone",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "minWidth": 240,
+        "minHeight": 240,
+        "visible": false,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {
