@@ -8,10 +8,10 @@ import {
   UnstyledButton,
   useComputedColorScheme,
 } from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconDownload, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
-import { type ListMeta, useLists } from "../lib/lists";
+import { exportList, type ListMeta, useLists } from "../lib/lists";
 import { dangerBg, dangerFg } from "../lib/styles";
 
 /**
@@ -61,6 +61,7 @@ export function Lists() {
               active={list.id === activeId}
               onSelect={() => setActive(list.id)}
               onRename={(title) => rename(list.id, title)}
+              onExport={() => void exportList(list.id, list.title)}
               onDelete={() => void remove(list.id)}
               canDelete={lists.length > 1}
             />
@@ -71,11 +72,56 @@ export function Lists() {
   );
 }
 
+interface RowButtonProps {
+  icon: typeof IconTrash;
+  label: string;
+  onClick: () => void;
+  /** Whether the row is hovered (controls fade-in). */
+  visible: boolean;
+  /** Destructive styling (red on hover). */
+  danger?: boolean;
+}
+
+/** A hover-revealed action button on a list row (export / delete). */
+function RowButton({ icon: Icon, label, onClick, visible, danger }: RowButtonProps) {
+  const [hovered, setHovered] = useState(false);
+  const dark = useComputedColorScheme("light") === "dark";
+
+  return (
+    <UnstyledButton
+      aria-label={label}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        flexShrink: 0,
+        width: 24,
+        height: 24,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "var(--mantine-radius-md)",
+        color: danger ? dangerFg(dark) : "var(--mantine-color-dimmed)",
+        background: hovered
+          ? danger
+            ? dangerBg(dark)
+            : "var(--mantine-color-default-hover)"
+          : "transparent",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 120ms ease, background 120ms ease",
+      }}
+    >
+      <Icon size={14} stroke={2} style={{ display: "block" }} />
+    </UnstyledButton>
+  );
+}
+
 interface ListRowProps {
   list: ListMeta;
   active: boolean;
   onSelect: () => void;
   onRename: (title: string) => void;
+  onExport: () => void;
   onDelete: () => void;
   /** The last remaining list can't be deleted (there's always one). */
   canDelete: boolean;
@@ -86,12 +132,11 @@ function ListRow({
   active,
   onSelect,
   onRename,
+  onExport,
   onDelete,
   canDelete,
 }: ListRowProps) {
   const [hovered, setHovered] = useState(false);
-  const [deleteHovered, setDeleteHovered] = useState(false);
-  const dark = useComputedColorScheme("light") === "dark";
 
   return (
     <Group
@@ -129,28 +174,20 @@ function ListRow({
         }}
       />
 
+      <RowButton
+        icon={IconDownload}
+        label={`Export ${list.title || "Untitled"}`}
+        onClick={onExport}
+        visible={hovered}
+      />
       {canDelete && (
-        <UnstyledButton
-          aria-label={`Delete ${list.title || "Untitled"}`}
+        <RowButton
+          icon={IconTrash}
+          label={`Delete ${list.title || "Untitled"}`}
           onClick={onDelete}
-          onMouseEnter={() => setDeleteHovered(true)}
-          onMouseLeave={() => setDeleteHovered(false)}
-          style={{
-            flexShrink: 0,
-            width: 24,
-            height: 24,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "var(--mantine-radius-md)",
-            color: dangerFg(dark),
-            background: deleteHovered ? dangerBg(dark) : "transparent",
-            opacity: hovered ? 1 : 0,
-            transition: "opacity 120ms ease, background 120ms ease",
-          }}
-        >
-          <IconTrash size={14} stroke={2} style={{ display: "block" }} />
-        </UnstyledButton>
+          visible={hovered}
+          danger
+        />
       )}
     </Group>
   );

@@ -130,6 +130,14 @@ fn write_list(app: tauri::AppHandle, id: String, content: String) -> Result<(), 
     Ok(())
 }
 
+/// Copy a list's markdown to a destination path chosen by the user (the export
+/// save dialog). Unlike the app-data files, `dest` is an arbitrary location.
+#[tauri::command]
+fn export_list(app: tauri::AppHandle, id: String, dest: String) -> Result<(), String> {
+    let content = read_list(app, id)?;
+    std::fs::write(&dest, content).map_err(|e| e.to_string())
+}
+
 /// Delete a list's file (ignored if it's already gone).
 #[tauri::command]
 fn delete_list(app: tauri::AppHandle, id: String) -> Result<(), String> {
@@ -330,6 +338,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             flag_attention,
             background_app,
@@ -341,7 +350,8 @@ pub fn run() {
             list_lists,
             read_list,
             write_list,
-            delete_list
+            delete_list,
+            export_list
         ])
         .setup(|app| {
             // Tray-only app on macOS: no dock icon and no Cmd+Tab entry, so the

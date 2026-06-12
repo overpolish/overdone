@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 
 /** One stored list as surfaced in the lists picker. */
@@ -123,6 +124,25 @@ export const useLists = create<ListsState>((set, get) => ({
 /** Notify other windows that a list's contents changed (e.g. after autosave). */
 export function broadcastListsChanged() {
   broadcast({ type: "refresh" });
+}
+
+/**
+ * Export a list's markdown to a user-chosen location, defaulting the filename to
+ * the list title. Returns the destination path, or null if the dialog was
+ * cancelled.
+ */
+export async function exportList(
+  id: string,
+  title: string,
+): Promise<string | null> {
+  const name = (title.trim() || "Untitled").replace(/[/\\:]/g, "-");
+  const dest = await save({
+    defaultPath: `${name}.md`,
+    filters: [{ name: "Markdown", extensions: ["md"] }],
+  });
+  if (!dest) return null;
+  await invoke("export_list", { id, dest });
+  return dest;
 }
 
 if (channel) {
