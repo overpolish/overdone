@@ -1,34 +1,26 @@
-import { Button, Stack, Title } from "@mantine/core";
-import { IconArrowRight } from "@tabler/icons-react";
+import { Stack } from "@mantine/core";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
 import { useEffect } from "react";
 
+import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
 import { useSettings } from "./lib/settings";
+import { useTodos } from "./lib/todos";
 
-/** Fire a desktop notification, requesting permission first if needed. */
-async function pingNotification() {
-  let granted = await isPermissionGranted();
-  if (!granted) {
-    granted = (await requestPermission()) === "granted";
-  }
-  if (!granted) return;
-
-  // Background the app first: on macOS a foreground app suppresses notification
-  // banners (they go to Control Center) and won't bounce, so we hide it.
-  await invoke("background_app");
-  setTimeout(() => {
-    void invoke("flag_attention"); // red tray badge + dock bounce
-    sendNotification({ title: "Overdone", body: "Dummy message" });
-  }, 1000);
+/** Whether focus is currently in a text field (input/textarea/contenteditable). */
+function isEditableFocused() {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  return (
+    el.tagName === "INPUT" ||
+    el.tagName === "TEXTAREA" ||
+    el.isContentEditable
+  );
 }
 
 function App() {
+  const items = useTodos((s) => s.items);
+
   // Apply the persisted always-on-top preference on startup.
   useEffect(() => {
     void invoke("set_always_on_top", {
@@ -36,20 +28,54 @@ function App() {
     });
   }, []);
 
+  // Global keyboard handling. Shortcuts (Cmd/Ctrl+Z / Shift / Y) take priority;
+  // otherwise, typing a printable character while no field is focused starts a
+  // new item at the top, seeded with that character.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (mod) {
+        const key = e.key.toLowerCase();
+        if (key === "z") {
+          e.preventDefault();
+          if (e.shiftKey) useTodos.getState().redo();
+          else useTodos.getState().undo();
+        } else if (key === "y") {
+          e.preventDefault();
+          useTodos.getState().redo();
+        }
+        return;
+      }
+
+      // Escape drops focus out of the current field, so you can esc then type
+      // to start a fresh item.
+      if (e.key === "Escape") {
+        if (isEditableFocused()) (document.activeElement as HTMLElement).blur();
+        return;
+      }
+
+      // Type-to-create. Skip when a field is already being edited, when Alt is
+      // held (Option produces special glyphs), and for non-printable keys
+      // (Enter, arrows… all report multi-character `key` names).
+      if (e.altKey || e.key.length !== 1) return;
+      if (isEditableFocused()) return;
+      e.preventDefault();
+      useTodos.getState().addItem(e.key);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <Titlebar />
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        <Stack align="center" justify="center" gap="lg" mih="100%" p="xl">
-          <Title order={1}>Overdone</Title>
-
-          <Button
-            rightSection={<IconArrowRight size={18} />}
-            onClick={() => void pingNotification()}
-          >
-            Get started
-          </Button>
+        <Stack gap="xs" p="md">
+          {items.map((item) => (
+            <TodoItem key={item.id} item={item} />
+          ))}
         </Stack>
       </div>
     </div>
