@@ -8,6 +8,62 @@ export interface TodoData {
   id: string;
   text: string;
   state: TodoState;
+  /** Nesting level: 0 = top item, 1 = sub-item. Only one level is supported. */
+  depth: number;
+}
+
+/**
+ * Promote any sub-item that has no top-level item above it to a top item — the
+ * only structurally-invalid case in the one-level model (a child belongs to the
+ * nearest preceding depth-0 item).
+ */
+function normalizeDepths(items: TodoData[]): TodoData[] {
+  let sawTop = false;
+  return items.map((it) => {
+    if (it.depth === 0) {
+      sawTop = true;
+      return it;
+    }
+    return sawTop ? it : { ...it, depth: 0 };
+  });
+}
+
+/**
+ * Recompute every parent's done state from its children: done when all children
+ * are done, and un-done (→ todo) if it was done but they aren't. A parent's
+ * non-done state is left alone otherwise.
+ */
+function withRollup(items: TodoData[]): TodoData[] {
+  const out = items.slice();
+  for (let i = 0; i < out.length; i++) {
+    if (out[i].depth !== 0) continue;
+    const kids: TodoData[] = [];
+    for (let j = i + 1; j < out.length && out[j].depth === 1; j++) kids.push(out[j]);
+    if (kids.length === 0) continue;
+    const allDone = kids.every((k) => k.state === "done");
+    if (allDone && out[i].state !== "done") out[i] = { ...out[i], state: "done" };
+    else if (!allDone && out[i].state === "done") out[i] = { ...out[i], state: "todo" };
+  }
+  return out;
+}
+
+/** Whether the item at `i` is a top item with at least one sub-item. */
+function hasChildren(items: TodoData[], i: number): boolean {
+  return items[i]?.depth === 0 && items[i + 1]?.depth === 1;
+}
+
+/** Remove an item; a deleted parent promotes its sub-items to top items. */
+function removeItem(items: TodoData[], id: string): TodoData[] {
+  const i = items.findIndex((x) => x.id === id);
+  if (i === -1) return items;
+  const wasParent = hasChildren(items, i);
+  const next = items.filter((x) => x.id !== id);
+  if (wasParent) {
+    for (let j = i; j < next.length && next[j].depth === 1; j++) {
+      next[j] = { ...next[j], depth: 0 };
+    }
+  }
+  return normalizeDepths(withRollup(next));
 }
 
 interface TodosState {
@@ -47,6 +103,12 @@ interface TodosState {
    * 0..length (as computed from the drop indicator).
    */
   moveItem: (id: string, dropIndex: number) => void;
+  /** Make an item a sub-item of the item above it (one level only). */
+  indentItem: (id: string) => void;
+  /** Promote a sub-item back to a top item. */
+  outdentItem: (id: string) => void;
+  /** Insert an empty sub-item under a top item and focus it. */
+  addSubItem: (parentId: string) => void;
   /** Insert a new (empty by default) item at the top and focus it. */
   addItem: (initialText?: string) => void;
   clearFocus: () => void;
@@ -89,10 +151,19 @@ export const useTodos = create<TodosState>((set, get) => {
     focusTitle: false,
 
     setItemState: (id, state) =>
-      commit(
-        (items) => items.map((i) => (i.id === id ? { ...i, state } : i)),
-        null,
-      ),
+      commit((items) => {
+        const i = items.findIndex((x) => x.id === id);
+        if (i === -1) return items;
+        let next = items.map((it, idx) => (idx === i ? { ...it, state } : it));
+        // Setting a parent cascades to all its sub-items (group control).
+        if (next[i].depth === 0) {
+          for (let j = i + 1; j < next.length && next[j].depth === 1; j++) {
+            next[j] = { ...next[j], state };
+          }
+        }
+        // Setting a sub-item rolls its done state up to the parent.
+        return withRollup(next);
+      }, null),
 
     setItemText: (id, text) =>
       commit(
@@ -104,8 +175,7 @@ export const useTodos = create<TodosState>((set, get) => {
     // autosaves like the rest of the list.
     setTitle: (title) => set({ title }),
 
-    deleteItem: (id) =>
-      commit((items) => items.filter((i) => i.id !== id), null),
+    deleteItem: (id) => commit((items) => removeItem(items, id), null),
 
     deleteItemFocusNeighbor: (id) => {
       const { items } = get();
@@ -114,23 +184,65 @@ export const useTodos = create<TodosState>((set, get) => {
       // Previous item if there is one, otherwise the next; null when it was the
       // only item. The focus effect places the caret at the end.
       const neighbor = items[idx - 1] ?? items[idx + 1];
-      commit((items) => items.filter((i) => i.id !== id), null);
+      commit((items) => removeItem(items, id), null);
       set({ focusId: neighbor ? neighbor.id : null });
     },
 
-    moveItem: (id, dropIndex) => {
-      const { items } = get();
-      const from = items.findIndex((i) => i.id === id);
-      if (from === -1) return;
-      // Removing the item first shifts every later gap down by one.
-      const to = dropIndex > from ? dropIndex - 1 : dropIndex;
-      if (to === from) return; // dropped back in place
+    moveItem: (id, dropIndex) =>
       commit((items) => {
+        const from = items.findIndex((i) => i.id === id);
+        if (from === -1) return items;
+        // Drag a parent and its sub-items move together as one block.
+        let blockLen = 1;
+        if (items[from].depth === 0) {
+          while (from + blockLen < items.length && items[from + blockLen].depth === 1) {
+            blockLen++;
+          }
+        }
+        const block = items.slice(from, from + blockLen);
+        const without = [
+          ...items.slice(0, from),
+          ...items.slice(from + blockLen),
+        ];
+        // `dropIndex` is in the original coordinates; shift past the removed block.
+        let to = dropIndex > from ? dropIndex - blockLen : dropIndex;
+        to = Math.max(0, Math.min(to, without.length));
+        const next = [...without.slice(0, to), ...block, ...without.slice(to)];
+        return normalizeDepths(withRollup(next));
+      }, null),
+
+    indentItem: (id) =>
+      commit((items) => {
+        const i = items.findIndex((x) => x.id === id);
+        // Need a top item above to nest under (guaranteed once `i > 0`, since the
+        // first item is always depth 0). Indenting a parent flattens its
+        // sub-items into siblings under the new parent (one level only).
+        if (i <= 0 || items[i].depth !== 0) return items;
+        const next = items.map((it, idx) => (idx === i ? { ...it, depth: 1 } : it));
+        return withRollup(next);
+      }, null),
+
+    outdentItem: (id) =>
+      commit((items) => {
+        const i = items.findIndex((x) => x.id === id);
+        if (i === -1 || items[i].depth !== 1) return items;
+        const next = items.map((it, idx) => (idx === i ? { ...it, depth: 0 } : it));
+        return withRollup(next);
+      }, null),
+
+    addSubItem: (parentId) => {
+      const id = crypto.randomUUID();
+      commit((items) => {
+        const i = items.findIndex((x) => x.id === parentId);
+        if (i === -1 || items[i].depth !== 0) return items; // only top items
+        // Insert after the parent's existing sub-items.
+        let at = i + 1;
+        while (at < items.length && items[at].depth === 1) at++;
         const next = items.slice();
-        const [moved] = next.splice(from, 1);
-        next.splice(to, 0, moved);
-        return next;
-      }, null);
+        next.splice(at, 0, { id, text: "", state: "todo", depth: 1 });
+        return withRollup(next);
+      }, `text:${id}`);
+      set({ focusId: id });
     },
 
     addItem: (initialText = "") => {
@@ -138,7 +250,7 @@ export const useTodos = create<TodosState>((set, get) => {
       // Coalesce under the same key the text field uses, so creating an item
       // and typing its first words collapse into a single undo step.
       commit(
-        (items) => [{ id, text: initialText, state: "todo" }, ...items],
+        (items) => [{ id, text: initialText, state: "todo", depth: 0 }, ...items],
         `text:${id}`,
       );
       set({ focusId: id });
@@ -161,7 +273,8 @@ export const useTodos = create<TodosState>((set, get) => {
       set({
         activeId: id,
         title,
-        items,
+        // Fix any structural quirks and ensure parent states match their kids.
+        items: withRollup(normalizeDepths(items)),
         past: [],
         future: [],
         lastKey: null,

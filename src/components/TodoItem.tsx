@@ -1,6 +1,7 @@
 import { Box, Group, Textarea } from "@mantine/core";
 import { useEffect, useRef } from "react";
 
+import { useItemMenu } from "../lib/context-menu";
 import { useDrag } from "../lib/reorder";
 import { type TodoData, useTodos } from "../lib/todos";
 import { StateCheckbox } from "./StateCheckbox";
@@ -16,6 +17,9 @@ interface TodoItemProps {
  */
 const LINE_HEIGHT = 20;
 
+/** Left inset of a sub-item, so its checkbox sits under the parent's text. */
+const INDENT = 24;
+
 /**
  * A single todo row: the custom status checkbox plus an inline, unstyled text
  * field. Reads/writes through the todos store so edits flow through undo/redo.
@@ -23,10 +27,13 @@ const LINE_HEIGHT = 20;
 export function TodoItem({ item }: TodoItemProps) {
   const setItemText = useTodos((s) => s.setItemText);
   const deleteItemFocusNeighbor = useTodos((s) => s.deleteItemFocusNeighbor);
+  const indentItem = useTodos((s) => s.indentItem);
+  const outdentItem = useTodos((s) => s.outdentItem);
   const focusId = useTodos((s) => s.focusId);
   const clearFocus = useTodos((s) => s.clearFocus);
   const dragging = useDrag((s) => s.id === item.id);
   const done = item.state === "done";
+  const child = item.depth === 1;
 
   // When this item was just created (type-to-create), grab focus and place the
   // caret after the seeded character.
@@ -48,11 +55,32 @@ export function TodoItem({ item }: TodoItemProps) {
       wrap="nowrap"
       align="flex-start"
       data-todo-row
+      onContextMenu={(e) => {
+        e.preventDefault();
+        useItemMenu.getState().show(item.id, e.clientX, e.clientY);
+      }}
       style={{
+        position: "relative",
+        paddingLeft: child ? INDENT : 0,
         opacity: dragging ? 0.4 : 1,
         transition: "opacity 120ms ease",
       }}
     >
+      {/* Nesting guide: a faint vertical line under the parent's checkbox. */}
+      {child && (
+        <div
+          style={{
+            position: "absolute",
+            left: 7,
+            top: 0,
+            bottom: 0,
+            width: 1.5,
+            borderRadius: 1,
+            background:
+              "color-mix(in srgb, var(--mantine-color-default-border) 70%, transparent)",
+          }}
+        />
+      )}
       <Box
         style={{
           display: "flex",
@@ -69,9 +97,14 @@ export function TodoItem({ item }: TodoItemProps) {
         value={item.text}
         onChange={(e) => setItemText(item.id, e.currentTarget.value)}
         onKeyDown={(e) => {
-          // Enter confirms the item — just drops focus (Shift+Enter still
-          // inserts a literal newline for a multi-line item).
-          if (e.key === "Enter" && !e.shiftKey) {
+          // Tab / Shift+Tab nest / un-nest the item (one level).
+          if (e.key === "Tab") {
+            e.preventDefault();
+            if (e.shiftKey) outdentItem(item.id);
+            else indentItem(item.id);
+          } else if (e.key === "Enter" && !e.shiftKey) {
+            // Enter confirms the item — just drops focus (Shift+Enter still
+            // inserts a literal newline for a multi-line item).
             e.preventDefault();
             e.currentTarget.blur();
           } else if (e.key === "Backspace" && item.text === "") {

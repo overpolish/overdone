@@ -6,6 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect } from "react";
 
 import { Footer } from "./components/Footer";
+import { ItemContextMenu } from "./components/ItemContextMenu";
 import { ScrollArea } from "./components/ScrollArea";
 import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
@@ -166,6 +167,7 @@ function App() {
       </ScrollArea>
 
       <Footer />
+      <ItemContextMenu />
     </div>
   );
 }

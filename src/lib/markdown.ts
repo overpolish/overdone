@@ -7,15 +7,16 @@ import { type TodoState } from "./todo";
  *   # My list
  *
  *   - [ ] A todo
+ *     - [ ] A sub-item
  *   - [-] Something on hold
  *   - [x] Something done
  *     with a second line of detail
  *
  * Todo and done use the standard GitHub task-list markers so the files stay
- * readable in any markdown viewer; on-hold uses `- [-]` (the Obsidian/Tasks
- * convention), which other viewers render as a plain bullet. An item's text may
- * span multiple lines: continuation lines are indented two spaces under the
- * item and rejoined on parse.
+ * readable in any markdown viewer; on-hold uses `- [-]` and in-progress `- [/]`
+ * (the Obsidian/Tasks conventions). Sub-items (one level only) are indented two
+ * spaces. An item's text may span multiple lines: continuation lines are
+ * indented two spaces past the item's marker and rejoined on parse.
  */
 
 const STATE_TO_MARKER: Record<TodoState, string> = {
@@ -34,8 +35,11 @@ const MARKER_TO_STATE: Record<string, TodoState> = {
   X: "done",
 };
 
-/** Matches a task line, capturing the marker and the trailing text. */
-const ITEM_RE = /^- \[(.?)\]\s?(.*)$/;
+/**
+ * Matches a task line, capturing an optional two-space indent (= sub-item), the
+ * marker, and the trailing text.
+ */
+const ITEM_RE = /^( {2})?- \[(.?)\]\s?(.*)$/;
 
 export interface ParsedList {
   title: string;
@@ -46,12 +50,13 @@ export interface ParsedList {
 export function serializeList(title: string, items: TodoData[]): string {
   const lines: string[] = [`# ${title}`, ""];
   for (const item of items) {
+    const indent = item.depth === 1 ? "  " : "";
     const marker = STATE_TO_MARKER[item.state];
     const [first = "", ...rest] = item.text.split("\n");
-    lines.push(`- [${marker}] ${first}`);
-    // Indent continuation lines so they read as part of the item and parse back
-    // into the same multi-line text.
-    for (const line of rest) lines.push(`  ${line}`);
+    lines.push(`${indent}- [${marker}] ${first}`);
+    // Continuation lines sit two spaces past the marker so they read as part of
+    // the item and parse back into the same multi-line text.
+    for (const line of rest) lines.push(`${indent}  ${line}`);
   }
   return lines.join("\n") + "\n";
 }
@@ -88,16 +93,19 @@ export function parseList(content: string): ParsedList {
 
     const item = line.match(ITEM_RE);
     if (item) {
-      const state = MARKER_TO_STATE[item[1]] ?? "todo";
-      items.push({ id: crypto.randomUUID(), text: item[2], state });
+      const depth = item[1] ? 1 : 0;
+      const state = MARKER_TO_STATE[item[2]] ?? "todo";
+      items.push({ id: crypto.randomUUID(), text: item[3], state, depth });
       continue;
     }
 
     // A non-empty, non-item line that isn't the title is a continuation of the
-    // previous item's text (its leading two-space indent is stripped).
+    // previous item's text. Strip up to the item's continuation indent (marker
+    // indent + 2): 4 spaces for a sub-item, 2 for a top item.
     if (items.length > 0 && line.trim() !== "") {
       const last = items[items.length - 1];
-      last.text += "\n" + line.replace(/^ {2}/, "");
+      const strip = last.depth === 1 ? 4 : 2;
+      last.text += "\n" + line.replace(new RegExp(`^ {0,${strip}}`), "");
     }
   }
 
