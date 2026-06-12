@@ -20,9 +20,24 @@
         "minHeight": 240,
         "visible": false,
         "hiddenTitle": true,
-        "titleBarStyle": "Overlay"
+        "titleBarStyle": "Overlay",
+        "alwaysOnTop": true
+      },
+      {
+        "label": "panel",
+        "title": "overdone",
+        "width": 360,
+        "height": 440,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": true,
+        "visible": false
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }

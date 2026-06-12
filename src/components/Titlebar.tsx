@@ -3,9 +3,11 @@ import {
   Box,
   Center,
   Group,
+  UnstyledButton,
   useComputedColorScheme,
 } from "@mantine/core";
 import { IconMinus, IconSquare, IconX } from "@tabler/icons-react";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { platform } from "@tauri-apps/plugin-os";
 
@@ -46,17 +48,31 @@ export function Titlebar() {
       pos="relative"
       style={{ flexShrink: 0, userSelect: "none" }}
     >
-      {/* Centered logo - pointer-events off so clicks fall through to drag. */}
+      {/*
+       * Logo opens the panel. The Center is pointer-events: none so the empty
+       * bar stays draggable; the button re-enables events for itself only.
+       */}
       <Center h="100%" style={{ pointerEvents: "none" }}>
-        <img
-          src="/icon.svg"
-          alt="Overdone"
+        <UnstyledButton
+          aria-label="Open panel"
+          onClick={() => void invoke("show_panel")}
           style={{
-            height: 18,
-            display: "block",
-            filter: light ? "invert(1)" : undefined,
+            pointerEvents: "auto",
+            display: "flex",
+            lineHeight: 0,
+            cursor: "pointer",
           }}
-        />
+        >
+          <img
+            src="/icon.svg"
+            alt="Overdone"
+            style={{
+              height: 18,
+              display: "block",
+              filter: light ? "invert(1)" : undefined,
+            }}
+          />
+        </UnstyledButton>
       </Center>
 
       {isWindows && (

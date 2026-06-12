@@ -1,17 +1,44 @@
 import "@mantine/core/styles.css";
 
 import { ColorSchemeScript, MantineProvider } from "@mantine/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
+import { Panel } from "./components/Panel";
+import { Settings } from "./components/Settings";
+import { zustandColorSchemeManager } from "./lib/color-scheme";
 import { theme } from "./theme";
+
+const colorSchemeManager = zustandColorSchemeManager();
+
+/** Which window are we rendering into? Falls back to the main app. */
+function currentLabel(): string {
+  try {
+    return getCurrentWindow().label;
+  } catch {
+    return "main";
+  }
+}
+
+const isPanel = currentLabel() === "panel";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ColorSchemeScript defaultColorScheme="auto" />
-    <MantineProvider theme={theme} defaultColorScheme="auto">
-      <App />
+    <MantineProvider
+      theme={theme}
+      defaultColorScheme="auto"
+      colorSchemeManager={colorSchemeManager}
+    >
+      {isPanel ? (
+        <Panel>
+          <Settings />
+        </Panel>
+      ) : (
+        <App />
+      )}
     </MantineProvider>
   </React.StrictMode>,
 );
