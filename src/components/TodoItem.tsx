@@ -21,6 +21,7 @@ const LINE_HEIGHT = 20;
  */
 export function TodoItem({ item }: TodoItemProps) {
   const setItemText = useTodos((s) => s.setItemText);
+  const deleteItemFocusNeighbor = useTodos((s) => s.deleteItemFocusNeighbor);
   const focusId = useTodos((s) => s.focusId);
   const clearFocus = useTodos((s) => s.clearFocus);
   const done = item.state === "done";
@@ -56,6 +57,18 @@ export function TodoItem({ item }: TodoItemProps) {
         placeholder="Untitled"
         value={item.text}
         onChange={(e) => setItemText(item.id, e.currentTarget.value)}
+        onKeyDown={(e) => {
+          // Enter confirms the item — just drops focus (Shift+Enter still
+          // inserts a literal newline for a multi-line item).
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            e.currentTarget.blur();
+          } else if (e.key === "Backspace" && item.text === "") {
+            // Backspace on an empty item removes it and focuses the neighbour.
+            e.preventDefault();
+            deleteItemFocusNeighbor(item.id);
+          }
+        }}
         // Grow with content and wrap instead of overflowing the narrow window.
         autosize
         minRows={1}

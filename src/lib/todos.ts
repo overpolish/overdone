@@ -40,6 +40,8 @@ interface TodosState {
   setItemText: (id: string, text: string) => void;
   setTitle: (title: string) => void;
   deleteItem: (id: string) => void;
+  /** Delete an item and move focus to its neighbour (previous, else next). */
+  deleteItemFocusNeighbor: (id: string) => void;
   /** Insert a new (empty by default) item at the top and focus it. */
   addItem: (initialText?: string) => void;
   clearFocus: () => void;
@@ -97,6 +99,17 @@ export const useTodos = create<TodosState>((set, get) => {
 
     deleteItem: (id) =>
       commit((items) => items.filter((i) => i.id !== id), null),
+
+    deleteItemFocusNeighbor: (id) => {
+      const { items } = get();
+      const idx = items.findIndex((i) => i.id === id);
+      if (idx === -1) return;
+      // Previous item if there is one, otherwise the next; null when it was the
+      // only item. The focus effect places the caret at the end.
+      const neighbor = items[idx - 1] ?? items[idx + 1];
+      commit((items) => items.filter((i) => i.id !== id), null);
+      set({ focusId: neighbor ? neighbor.id : null });
+    },
 
     addItem: (initialText = "") => {
       const id = crypto.randomUUID();
