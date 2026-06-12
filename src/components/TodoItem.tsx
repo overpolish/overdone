@@ -1,6 +1,7 @@
 import { Box, Group, Textarea } from "@mantine/core";
 import { useEffect, useRef } from "react";
 
+import { caretEdges } from "../lib/caret";
 import { useItemMenu } from "../lib/context-menu";
 import { useDrag } from "../lib/reorder";
 import { type TodoData, useTodos } from "../lib/todos";
@@ -30,24 +31,27 @@ export function TodoItem({ item }: TodoItemProps) {
   const indentItem = useTodos((s) => s.indentItem);
   const outdentItem = useTodos((s) => s.outdentItem);
   const focusId = useTodos((s) => s.focusId);
+  const focusCaret = useTodos((s) => s.focusCaret);
   const clearFocus = useTodos((s) => s.clearFocus);
   const dragging = useDrag((s) => s.id === item.id);
   const done = item.state === "done";
   const child = item.depth === 1;
 
-  // When this item was just created (type-to-create), grab focus and place the
-  // caret after the seeded character.
+  // When focus is directed here (type-to-create, search, arrow nav), grab it,
+  // place the caret per the hint, and scroll the row into view — the custom
+  // scroll container doesn't always follow focus on its own.
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (focusId !== item.id) return;
     const el = inputRef.current;
     if (el) {
-      el.focus();
-      const end = el.value.length;
-      el.setSelectionRange(end, end);
+      el.focus({ preventScroll: true });
+      const pos = focusCaret === "start" ? 0 : el.value.length;
+      el.setSelectionRange(pos, pos);
+      el.scrollIntoView({ block: "nearest" });
     }
     clearFocus();
-  }, [focusId, item.id, clearFocus]);
+  }, [focusId, item.id, focusCaret, clearFocus]);
 
   return (
     <Group
@@ -111,6 +115,23 @@ export function TodoItem({ item }: TodoItemProps) {
             // Backspace on an empty item removes it and focuses the neighbour.
             e.preventDefault();
             deleteItemFocusNeighbor(item.id);
+          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            // At the first visual row, ArrowUp jumps to the previous item; at
+            // the last, ArrowDown jumps to the next — so the list reads as one
+            // continuous field. Within a multi-line item (wrapped or not) the
+            // caret walks its own rows first before crossing to a neighbour.
+            const up = e.key === "ArrowUp";
+            const { atFirstLine, atLastLine } = caretEdges(e.currentTarget);
+            if (up ? !atFirstLine : !atLastLine) return;
+            const { items, focusItem } = useTodos.getState();
+            const idx = items.findIndex((x) => x.id === item.id);
+            const neighbor = up ? items[idx - 1] : items[idx + 1];
+            if (neighbor) {
+              e.preventDefault();
+              // Land where the eye is: end of the item above, start of the one
+              // below.
+              focusItem(neighbor.id, up ? "end" : "start");
+            }
           }
         }}
         // Grow with content and wrap instead of overflowing the narrow window.

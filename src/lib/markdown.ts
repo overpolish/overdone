@@ -17,6 +17,12 @@ import { type TodoState } from "./todo";
  * (the Obsidian/Tasks conventions). Sub-items (one level only) are indented two
  * spaces. An item's text may span multiple lines: continuation lines are
  * indented two spaces past the item's marker and rejoined on parse.
+ *
+ * Per-item timestamps (created / last-updated / done) are tacked onto the end of
+ * the item's first line as an HTML comment, e.g.
+ *   - [x] Ship it <!-- created=2026-06-12T09:00:00.000Z done=2026-06-12T10:00:00.000Z -->
+ * Comments are invisible in any rendered markdown view, so the files stay clean,
+ * and they round-trip back into the item's metadata on parse.
  */
 
 const STATE_TO_MARKER: Record<TodoState, string> = {
@@ -41,9 +47,49 @@ const MARKER_TO_STATE: Record<string, TodoState> = {
  */
 const ITEM_RE = /^( {2})?- \[(.?)\]\s?(.*)$/;
 
+/** Trailing metadata comment on an item's first line. */
+const META_RE = /\s*<!--\s*(.*?)\s*-->\s*$/;
+
+/** The metadata keys carried in the comment, in serialization order. */
+const META_FIELDS = [
+  ["created", "createdAt"],
+  ["updated", "updatedAt"],
+  ["done", "doneAt"],
+] as const;
+
 export interface ParsedList {
   title: string;
   items: TodoData[];
+}
+
+/** Build the trailing ` <!-- ... -->` comment for an item's timestamps. */
+function serializeMeta(item: TodoData): string {
+  const parts: string[] = [];
+  for (const [key, field] of META_FIELDS) {
+    const value = item[field];
+    if (value != null) parts.push(`${key}=${new Date(value).toISOString()}`);
+  }
+  return parts.length ? ` <!-- ${parts.join(" ")} -->` : "";
+}
+
+/**
+ * Pull a trailing metadata comment off an item's first-line text. Only strips
+ * the comment when it actually carries a recognized key, so an unrelated HTML
+ * comment in the text is left untouched.
+ */
+function parseMeta(text: string): { text: string; meta: Partial<TodoData> } {
+  const m = text.match(META_RE);
+  if (!m) return { text, meta: {} };
+  const meta: Partial<TodoData> = {};
+  for (const pair of m[1].split(/\s+/)) {
+    const eq = pair.indexOf("=");
+    if (eq === -1) continue;
+    const field = META_FIELDS.find(([key]) => key === pair.slice(0, eq))?.[1];
+    const t = Date.parse(pair.slice(eq + 1));
+    if (field && !Number.isNaN(t)) meta[field] = t;
+  }
+  if (Object.keys(meta).length === 0) return { text, meta: {} };
+  return { text: text.slice(0, m.index), meta };
 }
 
 /** Build the markdown for a list. */
@@ -53,7 +99,7 @@ export function serializeList(title: string, items: TodoData[]): string {
     const indent = item.depth === 1 ? "  " : "";
     const marker = STATE_TO_MARKER[item.state];
     const [first = "", ...rest] = item.text.split("\n");
-    lines.push(`${indent}- [${marker}] ${first}`);
+    lines.push(`${indent}- [${marker}] ${first}${serializeMeta(item)}`);
     // Continuation lines sit two spaces past the marker so they read as part of
     // the item and parse back into the same multi-line text.
     for (const line of rest) lines.push(`${indent}  ${line}`);
@@ -95,7 +141,8 @@ export function parseList(content: string): ParsedList {
     if (item) {
       const depth = item[1] ? 1 : 0;
       const state = MARKER_TO_STATE[item[2]] ?? "todo";
-      items.push({ id: crypto.randomUUID(), text: item[3], state, depth });
+      const { text, meta } = parseMeta(item[3]);
+      items.push({ id: crypto.randomUUID(), text, state, depth, ...meta });
       continue;
     }
 

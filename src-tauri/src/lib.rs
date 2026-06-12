@@ -508,7 +508,8 @@ fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State<Win
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .manage(WindowState {
             always_on_top: AtomicBool::new(true),
             panel_open: AtomicBool::new(false),
@@ -532,7 +533,20 @@ pub fn run() {
                 )
                 .with_denylist(&["panel"])
                 .build(),
-        )
+        );
+
+    // Launch-at-startup support. Desktop-only (the plugin has no mobile impl),
+    // and the actual enable/disable is driven from the settings UI via the
+    // plugin's JS API.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ));
+    }
+
+    builder
         .invoke_handler(tauri::generate_handler![
             flag_attention,
             background_app,

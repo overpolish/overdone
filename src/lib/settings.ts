@@ -1,5 +1,6 @@
 import type { MantineColorScheme } from "@mantine/core";
 import { invoke } from "@tauri-apps/api/core";
+import { disable, enable } from "@tauri-apps/plugin-autostart";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -8,9 +9,12 @@ export interface SettingsState {
   alwaysOnTop: boolean;
   /** Click-through: the window hides + passes clicks through on hover. */
   passthrough: boolean;
+  /** Launch the app automatically on login (registered with the OS). */
+  launchAtStartup: boolean;
   setColorScheme: (value: MantineColorScheme) => void;
   setAlwaysOnTop: (value: boolean) => void;
   setPassthrough: (value: boolean) => void;
+  setLaunchAtStartup: (value: boolean) => void;
 }
 
 const STORAGE_NAME = "overdone-settings";
@@ -25,6 +29,7 @@ export const useSettings = create<SettingsState>()(
       colorScheme: "auto",
       alwaysOnTop: true,
       passthrough: false,
+      launchAtStartup: false,
       setColorScheme: (colorScheme) => set({ colorScheme }),
       setAlwaysOnTop: (alwaysOnTop) => {
         set({ alwaysOnTop });
@@ -36,6 +41,15 @@ export const useSettings = create<SettingsState>()(
         set({ passthrough });
         void invoke("set_passthrough", { value: passthrough });
       },
+      setLaunchAtStartup: (launchAtStartup) => {
+        set({ launchAtStartup });
+        // Register/unregister with the OS login items. Only the window that
+        // initiates the change does this; remote windows just sync state.
+        void (launchAtStartup ? enable() : disable()).catch(() => {
+          // Registration can fail (e.g. unsupported environment); leave the
+          // toggle reflecting the request rather than reverting silently.
+        });
+      },
     }),
     {
       name: STORAGE_NAME,
@@ -44,6 +58,7 @@ export const useSettings = create<SettingsState>()(
         colorScheme: state.colorScheme,
         alwaysOnTop: state.alwaysOnTop,
         passthrough: state.passthrough,
+        launchAtStartup: state.launchAtStartup,
       }),
     },
   ),
@@ -78,6 +93,7 @@ if (typeof BroadcastChannel !== "undefined") {
       colorScheme: state.colorScheme,
       alwaysOnTop: state.alwaysOnTop,
       passthrough: state.passthrough,
+      launchAtStartup: state.launchAtStartup,
     });
   });
 

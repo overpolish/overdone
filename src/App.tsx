@@ -2,6 +2,7 @@ import { Stack, Text } from "@mantine/core";
 import { IconKeyboard } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect } from "react";
 
@@ -97,6 +98,11 @@ function App() {
     const { alwaysOnTop, passthrough } = useSettings.getState();
     void invoke("set_always_on_top", { value: alwaysOnTop });
     void invoke("set_passthrough", { value: passthrough });
+    // The OS login-item registration is the source of truth for autostart;
+    // reconcile the toggle to it (without re-invoking enable/disable).
+    void isAutostartEnabled()
+      .then((on) => useSettings.setState({ launchAtStartup: on }))
+      .catch(() => {});
   }, []);
 
   // Global keyboard handling. Shortcuts (Cmd/Ctrl+Z / Shift / Y) take priority;

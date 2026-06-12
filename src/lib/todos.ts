@@ -10,6 +10,29 @@ export interface TodoData {
   state: TodoState;
   /** Nesting level: 0 = top item, 1 = sub-item. Only one level is supported. */
   depth: number;
+  /** Epoch ms when the item was created. Absent for legacy items loaded from
+   * files written before metadata was tracked. */
+  createdAt?: number;
+  /** Epoch ms of the last edit to the item's text, state, or nesting. */
+  updatedAt?: number;
+  /** Epoch ms when the item entered the `done` state; cleared when it leaves. */
+  doneAt?: number;
+}
+
+/** Wall-clock now, in epoch ms — the single clock the store stamps from. */
+const now = () => Date.now();
+
+/**
+ * Apply a new state to an item, stamping `updatedAt` and maintaining `doneAt`
+ * (set on the first transition into `done`, cleared on leaving it).
+ */
+function applyState(item: TodoData, state: TodoState, t: number): TodoData {
+  return {
+    ...item,
+    state,
+    updatedAt: t,
+    doneAt: state === "done" ? (item.doneAt ?? t) : undefined,
+  };
 }
 
 /**
@@ -33,7 +56,7 @@ function normalizeDepths(items: TodoData[]): TodoData[] {
  * are done, and un-done (→ todo) if it was done but they aren't. A parent's
  * non-done state is left alone otherwise.
  */
-function withRollup(items: TodoData[]): TodoData[] {
+function withRollup(items: TodoData[], t = now()): TodoData[] {
   const out = items.slice();
   for (let i = 0; i < out.length; i++) {
     if (out[i].depth !== 0) continue;
@@ -41,8 +64,8 @@ function withRollup(items: TodoData[]): TodoData[] {
     for (let j = i + 1; j < out.length && out[j].depth === 1; j++) kids.push(out[j]);
     if (kids.length === 0) continue;
     const allDone = kids.every((k) => k.state === "done");
-    if (allDone && out[i].state !== "done") out[i] = { ...out[i], state: "done" };
-    else if (!allDone && out[i].state === "done") out[i] = { ...out[i], state: "todo" };
+    if (allDone && out[i].state !== "done") out[i] = applyState(out[i], "done", t);
+    else if (!allDone && out[i].state === "done") out[i] = applyState(out[i], "todo", t);
   }
   return out;
 }
@@ -87,6 +110,12 @@ interface TodosState {
    */
   focusId: string | null;
   /**
+   * Where to place the caret when `focusId` grabs focus: `end` (the default,
+   * e.g. a newly created item) or `start` (e.g. arrowing down into the next
+   * item, so the caret lands where the eye is).
+   */
+  focusCaret: "start" | "end";
+  /**
    * When true, the list title field should grab focus and select its contents
    * on the next render (set when a freshly-created, untitled list is opened).
    */
@@ -114,7 +143,7 @@ interface TodosState {
   clearFocus: () => void;
   clearFocusTitle: () => void;
   /** Focus an item's text field (e.g. when picked from search). */
-  focusItem: (id: string) => void;
+  focusItem: (id: string, caret?: "start" | "end") => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
   open: (id: string) => Promise<void>;
   undo: () => void;
@@ -148,26 +177,31 @@ export const useTodos = create<TodosState>((set, get) => {
     future: [],
     lastKey: null,
     focusId: null,
+    focusCaret: "end",
     focusTitle: false,
 
     setItemState: (id, state) =>
       commit((items) => {
         const i = items.findIndex((x) => x.id === id);
         if (i === -1) return items;
-        let next = items.map((it, idx) => (idx === i ? { ...it, state } : it));
+        const t = now();
+        let next = items.map((it, idx) => (idx === i ? applyState(it, state, t) : it));
         // Setting a parent cascades to all its sub-items (group control).
         if (next[i].depth === 0) {
           for (let j = i + 1; j < next.length && next[j].depth === 1; j++) {
-            next[j] = { ...next[j], state };
+            next[j] = applyState(next[j], state, t);
           }
         }
         // Setting a sub-item rolls its done state up to the parent.
-        return withRollup(next);
+        return withRollup(next, t);
       }, null),
 
     setItemText: (id, text) =>
       commit(
-        (items) => items.map((i) => (i.id === id ? { ...i, text } : i)),
+        (items) =>
+          items.map((i) =>
+            i.id === id ? { ...i, text, updatedAt: now() } : i,
+          ),
         `text:${id}`,
       ),
 
@@ -218,7 +252,9 @@ export const useTodos = create<TodosState>((set, get) => {
         // first item is always depth 0). Indenting a parent flattens its
         // sub-items into siblings under the new parent (one level only).
         if (i <= 0 || items[i].depth !== 0) return items;
-        const next = items.map((it, idx) => (idx === i ? { ...it, depth: 1 } : it));
+        const next = items.map((it, idx) =>
+          idx === i ? { ...it, depth: 1, updatedAt: now() } : it,
+        );
         return withRollup(next);
       }, null),
 
@@ -226,7 +262,9 @@ export const useTodos = create<TodosState>((set, get) => {
       commit((items) => {
         const i = items.findIndex((x) => x.id === id);
         if (i === -1 || items[i].depth !== 1) return items;
-        const next = items.map((it, idx) => (idx === i ? { ...it, depth: 0 } : it));
+        const next = items.map((it, idx) =>
+          idx === i ? { ...it, depth: 0, updatedAt: now() } : it,
+        );
         return withRollup(next);
       }, null),
 
@@ -239,7 +277,15 @@ export const useTodos = create<TodosState>((set, get) => {
         let at = i + 1;
         while (at < items.length && items[at].depth === 1) at++;
         const next = items.slice();
-        next.splice(at, 0, { id, text: "", state: "todo", depth: 1 });
+        const t = now();
+        next.splice(at, 0, {
+          id,
+          text: "",
+          state: "todo",
+          depth: 1,
+          createdAt: t,
+          updatedAt: t,
+        });
         return withRollup(next);
       }, `text:${id}`);
       set({ focusId: id });
@@ -249,18 +295,23 @@ export const useTodos = create<TodosState>((set, get) => {
       const id = crypto.randomUUID();
       // Coalesce under the same key the text field uses, so creating an item
       // and typing its first words collapse into a single undo step.
-      commit(
-        (items) => [{ id, text: initialText, state: "todo", depth: 0 }, ...items],
-        `text:${id}`,
-      );
+      commit((items) => {
+        const t = now();
+        return [
+          { id, text: initialText, state: "todo", depth: 0, createdAt: t, updatedAt: t },
+          ...items,
+        ];
+      }, `text:${id}`);
       set({ focusId: id });
     },
 
-    clearFocus: () => set({ focusId: null }),
+    // Reset the caret hint to its default as focus is consumed, so a one-off
+    // `start` (arrow-down) doesn't leak into the next focus.
+    clearFocus: () => set({ focusId: null, focusCaret: "end" }),
 
     clearFocusTitle: () => set({ focusTitle: false }),
 
-    focusItem: (id) => set({ focusId: id }),
+    focusItem: (id, caret = "end") => set({ focusId: id, focusCaret: caret }),
 
     open: async (id) => {
       let content = "";

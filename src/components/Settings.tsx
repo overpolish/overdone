@@ -27,6 +27,8 @@ export function Settings() {
   const setAlwaysOnTop = useSettings((state) => state.setAlwaysOnTop);
   const passthrough = useSettings((state) => state.passthrough);
   const setPassthrough = useSettings((state) => state.setPassthrough);
+  const launchAtStartup = useSettings((state) => state.launchAtStartup);
+  const setLaunchAtStartup = useSettings((state) => state.setLaunchAtStartup);
 
   return (
     <Stack gap="md" w={300}>
@@ -88,6 +90,21 @@ export function Settings() {
         <Checkbox
           checked={alwaysOnTop}
           onChange={(event) => setAlwaysOnTop(event.currentTarget.checked)}
+        />
+      </Group>
+
+      <Group
+        component="label"
+        justify="space-between"
+        wrap="nowrap"
+        style={{ cursor: "pointer" }}
+      >
+        <Text size="sm" fw={500}>
+          Launch at startup
+        </Text>
+        <Checkbox
+          checked={launchAtStartup}
+          onChange={(event) => setLaunchAtStartup(event.currentTarget.checked)}
         />
       </Group>
 
