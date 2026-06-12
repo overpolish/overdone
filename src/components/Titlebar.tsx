@@ -1,10 +1,11 @@
 import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import { IconListCheck, IconMinus, IconX } from "@tabler/icons-react";
+import { IconListCheck, IconMinus, IconPlus, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 
 import { openPanel } from "../lib/panel";
 import { dangerBg, dangerFg } from "../lib/styles";
+import { useTodos } from "../lib/todos";
 
 const TITLEBAR_HEIGHT = 38;
 
@@ -118,8 +119,14 @@ export function Titlebar() {
         />
       </Group>
 
-      {/* Lists picker on the right, mirroring the window controls on the left. */}
+      {/* Add + lists on the right, mirroring the window controls on the left. */}
       <Group h="100%" gap={2} pr={8} pos="absolute" top={0} right={0} wrap="nowrap">
+        {/* Backup for type-to-create: makes a new item and focuses it. */}
+        <WindowButton
+          label="Add item"
+          icon={IconPlus}
+          onClick={() => useTodos.getState().addItem()}
+        />
         <WindowButton
           label="Lists"
           icon={IconListCheck}

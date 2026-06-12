@@ -8,7 +8,7 @@ import {
   UnstyledButton,
   useComputedColorScheme,
 } from "@mantine/core";
-import { IconDownload, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconDownload, IconListCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 import { exportList, type ListMeta, useLists } from "../lib/lists";
@@ -38,7 +38,10 @@ export function Lists() {
   return (
     <Stack gap="md" w={260}>
       <Group justify="space-between" wrap="nowrap">
-        <Title order={5}>Lists</Title>
+        <Group gap={8} wrap="nowrap">
+          <IconListCheck size={18} stroke={1.8} />
+          <Title order={5}>Lists</Title>
+        </Group>
         <ActionIcon
           variant="subtle"
           color="gray"

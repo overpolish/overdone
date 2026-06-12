@@ -1,4 +1,5 @@
-import { Stack } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
+import { IconKeyboard } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
@@ -127,9 +128,16 @@ function App() {
 
       <ScrollArea style={{ flex: 1 }}>
         <Stack gap={0} p="sm" pos="relative">
-          {items.map((item) => (
-            <TodoItem key={item.id} item={item} />
-          ))}
+          {items.length === 0 ? (
+            <Stack align="center" gap={6} pt="xl" c="dimmed">
+              <IconKeyboard size={40} stroke={1.5} opacity={0.5} />
+              <Text size="sm" ta="center">
+                Start typing to add items
+              </Text>
+            </Stack>
+          ) : (
+            items.map((item) => <TodoItem key={item.id} item={item} />)
+          )}
           <DropIndicator />
         </Stack>
       </ScrollArea>

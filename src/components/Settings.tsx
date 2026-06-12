@@ -9,7 +9,7 @@ import {
   Tooltip,
   useMantineColorScheme,
 } from "@mantine/core";
-import { IconDeviceDesktop, IconMoon, IconSun } from "@tabler/icons-react";
+import { IconDeviceDesktop, IconMoon, IconSettings, IconSun } from "@tabler/icons-react";
 
 import { useSettings } from "../lib/settings";
 
@@ -28,7 +28,10 @@ export function Settings() {
 
   return (
     <Stack gap="md" w={300}>
-      <Title order={5}>Settings</Title>
+      <Group gap={8} wrap="nowrap">
+        <IconSettings size={18} stroke={1.8} />
+        <Title order={5}>Settings</Title>
+      </Group>
 
       <Group justify="space-between" wrap="nowrap">
         <Text size="sm" fw={500}>
