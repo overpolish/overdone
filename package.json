@@ -11,6 +11,9 @@
     "generate-icons": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
+    "@mantine/core": "^9.3.1",
+    "@mantine/hooks": "^9.3.1",
+    "@tabler/icons-react": "^3.44.0",
     "@tauri-apps/api": "^2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -23,6 +26,9 @@
     "@vitejs/plugin-react": "^4.6.0",
     "colord": "^2.9.3",
     "ora": "^9.4.0",
+    "postcss": "^8.5.15",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
     "sharp": "^0.35.1",
     "tsx": "^4.22.4",
     "typescript": "~5.8.3",
