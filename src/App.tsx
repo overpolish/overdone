@@ -2,6 +2,7 @@ import { Stack, Text } from "@mantine/core";
 import { IconKeyboard } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect } from "react";
 
 import { Footer } from "./components/Footer";
@@ -55,6 +56,17 @@ function App() {
     bindMainWindow();
   }, []);
 
+  // In passthrough mode, clicking the (modifier-revealed) window should focus it
+  // so it stays interactive. `acceptFirstMouse` delivers the click to the content
+  // but doesn't activate the window, so focus it explicitly.
+  useEffect(() => {
+    const onPointerDown = () => {
+      if (useSettings.getState().passthrough) void getCurrentWindow().setFocus();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => window.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
+
   // Apply status picks made in the floating panel back to the store.
   useEffect(() => {
     const unlisten = listen<StatusAction>("status:action", (e) => {
@@ -68,11 +80,11 @@ function App() {
     };
   }, []);
 
-  // Apply the persisted always-on-top preference on startup.
+  // Apply persisted window preferences on startup.
   useEffect(() => {
-    void invoke("set_always_on_top", {
-      value: useSettings.getState().alwaysOnTop,
-    });
+    const { alwaysOnTop, passthrough } = useSettings.getState();
+    void invoke("set_always_on_top", { value: alwaysOnTop });
+    void invoke("set_passthrough", { value: passthrough });
   }, []);
 
   // Global keyboard handling. Shortcuts (Cmd/Ctrl+Z / Shift / Y) take priority;

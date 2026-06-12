@@ -16,6 +16,17 @@ struct WindowState {
     /// below an item) rather than centered under the main title bar. Centered
     /// panels re-center when their content resizes; anchored ones stay put.
     panel_anchored: AtomicBool,
+    /// Click-through ("passthrough") setting: while on, the main window hides and
+    /// passes clicks through when the cursor is over it (unless it's focused or
+    /// the modifier is held).
+    passthrough: AtomicBool,
+    /// Whether the main window currently has focus.
+    focused: AtomicBool,
+    /// Whether passthrough is currently active (window hidden + click-through),
+    /// so we only re-apply on change.
+    passthrough_active: AtomicBool,
+    /// Whether the passthrough poll loop is running.
+    passthrough_polling: AtomicBool,
 }
 
 /// Hide the macOS traffic-light buttons (close/minimize/zoom) on a window that
@@ -161,6 +172,7 @@ fn hide_panel(app: &tauri::AppHandle) {
         let on_top = state.always_on_top.load(Ordering::Relaxed);
         let _ = main.set_always_on_top(on_top);
     }
+    apply_passthrough(app);
 }
 
 /// Whether our app is still the active (frontmost) application. Used to tell a
@@ -177,6 +189,115 @@ fn app_is_active() -> bool {
         return false;
     };
     NSApplication::sharedApplication(mtm).isActive()
+}
+
+/// Window opacity while hidden by passthrough (0 = fully invisible).
+const PASSTHROUGH_HIDDEN_ALPHA: f64 = 0.0;
+
+/// Whether the cursor is over the window and whether the passthrough modifier is
+/// held, in the platform's screen coordinates. `None` on platforms without an
+/// implementation yet (passthrough then stays off).
+#[cfg(target_os = "macos")]
+fn passthrough_inputs(window: &tauri::WebviewWindow) -> Option<(bool, bool)> {
+    use objc2::{msg_send, ClassType, MainThreadMarker};
+    use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSWindow};
+
+    // Sampled on the main thread (the poll dispatches there); bail otherwise.
+    MainThreadMarker::new()?;
+    let ns_ptr = window.ns_window().ok()?;
+    let ns_window = unsafe { &*(ns_ptr as *const NSWindow) };
+    // `frame` and `mouseLocation` are both Cocoa screen coords (bottom-left),
+    // so they compare directly.
+    let frame = ns_window.frame();
+    let loc = NSEvent::mouseLocation();
+    let over = loc.x >= frame.origin.x
+        && loc.x <= frame.origin.x + frame.size.width
+        && loc.y >= frame.origin.y
+        && loc.y <= frame.origin.y + frame.size.height;
+    // The class method `+[NSEvent modifierFlags]` (live state) collides with the
+    // instance method of the same name, so reach it via `msg_send`.
+    let flags: NSEventModifierFlags = unsafe { msg_send![NSEvent::class(), modifierFlags] };
+    let modifier = flags.contains(NSEventModifierFlags::Command);
+    Some((over, modifier))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn passthrough_inputs(_window: &tauri::WebviewWindow) -> Option<(bool, bool)> {
+    // TODO(windows): GetCursorPos + GetAsyncKeyState(VK_CONTROL) compared with the
+    // window rect. Left unimplemented until it can be built and verified against a
+    // real Windows target (the Win32 calls couple to Tauri's `windows` version).
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
+    use objc2_app_kit::NSWindow;
+    if let Ok(ns_ptr) = window.ns_window() {
+        let ns_window = unsafe { &*(ns_ptr as *const NSWindow) };
+        ns_window.setAlphaValue(alpha);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_window_alpha(_window: &tauri::WebviewWindow, _alpha: f64) {}
+
+/// Recompute and apply passthrough for the main window. Active = setting on, the
+/// window isn't focused, the modifier isn't held, and the cursor is over it.
+fn apply_passthrough(app: &tauri::AppHandle) {
+    let state = app.state::<WindowState>();
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let active = state.passthrough.load(Ordering::Relaxed)
+        && !state.focused.load(Ordering::Relaxed)
+        // The secondary panel being open counts as interacting with the app, so
+        // don't hide the main window out from under it.
+        && !state.panel_open.load(Ordering::Relaxed)
+        && passthrough_inputs(&window).map_or(false, |(over, modifier)| over && !modifier);
+
+    // Only touch the window when the state actually flips.
+    if state.passthrough_active.swap(active, Ordering::Relaxed) != active {
+        let _ = window.set_ignore_cursor_events(active);
+        set_window_alpha(&window, if active { PASSTHROUGH_HIDDEN_ALPHA } else { 1.0 });
+    }
+}
+
+/// Poll passthrough inputs while the setting is on. A click-through window
+/// doesn't receive cursor/modifier events, so we sample them on the main thread.
+fn start_passthrough_poll(app: tauri::AppHandle) {
+    if app
+        .state::<WindowState>()
+        .passthrough_polling
+        .swap(true, Ordering::Relaxed)
+    {
+        return; // already running
+    }
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        let state = app.state::<WindowState>();
+        if !state.passthrough.load(Ordering::Relaxed) {
+            state.passthrough_polling.store(false, Ordering::Relaxed);
+            break;
+        }
+        let app2 = app.clone();
+        let _ = app.run_on_main_thread(move || apply_passthrough(&app2));
+    });
+}
+
+/// Enable/disable click-through passthrough for the main window.
+#[tauri::command]
+fn set_passthrough(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
+    state.passthrough.store(value, Ordering::Relaxed);
+    if value {
+        start_passthrough_poll(app.clone());
+    } else if let Some(window) = app.get_webview_window("main") {
+        // Restore the window fully when turning the setting off.
+        state.passthrough_active.store(false, Ordering::Relaxed);
+        let _ = window.set_ignore_cursor_events(false);
+        set_window_alpha(&window, 1.0);
+    }
+    apply_passthrough(&app);
 }
 
 /// Grab the user's attention: show the red tray badge and bounce the dock icon
@@ -283,6 +404,9 @@ fn open_panel(
 
     let _ = panel.show();
     let _ = panel.set_focus();
+
+    // Make sure the main window isn't left hidden by passthrough behind the panel.
+    apply_passthrough(&app);
 }
 
 /// Resize the open panel to fit content that changed while it was visible. A
@@ -335,6 +459,10 @@ pub fn run() {
             always_on_top: AtomicBool::new(true),
             panel_open: AtomicBool::new(false),
             panel_anchored: AtomicBool::new(false),
+            passthrough: AtomicBool::new(false),
+            focused: AtomicBool::new(false),
+            passthrough_active: AtomicBool::new(false),
+            passthrough_polling: AtomicBool::new(false),
         })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
@@ -346,6 +474,7 @@ pub fn run() {
             resize_panel,
             close_panel,
             set_always_on_top,
+            set_passthrough,
             hide_to_tray,
             list_lists,
             read_list,
@@ -386,10 +515,18 @@ pub fn run() {
                 let handle = app.handle().clone();
                 let win = window.clone();
                 window.on_window_event(move |event| match event {
-                    tauri::WindowEvent::Focused(true) => {
-                        tray::set_alert(&handle, false);
-                        // Clicking the main window dismisses the popover panel.
-                        hide_panel(&handle);
+                    tauri::WindowEvent::Focused(focused) => {
+                        handle
+                            .state::<WindowState>()
+                            .focused
+                            .store(*focused, Ordering::Relaxed);
+                        // Focus makes the window interactive even in passthrough.
+                        apply_passthrough(&handle);
+                        if *focused {
+                            tray::set_alert(&handle, false);
+                            // Clicking the main window dismisses the popover panel.
+                            hide_panel(&handle);
+                        }
                     }
                     tauri::WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();

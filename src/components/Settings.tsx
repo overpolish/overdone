@@ -25,6 +25,8 @@ export function Settings() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const alwaysOnTop = useSettings((state) => state.alwaysOnTop);
   const setAlwaysOnTop = useSettings((state) => state.setAlwaysOnTop);
+  const passthrough = useSettings((state) => state.passthrough);
+  const setPassthrough = useSettings((state) => state.setPassthrough);
 
   return (
     <Stack gap="md" w={300}>
@@ -88,6 +90,27 @@ export function Settings() {
           onChange={(event) => setAlwaysOnTop(event.currentTarget.checked)}
         />
       </Group>
+
+      <Stack gap={4}>
+        <Group
+          component="label"
+          justify="space-between"
+          wrap="nowrap"
+          style={{ cursor: "pointer" }}
+        >
+          <Text size="sm" fw={500}>
+            Click-through on hover
+          </Text>
+          <Checkbox
+            checked={passthrough}
+            onChange={(event) => setPassthrough(event.currentTarget.checked)}
+          />
+        </Group>
+        <Text size="xs" c="dimmed">
+          The window hides and passes clicks through while the cursor is over it.
+          Hold ⌘ (Ctrl on Windows) to click it; once focused it stays put.
+        </Text>
+      </Stack>
     </Stack>
   );
 }

@@ -6,8 +6,11 @@ import { createJSONStorage, persist } from "zustand/middleware";
 export interface SettingsState {
   colorScheme: MantineColorScheme;
   alwaysOnTop: boolean;
+  /** Click-through: the window hides + passes clicks through on hover. */
+  passthrough: boolean;
   setColorScheme: (value: MantineColorScheme) => void;
   setAlwaysOnTop: (value: boolean) => void;
+  setPassthrough: (value: boolean) => void;
 }
 
 const STORAGE_NAME = "overdone-settings";
@@ -21,12 +24,17 @@ export const useSettings = create<SettingsState>()(
     (set) => ({
       colorScheme: "auto",
       alwaysOnTop: true,
+      passthrough: false,
       setColorScheme: (colorScheme) => set({ colorScheme }),
       setAlwaysOnTop: (alwaysOnTop) => {
         set({ alwaysOnTop });
         // Apply to the main window (handled in Rust). Only the window that
         // initiates the change calls this; remote windows just sync state.
         void invoke("set_always_on_top", { value: alwaysOnTop });
+      },
+      setPassthrough: (passthrough) => {
+        set({ passthrough });
+        void invoke("set_passthrough", { value: passthrough });
       },
     }),
     {
@@ -35,6 +43,7 @@ export const useSettings = create<SettingsState>()(
       partialize: (state) => ({
         colorScheme: state.colorScheme,
         alwaysOnTop: state.alwaysOnTop,
+        passthrough: state.passthrough,
       }),
     },
   ),
@@ -68,6 +77,7 @@ if (typeof BroadcastChannel !== "undefined") {
     channel.postMessage({
       colorScheme: state.colorScheme,
       alwaysOnTop: state.alwaysOnTop,
+      passthrough: state.passthrough,
     });
   });
 
