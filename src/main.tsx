@@ -1,4 +1,5 @@
 import "@mantine/core/styles.css";
+import "./theme.css";
 
 import { ColorSchemeScript, MantineProvider } from "@mantine/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";

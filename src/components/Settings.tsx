@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Box,
   Checkbox,
   Group,
   Stack,
@@ -30,17 +31,34 @@ export function Settings() {
       <Title order={5}>Settings</Title>
 
       <Group justify="space-between" wrap="nowrap">
-        <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+        <Text size="sm" fw={500}>
           Appearance
         </Text>
-        <ActionIcon.Group>
+        <Box
+          style={{
+            display: "flex",
+            gap: 2,
+            padding: 4,
+            // Outer radius = inner chip radius (md, matching the buttons) + the
+            // padding, so the corners stay concentric.
+            borderRadius: "calc(var(--mantine-radius-md) + 4px)",
+            // Matches the unchecked Checkbox surface + border (both resolve to
+            // white / gray-4 in light, dark-6 / dark-4 in dark).
+            background: "var(--mantine-color-default)",
+            border: "1px solid var(--mantine-color-default-border)",
+          }}
+        >
           {COLOR_SCHEMES.map(({ value, label, icon: Icon }) => {
             const active = colorScheme === value;
             return (
-              <Tooltip key={value} label={label} withArrow>
+              <Tooltip key={value} label={label} withArrow openDelay={300}>
                 <ActionIcon
-                  size="lg"
-                  variant={active ? "filled" : "default"}
+                  size="md"
+                  radius="md"
+                  // Selected = filled primary, matching the app's buttons; the
+                  // others stay ghosted.
+                  variant={active ? "filled" : "subtle"}
+                  color={active ? undefined : "gray"}
                   aria-label={label}
                   aria-pressed={active}
                   onClick={() => setColorScheme(value)}
@@ -50,14 +68,23 @@ export function Settings() {
               </Tooltip>
             );
           })}
-        </ActionIcon.Group>
+        </Box>
       </Group>
 
-      <Checkbox
-        label="Always on top"
-        checked={alwaysOnTop}
-        onChange={(event) => setAlwaysOnTop(event.currentTarget.checked)}
-      />
+      <Group
+        component="label"
+        justify="space-between"
+        wrap="nowrap"
+        style={{ cursor: "pointer" }}
+      >
+        <Text size="sm" fw={500}>
+          Always on top
+        </Text>
+        <Checkbox
+          checked={alwaysOnTop}
+          onChange={(event) => setAlwaysOnTop(event.currentTarget.checked)}
+        />
+      </Group>
     </Stack>
   );
 }

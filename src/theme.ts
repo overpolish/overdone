@@ -1,11 +1,26 @@
-import { createTheme, type MantineColorsTuple } from "@mantine/core";
+import {
+  createTheme,
+  defaultVariantColorsResolver,
+  type MantineColorsTuple,
+} from "@mantine/core";
 
 import { type TailwindPalette, tailwindColors } from "./tailwind-colors";
 
 /** Tailwind palette used for grays, borders, and dark-mode surfaces. */
 const NEUTRAL = "neutral" as const;
-/** Tailwind palette used as the primary/accent color. */
-const PRIMARY = "blue" as const;
+/**
+ * Primary/accent color. shadcn's signature is a *neutral* primary (near-black
+ * in light mode, near-white in dark) rather than a saturated accent, so the
+ * primary points at the neutral family and the shade is picked per scheme.
+ */
+const PRIMARY = NEUTRAL;
+
+/**
+ * System font stack (matches shadcn's `font-sans` closely without bundling a
+ * webfont). Swap in Inter/Geist here later if we want.
+ */
+const FONT_FAMILY =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 /**
  * Convert an 11-shade Tailwind palette (50…950) into a Mantine 10-shade tuple
@@ -49,11 +64,44 @@ colors.gray = toTuple(tailwindColors[NEUTRAL]);
 
 export const theme = createTheme({
   colors,
+  /*
+   * Mantine's default resolver bakes the filled text color once, from the
+   * *light-mode* primary shade (it has no color-scheme context), then reuses it
+   * in both schemes. Because our neutral primary flips dark<->light per scheme,
+   * that gives white-on-white text in dark mode. Route filled-primary text
+   * through the scheme-aware `--mantine-primary-color-contrast` var instead
+   * (pinned per scheme in theme.css).
+   */
+  variantColorResolver: (input) => {
+    const resolved = defaultVariantColorsResolver(input);
+    const isPrimary = input.color == null || input.color === PRIMARY;
+    if (input.variant === "filled" && isPrimary) {
+      return { ...resolved, color: "var(--mantine-primary-color-contrast)" };
+    }
+    return resolved;
+  },
   primaryColor: PRIMARY,
-  // Light: shade 6 (Tailwind 600). Dark: shade 5 (Tailwind 500), brighter for
-  // contrast against dark surfaces.
-  primaryShade: { light: 6, dark: 5 },
+  // Neutral primary: near-black surface in light mode (shade 8 = Tailwind 900),
+  // near-white in dark mode (shade 0 = Tailwind 50). autoContrast then flips the
+  // text/icon color so filled controls stay legible in both schemes.
+  primaryShade: { light: 8, dark: 0 },
+  autoContrast: true,
+  fontFamily: FONT_FAMILY,
+  fontFamilyMonospace:
+    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  headings: { fontFamily: FONT_FAMILY, fontWeight: "600" },
+  // shadcn uses a consistent ~0.5rem radius across components.
+  defaultRadius: "md",
   white: "#ffffff",
   // Softer than pure black for body text (Tailwind neutral-900).
   black: tailwindColors[NEUTRAL][9],
+  components: {
+    // The Checkbox check is its own var (`--checkbox-icon-color`, defaulting to
+    // white) and bypasses the variant resolver above - so on the near-white
+    // checked box in dark mode the white tick disappears. Point it at the same
+    // scheme-aware contrast var so the tick flips with the box.
+    Checkbox: {
+      defaultProps: { iconColor: "var(--mantine-primary-color-contrast)" },
+    },
+  },
 });

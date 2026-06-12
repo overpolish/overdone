@@ -1,0 +1,18 @@
+/*
+ * shadcn-style neutral primary needs an explicit foreground per color scheme.
+ * The primary *background* flips between schemes (near-black in light,
+ * near-white in dark via primaryShade), but Mantine's core styles pin
+ * `--mantine-primary-color-contrast` to white inside the high-specificity
+ * `:root[data-mantine-color-scheme='dark']` rule - so filled controls end up
+ * white-on-white in dark mode. We must match that selector (and source order
+ * after Mantine's styles) to win, like shadcn's `--primary-foreground`.
+ */
+:root[data-mantine-color-scheme="light"],
+:host([data-mantine-color-scheme="light"]) {
+  --mantine-primary-color-contrast: var(--mantine-color-white);
+}
+
+:root[data-mantine-color-scheme="dark"],
+:host([data-mantine-color-scheme="dark"]) {
+  --mantine-primary-color-contrast: var(--mantine-color-black);
+}
