@@ -16,3 +16,15 @@
 :host([data-mantine-color-scheme="dark"]) {
   --mantine-primary-color-contrast: var(--mantine-color-black);
 }
+
+/*
+ * No rubber-band overscroll anywhere: the window is a fixed-size app surface,
+ * not a scrollable page. Inner scroll regions opt back in as needed.
+ */
+html,
+body,
+#root {
+  overscroll-behavior: none;
+  height: 100%;
+}
+

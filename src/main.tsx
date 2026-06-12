@@ -8,7 +8,7 @@ import ReactDOM from "react-dom/client";
 
 import App from "./App";
 import { Panel } from "./components/Panel";
-import { Settings } from "./components/Settings";
+import { PanelRouter } from "./components/PanelRouter";
 import { zustandColorSchemeManager } from "./lib/color-scheme";
 import { theme } from "./theme";
 
@@ -35,7 +35,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     >
       {isPanel ? (
         <Panel>
-          <Settings />
+          <PanelRouter />
         </Panel>
       ) : (
         <App />

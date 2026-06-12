@@ -2,8 +2,10 @@ import { Stack } from "@mantine/core";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 
+import { Footer } from "./components/Footer";
 import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
+import { bindMainWindow } from "./lib/main-sync";
 import { useSettings } from "./lib/settings";
 import { useTodos } from "./lib/todos";
 
@@ -20,6 +22,11 @@ function isEditableFocused() {
 
 function App() {
   const items = useTodos((s) => s.items);
+
+  // Load the active list and start autosaving (main window only).
+  useEffect(() => {
+    bindMainWindow();
+  }, []);
 
   // Apply the persisted always-on-top preference on startup.
   useEffect(() => {
@@ -68,16 +75,26 @@ function App() {
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        // Only the items area (below) scrolls; the window itself never does.
+        overflow: "hidden",
+      }}
+    >
       <Titlebar />
 
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ flex: 1, overflow: "auto", overscrollBehavior: "none" }}>
         <Stack gap="xs" p="md">
           {items.map((item) => (
             <TodoItem key={item.id} item={item} />
           ))}
         </Stack>
       </div>
+
+      <Footer />
     </div>
   );
 }

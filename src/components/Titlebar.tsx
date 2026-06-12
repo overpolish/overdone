@@ -1,5 +1,5 @@
 import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import { IconMinus, IconX } from "@tabler/icons-react";
+import { IconListCheck, IconMinus, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 
@@ -80,8 +80,8 @@ export function Titlebar() {
        */}
       <Center h="100%" style={{ pointerEvents: "none" }}>
         <UnstyledButton
-          aria-label="Open panel"
-          onClick={() => void invoke("show_panel")}
+          aria-label="Open settings"
+          onClick={() => void invoke("show_panel", { view: "settings" })}
           style={{
             pointerEvents: "auto",
             display: "flex",
@@ -114,6 +114,15 @@ export function Titlebar() {
           label="Minimize"
           icon={IconMinus}
           onClick={() => void invoke("hide_to_tray")}
+        />
+      </Group>
+
+      {/* Lists picker on the right, mirroring the window controls on the left. */}
+      <Group h="100%" gap={2} pr={8} pos="absolute" top={0} right={0} wrap="nowrap">
+        <WindowButton
+          label="Lists"
+          icon={IconListCheck}
+          onClick={() => void invoke("show_panel", { view: "lists" })}
         />
       </Group>
     </Box>

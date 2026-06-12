@@ -1,8 +1,9 @@
 mod tray;
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// Shared window state.
 struct WindowState {
@@ -34,6 +35,136 @@ fn hide_traffic_lights(window: &tauri::WebviewWindow) {
             view.setHidden(true);
         }
     }
+}
+
+/// Metadata for one stored list: its file id (uuid stem) and display title
+/// (the first `# ` heading in the markdown, or "Untitled" when absent/empty).
+#[derive(serde::Serialize)]
+struct ListMeta {
+    id: String,
+    title: String,
+}
+
+/// Directory holding the per-list markdown files (`<app data>/lists`).
+fn lists_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("lists");
+    Ok(dir)
+}
+
+/// Resolve the on-disk path for a list id, rejecting anything that isn't a bare
+/// filename (no path separators / traversal) so a crafted id can't escape the
+/// lists directory.
+fn list_path(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
+    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
+        return Err(format!("invalid list id: {id}"));
+    }
+    Ok(lists_dir(app)?.join(format!("{id}.md")))
+}
+
+/// Extract the display title from markdown: the first `# ` heading, trimmed.
+/// Empty when there's no heading (the frontend shows an "Untitled" placeholder).
+fn title_from_markdown(content: &str) -> String {
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("# ") {
+            return rest.trim().to_string();
+        }
+    }
+    String::new()
+}
+
+/// List all stored lists (id + title), sorted case-insensitively by title.
+#[tauri::command]
+fn list_lists(app: tauri::AppHandle) -> Result<Vec<ListMeta>, String> {
+    let dir = lists_dir(&app)?;
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        // No directory yet means no lists.
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut lists = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let Some(id) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        lists.push(ListMeta {
+            id: id.to_string(),
+            title: title_from_markdown(&content),
+        });
+    }
+
+    lists.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    Ok(lists)
+}
+
+/// Read a list's raw markdown.
+#[tauri::command]
+fn read_list(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    let path = list_path(&app, &id)?;
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+/// Write a list's markdown, creating the lists directory as needed. Written to a
+/// temp file then renamed so a save can't leave a half-written file behind.
+#[tauri::command]
+fn write_list(app: tauri::AppHandle, id: String, content: String) -> Result<(), String> {
+    let path = list_path(&app, &id)?;
+    let dir = lists_dir(&app)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let tmp = dir.join(format!(".{id}.md.tmp"));
+    std::fs::write(&tmp, content).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Delete a list's file (ignored if it's already gone).
+#[tauri::command]
+fn delete_list(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let path = list_path(&app, &id)?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Hide the secondary panel and restore the main window's always-on-top
+/// preference (suspended while the panel is open).
+fn hide_panel(app: &tauri::AppHandle) {
+    let state = app.state::<WindowState>();
+    if let Some(panel) = app.get_webview_window("panel") {
+        let _ = panel.hide();
+    }
+    state.panel_open.store(false, Ordering::Relaxed);
+    if let Some(main) = app.get_webview_window("main") {
+        let on_top = state.always_on_top.load(Ordering::Relaxed);
+        let _ = main.set_always_on_top(on_top);
+    }
+}
+
+/// Whether our app is still the active (frontmost) application. Used to tell a
+/// real focus loss (switching apps) from focus moving to a same-app system
+/// input panel — the emoji & symbols viewer keeps the app active, so it must not
+/// dismiss the popover panel. Clicking the main window is handled separately by
+/// the main window's focus handler.
+#[cfg(target_os = "macos")]
+fn app_is_active() -> bool {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSApplication;
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return false;
+    };
+    NSApplication::sharedApplication(mtm).isActive()
 }
 
 /// Grab the user's attention: show the red tray badge and bounce the dock icon
@@ -75,17 +206,23 @@ fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
     }
 }
 
-/// Show the secondary panel: position it under the main window's title bar,
-/// then show and focus it. It hides itself again when it loses focus (see the
-/// blur handler in `run`).
+/// Show the secondary panel in the requested view ("settings" | "lists"):
+/// position it under the main window's title bar, then show and focus it. The
+/// view is emitted to the panel webview so its React app renders the right
+/// content. It hides itself again when it loses focus (see the blur handler in
+/// `run`).
 #[tauri::command]
-fn show_panel(app: tauri::AppHandle, state: tauri::State<WindowState>) {
+fn show_panel(app: tauri::AppHandle, view: String, state: tauri::State<WindowState>) {
     let (Some(main), Some(panel)) = (
         app.get_webview_window("main"),
         app.get_webview_window("panel"),
     ) else {
         return;
     };
+
+    // Tell the panel which view to show before revealing it. The panel webview
+    // stays alive while hidden, so its listener applies this before paint.
+    let _ = panel.emit("panel:view", view);
 
     if let (Ok(pos), Ok(main_size), Ok(panel_size)) =
         (main.outer_position(), main.inner_size(), panel.outer_size())
@@ -133,7 +270,11 @@ pub fn run() {
             background_app,
             show_panel,
             set_always_on_top,
-            hide_to_tray
+            hide_to_tray,
+            list_lists,
+            read_list,
+            write_list,
+            delete_list
         ])
         .setup(|app| {
             // Tray-only app on macOS: no dock icon and no Cmd+Tab entry, so the
@@ -168,19 +309,17 @@ pub fn run() {
                 let handle = app.handle().clone();
                 let win = window.clone();
                 window.on_window_event(move |event| match event {
-                    tauri::WindowEvent::Focused(true) => tray::set_alert(&handle, false),
+                    tauri::WindowEvent::Focused(true) => {
+                        tray::set_alert(&handle, false);
+                        // Clicking the main window dismisses the popover panel.
+                        hide_panel(&handle);
+                    }
                     tauri::WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
                         let _ = win.hide();
                         // Hide the secondary panel alongside the main window so it
                         // doesn't linger on screen with no main window behind it.
-                        if let Some(panel) = handle.get_webview_window("panel") {
-                            let _ = panel.hide();
-                            handle
-                                .state::<WindowState>()
-                                .panel_open
-                                .store(false, Ordering::Relaxed);
-                        }
+                        hide_panel(&handle);
                     }
                     _ => {}
                 });
@@ -197,17 +336,18 @@ pub fn run() {
                 hide_traffic_lights(&panel);
 
                 let app_handle = app.handle().clone();
-                let panel_window = panel.clone();
                 panel.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {
-                        let _ = panel_window.hide();
-
-                        let state = app_handle.state::<WindowState>();
-                        state.panel_open.store(false, Ordering::Relaxed);
-                        if let Some(main) = app_handle.get_webview_window("main") {
-                            let on_top = state.always_on_top.load(Ordering::Relaxed);
-                            let _ = main.set_always_on_top(on_top);
+                        // On macOS, ignore focus moving to a same-app system panel
+                        // (the emoji & symbols viewer keeps the app active) so it
+                        // doesn't dismiss us mid-edit. Switching apps deactivates
+                        // the app and still dismisses; clicking the main window is
+                        // handled by the main window's focus handler.
+                        #[cfg(target_os = "macos")]
+                        if app_is_active() {
+                            return;
                         }
+                        hide_panel(&app_handle);
                     }
                 });
             }
