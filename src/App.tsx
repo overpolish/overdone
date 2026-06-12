@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
 import { Footer } from "./components/Footer";
+import { ScrollArea } from "./components/ScrollArea";
 import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
 import { bindMainWindow } from "./lib/main-sync";
@@ -101,13 +102,13 @@ function App() {
     >
       <Titlebar />
 
-      <div style={{ flex: 1, overflow: "auto", overscrollBehavior: "none" }}>
+      <ScrollArea style={{ flex: 1 }}>
         <Stack gap={0} p="sm">
           {items.map((item) => (
             <TodoItem key={item.id} item={item} />
           ))}
         </Stack>
-      </div>
+      </ScrollArea>
 
       <Footer />
     </div>

@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 
 import { exportList, type ListMeta, useLists } from "../lib/lists";
 import { dangerBg, dangerFg } from "../lib/styles";
+import { ScrollArea } from "./ScrollArea";
 
 /**
  * Lists picker shown in the secondary panel. Quick-select any list (focusing a
@@ -48,26 +49,28 @@ export function Lists() {
         </ActionIcon>
       </Group>
 
-      <Stack gap={2}>
-        {lists.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            No lists yet. Create one with the + button.
-          </Text>
-        ) : (
-          lists.map((list) => (
-            <ListRow
-              key={list.id}
-              list={list}
-              active={list.id === activeId}
-              onSelect={() => setActive(list.id)}
-              onRename={(title) => rename(list.id, title)}
-              onExport={() => void exportList(list.id, list.title)}
-              onDelete={() => void remove(list.id)}
-              canDelete={lists.length > 1}
-            />
-          ))
-        )}
-      </Stack>
+      {lists.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No lists yet. Create one with the + button.
+        </Text>
+      ) : (
+        <ScrollArea maxHeight={240} radius="var(--mantine-radius-md)">
+          <Stack gap={2}>
+            {lists.map((list) => (
+              <ListRow
+                key={list.id}
+                list={list}
+                active={list.id === activeId}
+                onSelect={() => setActive(list.id)}
+                onRename={(title) => rename(list.id, title)}
+                onExport={() => void exportList(list.id, list.title)}
+                onDelete={() => void remove(list.id)}
+                canDelete={lists.length > 1}
+              />
+            ))}
+          </Stack>
+        </ScrollArea>
+      )}
     </Stack>
   );
 }
