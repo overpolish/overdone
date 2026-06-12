@@ -521,6 +521,18 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        // Remember the main window's size and position across launches (restored
+        // before it's shown, so there's no flash). The panel is excluded — it's
+        // sized and positioned dynamically.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::POSITION,
+                )
+                .with_denylist(&["panel"])
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             flag_attention,
             background_app,
