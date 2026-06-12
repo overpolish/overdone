@@ -13,7 +13,7 @@ interface TodoItemProps {
  * box of this height so it aligns with the first line, and the row stays
  * top-anchored (so the checkbox doesn't drift down) once the text wraps.
  */
-const LINE_HEIGHT = 24;
+const LINE_HEIGHT = 20;
 
 /**
  * A single todo row: the custom status checkbox plus an inline, unstyled text
@@ -40,7 +40,7 @@ export function TodoItem({ item }: TodoItemProps) {
   }, [focusId, item.id, clearFocus]);
 
   return (
-    <Group gap="sm" wrap="nowrap" align="flex-start">
+    <Group gap={8} wrap="nowrap" align="flex-start">
       <Box
         style={{
           display: "flex",
@@ -62,9 +62,14 @@ export function TodoItem({ item }: TodoItemProps) {
         style={{ flex: 1 }}
         styles={{
           input: {
-            // Match LINE_HEIGHT (and drop the default padding) so the first
-            // line lines up with the centered checkbox.
+            // Match LINE_HEIGHT (and drop the default padding/min-height) so the
+            // first line lines up with the centered checkbox and every row is
+            // exactly one line tall — otherwise the input's default min-height
+            // pads single-line items but not wrapped ones, so wrapped items lose
+            // the gap after them.
             padding: 0,
+            minHeight: 0,
+            fontSize: "13px",
             lineHeight: `${LINE_HEIGHT}px`,
             // The text sits a hair low in the line box; nudge it up 1px to
             // optically center against the checkbox.

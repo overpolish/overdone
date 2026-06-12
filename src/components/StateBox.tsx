@@ -1,6 +1,6 @@
 import { todoStateMeta, type TodoState } from "../lib/todo";
 
-export const BOX_SIZE = 20;
+export const BOX_SIZE = 16;
 
 interface StateBoxProps {
   state: TodoState;

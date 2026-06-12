@@ -102,7 +102,7 @@ function App() {
       <Titlebar />
 
       <div style={{ flex: 1, overflow: "auto", overscrollBehavior: "none" }}>
-        <Stack gap="xs" p="md">
+        <Stack gap={0} p="sm">
           {items.map((item) => (
             <TodoItem key={item.id} item={item} />
           ))}
