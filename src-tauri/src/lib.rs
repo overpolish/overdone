@@ -221,11 +221,34 @@ fn passthrough_inputs(window: &tauri::WebviewWindow) -> Option<(bool, bool)> {
     Some((over, modifier))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn passthrough_inputs(window: &tauri::WebviewWindow) -> Option<(bool, bool)> {
+    // The cursor position and window rect come from Tauri's cross-platform APIs
+    // (both physical pixels in screen space), so they compare directly without any
+    // Win32 coordinate math.
+    let cursor = window.app_handle().cursor_position().ok()?;
+    let pos = window.outer_position().ok()?;
+    let size = window.outer_size().ok()?;
+    let over = cursor.x >= pos.x as f64
+        && cursor.x <= (pos.x + size.width as i32) as f64
+        && cursor.y >= pos.y as f64
+        && cursor.y <= (pos.y + size.height as i32) as f64;
+
+    // Live modifier state (Ctrl, matching macOS's Cmd) — a click-through window
+    // gets no key events, so query it directly. Raw FFI to user32 avoids pinning a
+    // `windows` crate version against Tauri's.
+    const VK_CONTROL: i32 = 0x11;
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetAsyncKeyState(v_key: i32) -> i16;
+    }
+    let modifier = unsafe { (GetAsyncKeyState(VK_CONTROL) as u16) & 0x8000 != 0 };
+    Some((over, modifier))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn passthrough_inputs(_window: &tauri::WebviewWindow) -> Option<(bool, bool)> {
-    // TODO(windows): GetCursorPos + GetAsyncKeyState(VK_CONTROL) compared with the
-    // window rect. Left unimplemented until it can be built and verified against a
-    // real Windows target (the Win32 calls couple to Tauri's `windows` version).
+    // Other platforms have no implementation yet, so passthrough stays off.
     None
 }
 
@@ -238,7 +261,38 @@ fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
+    use std::ffi::c_void;
+    type Hwnd = *mut c_void;
+    // GetWindowLongPtr index for the extended style; the layered-window flag and
+    // the "use the alpha value" flag for SetLayeredWindowAttributes.
+    const GWL_EXSTYLE: i32 = -20;
+    const WS_EX_LAYERED: isize = 0x0008_0000;
+    const LWA_ALPHA: u32 = 0x0000_0002;
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetWindowLongPtrW(hwnd: Hwnd, index: i32) -> isize;
+        fn SetWindowLongPtrW(hwnd: Hwnd, index: i32, new: isize) -> isize;
+        fn SetLayeredWindowAttributes(hwnd: Hwnd, key: u32, alpha: u8, flags: u32) -> i32;
+    }
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let hwnd = hwnd.0 as Hwnd;
+    unsafe {
+        // A window must be layered before its alpha can be set; add the style once.
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if ex & WS_EX_LAYERED == 0 {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED);
+        }
+        let byte = (alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
+        SetLayeredWindowAttributes(hwnd, 0, byte, LWA_ALPHA);
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn set_window_alpha(_window: &tauri::WebviewWindow, _alpha: f64) {}
 
 /// Recompute and apply passthrough for the main window. Active = setting on, the
@@ -542,6 +596,13 @@ pub fn run() {
             // Auto-dismiss the secondary panel when it loses focus, and restore
             // the main window's always-on-top preference.
             if let Some(panel) = app.get_webview_window("panel") {
+                // Windows has no native overlay title bar style, so drop the
+                // native frame here too (matching the main window) and let the
+                // custom React title bar take over — otherwise the panel shows a
+                // native title bar the main window doesn't have.
+                #[cfg(target_os = "windows")]
+                let _ = panel.set_decorations(false);
+
                 // The panel uses the transparent title bar style so it keeps the
                 // native rounded corners and shadow, but it's a floating popover
                 // that hides on blur - so hide the traffic-light buttons to leave

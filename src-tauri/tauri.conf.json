@@ -22,6 +22,7 @@
         "hiddenTitle": true,
         "titleBarStyle": "Overlay",
         "alwaysOnTop": true,
+        "skipTaskbar": true,
         "acceptFirstMouse": true
       },
       {
