@@ -3,7 +3,7 @@ mod tray;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Emitter, Manager};
+use tauri::{LogicalPosition, LogicalSize, Manager, PhysicalPosition};
 
 /// Shared window state.
 struct WindowState {
@@ -12,6 +12,10 @@ struct WindowState {
     /// Whether the secondary panel is open. While it is, the main window's
     /// always-on-top is suspended so the two floating windows don't fight.
     panel_open: AtomicBool,
+    /// Whether the panel was opened at a fixed anchor (the status picker, pinned
+    /// below an item) rather than centered under the main title bar. Centered
+    /// panels re-center when their content resizes; anchored ones stay put.
+    panel_anchored: AtomicBool,
 }
 
 /// Hide the macOS traffic-light buttons (close/minimize/zoom) on a window that
@@ -206,13 +210,44 @@ fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
     }
 }
 
-/// Show the secondary panel in the requested view ("settings" | "lists"):
-/// position it under the main window's title bar, then show and focus it. The
-/// view is emitted to the panel webview so its React app renders the right
-/// content. It hides itself again when it loses focus (see the blur handler in
-/// `run`).
+/// Center the panel horizontally under the main window's title bar, given the
+/// panel's logical width. Uses the main window's scale factor to convert to the
+/// physical pixels the positioning API expects (avoids reading `outer_size`,
+/// which can lag a just-applied `set_size`). Returns the chosen y so a later
+/// resize can keep the same vertical position.
+fn center_panel_under_main(
+    main: &tauri::WebviewWindow,
+    panel: &tauri::WebviewWindow,
+    width: f64,
+    keep_y: Option<i32>,
+) {
+    let (Ok(pos), Ok(main_size), Ok(scale)) =
+        (main.outer_position(), main.inner_size(), main.scale_factor())
+    else {
+        return;
+    };
+    let panel_w_phys = (width * scale) as i32;
+    let x = pos.x + (main_size.width as i32 - panel_w_phys) / 2;
+    // Below the title bar with a gap so the logo stays fully visible.
+    let y = keep_y.unwrap_or(pos.y + 64);
+    let _ = panel.set_position(PhysicalPosition::new(x, y));
+}
+
+/// Show the secondary panel at the given content size (logical px). With an
+/// anchor it's pinned there (top-left), used by the status picker to sit just
+/// below an item; without one it's centered under the main title bar. The panel
+/// webview measures its own content and calls this, so each view (settings,
+/// lists, status) gets a window sized to fit. It hides again on blur (see the
+/// blur handler in `run`).
 #[tauri::command]
-fn show_panel(app: tauri::AppHandle, view: String, state: tauri::State<WindowState>) {
+fn open_panel(
+    app: tauri::AppHandle,
+    width: f64,
+    height: f64,
+    anchor_x: Option<f64>,
+    anchor_y: Option<f64>,
+    state: tauri::State<WindowState>,
+) {
     let (Some(main), Some(panel)) = (
         app.get_webview_window("main"),
         app.get_webview_window("panel"),
@@ -220,17 +255,17 @@ fn show_panel(app: tauri::AppHandle, view: String, state: tauri::State<WindowSta
         return;
     };
 
-    // Tell the panel which view to show before revealing it. The panel webview
-    // stays alive while hidden, so its listener applies this before paint.
-    let _ = panel.emit("panel:view", view);
+    let _ = panel.set_size(LogicalSize::new(width, height));
 
-    if let (Ok(pos), Ok(main_size), Ok(panel_size)) =
-        (main.outer_position(), main.inner_size(), panel.outer_size())
-    {
-        let x = pos.x + (main_size.width as i32 - panel_size.width as i32) / 2;
-        // Below the title bar with a gap so the logo stays fully visible.
-        let y = pos.y + 64;
-        let _ = panel.set_position(tauri::PhysicalPosition::new(x, y));
+    match (anchor_x, anchor_y) {
+        (Some(x), Some(y)) => {
+            let _ = panel.set_position(LogicalPosition::new(x, y));
+            state.panel_anchored.store(true, Ordering::Relaxed);
+        }
+        _ => {
+            center_panel_under_main(&main, &panel, width, None);
+            state.panel_anchored.store(false, Ordering::Relaxed);
+        }
     }
 
     // Suspend the main window's always-on-top while the panel is open so the
@@ -240,6 +275,35 @@ fn show_panel(app: tauri::AppHandle, view: String, state: tauri::State<WindowSta
 
     let _ = panel.show();
     let _ = panel.set_focus();
+}
+
+/// Resize the open panel to fit content that changed while it was visible. A
+/// centered panel re-centers (keeping its vertical position); an anchored one
+/// keeps its top-left and just grows.
+#[tauri::command]
+fn resize_panel(
+    app: tauri::AppHandle,
+    width: f64,
+    height: f64,
+    state: tauri::State<WindowState>,
+) {
+    let Some(panel) = app.get_webview_window("panel") else {
+        return;
+    };
+    let _ = panel.set_size(LogicalSize::new(width, height));
+
+    if !state.panel_anchored.load(Ordering::Relaxed) {
+        if let Some(main) = app.get_webview_window("main") {
+            let keep_y = panel.outer_position().ok().map(|p| p.y);
+            center_panel_under_main(&main, &panel, width, keep_y);
+        }
+    }
+}
+
+/// Hide the panel (e.g. after picking a status). Mirrors the blur-dismiss path.
+#[tauri::command]
+fn close_panel(app: tauri::AppHandle) {
+    hide_panel(&app);
 }
 
 /// Apply the always-on-top preference to the main window. Called from any
@@ -262,13 +326,16 @@ pub fn run() {
         .manage(WindowState {
             always_on_top: AtomicBool::new(true),
             panel_open: AtomicBool::new(false),
+            panel_anchored: AtomicBool::new(false),
         })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             flag_attention,
             background_app,
-            show_panel,
+            open_panel,
+            resize_panel,
+            close_panel,
             set_always_on_top,
             hide_to_tray,
             list_lists,

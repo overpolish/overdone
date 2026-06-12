@@ -27,7 +27,7 @@ export function Settings() {
   const setAlwaysOnTop = useSettings((state) => state.setAlwaysOnTop);
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" w={300}>
       <Title order={5}>Settings</Title>
 
       <Group justify="space-between" wrap="nowrap">

@@ -1,11 +1,13 @@
 import { Stack } from "@mantine/core";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
 import { Footer } from "./components/Footer";
 import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
 import { bindMainWindow } from "./lib/main-sync";
+import { type StatusAction } from "./lib/panel";
 import { useSettings } from "./lib/settings";
 import { useTodos } from "./lib/todos";
 
@@ -26,6 +28,19 @@ function App() {
   // Load the active list and start autosaving (main window only).
   useEffect(() => {
     bindMainWindow();
+  }, []);
+
+  // Apply status picks made in the floating panel back to the store.
+  useEffect(() => {
+    const unlisten = listen<StatusAction>("status:action", (e) => {
+      const { itemId, type, state } = e.payload;
+      const todos = useTodos.getState();
+      if (type === "delete") todos.deleteItem(itemId);
+      else if (state) todos.setItemState(itemId, state);
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
   }, []);
 
   // Apply the persisted always-on-top preference on startup.

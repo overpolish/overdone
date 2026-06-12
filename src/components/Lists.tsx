@@ -35,7 +35,7 @@ export function Lists() {
   }, [refresh]);
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" w={260}>
       <Group justify="space-between" wrap="nowrap">
         <Title order={5}>Lists</Title>
         <ActionIcon

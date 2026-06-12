@@ -7,8 +7,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
-import { Panel } from "./components/Panel";
-import { PanelRouter } from "./components/PanelRouter";
+import { PanelHost } from "./components/PanelHost";
 import { zustandColorSchemeManager } from "./lib/color-scheme";
 import { theme } from "./theme";
 
@@ -33,13 +32,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       defaultColorScheme="auto"
       colorSchemeManager={colorSchemeManager}
     >
-      {isPanel ? (
-        <Panel>
-          <PanelRouter />
-        </Panel>
-      ) : (
-        <App />
-      )}
+      {isPanel ? <PanelHost /> : <App />}
     </MantineProvider>
   </React.StrictMode>,
 );

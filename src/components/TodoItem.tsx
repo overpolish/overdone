@@ -20,9 +20,7 @@ const LINE_HEIGHT = 24;
  * field. Reads/writes through the todos store so edits flow through undo/redo.
  */
 export function TodoItem({ item }: TodoItemProps) {
-  const setItemState = useTodos((s) => s.setItemState);
   const setItemText = useTodos((s) => s.setItemText);
-  const deleteItem = useTodos((s) => s.deleteItem);
   const focusId = useTodos((s) => s.focusId);
   const clearFocus = useTodos((s) => s.clearFocus);
   const done = item.state === "done";
@@ -50,11 +48,7 @@ export function TodoItem({ item }: TodoItemProps) {
           height: LINE_HEIGHT,
         }}
       >
-        <StateCheckbox
-          value={item.state}
-          onChange={(state) => setItemState(item.id, state)}
-          onDelete={() => deleteItem(item.id)}
-        />
+        <StateCheckbox value={item.state} itemId={item.id} />
       </Box>
       <Textarea
         ref={inputRef}

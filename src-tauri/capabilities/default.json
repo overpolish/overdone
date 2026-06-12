@@ -8,6 +8,10 @@
     "os:default",
     "notification:default",
     "core:window:allow-start-dragging",
-    "core:window:allow-minimize"
+    "core:window:allow-minimize",
+    "core:window:allow-inner-position",
+    "core:window:allow-scale-factor",
+    "core:event:allow-emit",
+    "core:event:allow-listen"
   ]
 }

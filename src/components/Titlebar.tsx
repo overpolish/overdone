@@ -3,6 +3,7 @@ import { IconListCheck, IconMinus, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 
+import { openPanel } from "../lib/panel";
 import { dangerBg, dangerFg } from "../lib/styles";
 
 const TITLEBAR_HEIGHT = 38;
@@ -81,7 +82,7 @@ export function Titlebar() {
       <Center h="100%" style={{ pointerEvents: "none" }}>
         <UnstyledButton
           aria-label="Open settings"
-          onClick={() => void invoke("show_panel", { view: "settings" })}
+          onClick={() => openPanel({ view: "settings" })}
           style={{
             pointerEvents: "auto",
             display: "flex",
@@ -122,7 +123,7 @@ export function Titlebar() {
         <WindowButton
           label="Lists"
           icon={IconListCheck}
-          onClick={() => void invoke("show_panel", { view: "lists" })}
+          onClick={() => openPanel({ view: "lists" })}
         />
       </Group>
     </Box>

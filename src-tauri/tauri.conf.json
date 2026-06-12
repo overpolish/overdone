@@ -21,7 +21,8 @@
         "visible": false,
         "hiddenTitle": true,
         "titleBarStyle": "Overlay",
-        "alwaysOnTop": true
+        "alwaysOnTop": true,
+        "acceptFirstMouse": true
       },
       {
         "label": "panel",
@@ -34,7 +35,8 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "shadow": true,
-        "visible": false
+        "visible": false,
+        "acceptFirstMouse": true
       }
     ],
     "macOSPrivateApi": true,
