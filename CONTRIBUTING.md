@@ -1,0 +1,85 @@
+# Contributing to Overdone
+
+Overdone is a desktop todo app built with [Tauri 2](https://v2.tauri.app/) (Rust)
+and a React 19 + Vite frontend (Mantine UI, Tailwind color palette, Tabler icons).
+
+## Prerequisites
+
+- **Node.js** 20+ and **pnpm** (`npm i -g pnpm`)
+- **Rust** (stable) via [rustup](https://rustup.rs/)
+- Platform toolchain for Tauri - see the
+  [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/):
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
+  - **Windows:** Microsoft C++ Build Tools (MSVC) + WebView2 (preinstalled on Windows 11)
+
+## Setup
+
+```sh
+pnpm install
+```
+
+## Development
+
+```sh
+pnpm tauri dev      # run the full desktop app with hot reload (use this)
+pnpm dev            # frontend only, in a browser (no Tauri APIs)
+```
+
+`pnpm tauri dev` is what you want almost always - it launches the native window
+and reloads on frontend changes. Rust changes trigger a recompile + restart.
+
+> Config changes (`src-tauri/tauri.conf.json`, `capabilities/`, `Cargo.toml`)
+> are **not** hot-reloaded - stop and re-run `pnpm tauri dev`.
+
+## Building installers
+
+```sh
+pnpm build:mac      # macOS  -> .app + .dmg          (run on macOS)
+pnpm build:win      # Windows -> NSIS .exe + .msi     (run on Windows)
+pnpm build:debug    # fast debug build for the current platform
+```
+
+Each build first runs `tsc && vite build` (typecheck + frontend bundle), then
+compiles Rust and packages the installers.
+
+Output lands in:
+
+- macOS: `src-tauri/target/release/bundle/{macos/Overdone.app, dmg/*.dmg}`
+- Windows: `src-tauri/target/release/bundle/{nsis/*-setup.exe, msi/*.msi}`
+- Debug builds use `target/debug/bundle/` instead.
+
+**Cross-compilation is not supported** - build Windows artifacts on Windows
+(e.g. a VM) and macOS artifacts on macOS. Apple Silicon builds ARM64 by default;
+for a universal Mac binary:
+
+```sh
+rustup target add x86_64-apple-darwin
+pnpm tauri build --target universal-apple-darwin
+```
+
+### Testing notifications
+
+Notifications use `@tauri-apps/plugin-notification`.
+
+- **macOS:** work in `pnpm tauri dev` (first use prompts for permission). The
+  built `.app` shows the proper app identity.
+- **Windows:** only display correctly for an **installed** app - in dev they
+  appear under the PowerShell name/icon. Build with `pnpm build:win` (or
+  `build:debug`), install, then launch to test for real.
+
+## Other tasks
+
+```sh
+pnpm build               # typecheck (tsc) + production frontend build
+pnpm generate-icons      # regenerate app icons (interactive) from a source image
+pnpm generate-tray-icons # regenerate system-tray icons from assets/overdone.svg
+```
+
+### Regenerating tray icons
+
+`pnpm generate-tray-icons` rasterizes `assets/overdone.svg` into three PNGs in
+`src-tauri/icons/`:
+
+- `tray-template.png` - black, used as the macOS menu-bar template
+- `tray-windows.png` - white, for the Windows tray
+- `tray-alert.png` - white with a red badge, shown when the app wants attention

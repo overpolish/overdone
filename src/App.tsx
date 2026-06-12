@@ -13,7 +13,31 @@ import {
   IconSun,
 } from "@tabler/icons-react";
 
+import { invoke } from "@tauri-apps/api/core";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
+
 import { Titlebar } from "./components/Titlebar";
+
+/** Fire a desktop notification, requesting permission first if needed. */
+async function pingNotification() {
+  let granted = await isPermissionGranted();
+  if (!granted) {
+    granted = (await requestPermission()) === "granted";
+  }
+  if (!granted) return;
+
+  // Background the app first: on macOS a foreground app suppresses notification
+  // banners (they go to Control Center) and won't bounce, so we hide it.
+  await invoke("background_app");
+  setTimeout(() => {
+    void invoke("flag_attention"); // red tray badge + dock bounce
+    sendNotification({ title: "Overdone", body: "Dummy message" });
+  }, 1000);
+}
 
 function App() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -64,7 +88,10 @@ function App() {
             ]}
           />
 
-          <Button rightSection={<IconArrowRight size={18} />}>
+          <Button
+            rightSection={<IconArrowRight size={18} />}
+            onClick={() => void pingNotification()}
+          >
             Get started
           </Button>
         </Stack>

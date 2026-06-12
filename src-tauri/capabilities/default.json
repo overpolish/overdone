@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "os:default",
-    "core:window:allow-start-dragging"
+    "notification:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize"
   ]
 }

@@ -46,7 +46,7 @@ export function Titlebar() {
       pos="relative"
       style={{ flexShrink: 0, userSelect: "none" }}
     >
-      {/* Centered logo — pointer-events off so clicks fall through to drag. */}
+      {/* Centered logo - pointer-events off so clicks fall through to drag. */}
       <Center h="100%" style={{ pointerEvents: "none" }}>
         <img
           src="/icon.svg"

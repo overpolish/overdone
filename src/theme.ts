@@ -43,7 +43,7 @@ const colors = Object.fromEntries(
 ) as Record<string, MantineColorsTuple>;
 
 // Mantine reserves `dark` for dark-mode surfaces and `gray` for light-mode
-// neutrals — point both at the chosen Tailwind neutral family.
+// neutrals - point both at the chosen Tailwind neutral family.
 colors.dark = toDarkTuple(tailwindColors[NEUTRAL]);
 colors.gray = toTuple(tailwindColors[NEUTRAL]);
 
