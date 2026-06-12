@@ -1,0 +1,6 @@
+{
+  "identifier": "com.AUTHOR.tauri-solidjs-template",
+  "bundle": {
+    "icon": ["icons/icon.macOS.icns"]
+  }
+}
