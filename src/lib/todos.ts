@@ -51,6 +51,8 @@ interface TodosState {
   addItem: (initialText?: string) => void;
   clearFocus: () => void;
   clearFocusTitle: () => void;
+  /** Focus an item's text field (e.g. when picked from search). */
+  focusItem: (id: string) => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
   open: (id: string) => Promise<void>;
   undo: () => void;
@@ -145,6 +147,8 @@ export const useTodos = create<TodosState>((set, get) => {
     clearFocus: () => set({ focusId: null }),
 
     clearFocusTitle: () => set({ focusTitle: false }),
+
+    focusItem: (id) => set({ focusId: id }),
 
     open: async (id) => {
       let content = "";

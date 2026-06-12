@@ -80,6 +80,17 @@ function App() {
     };
   }, []);
 
+  // Jump to an item picked from search: focus it and bring the window forward.
+  useEffect(() => {
+    const unlisten = listen<string>("search:focus", (e) => {
+      useTodos.getState().focusItem(e.payload);
+      void getCurrentWindow().setFocus();
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
   // Apply persisted window preferences on startup.
   useEffect(() => {
     const { alwaysOnTop, passthrough } = useSettings.getState();

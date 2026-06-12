@@ -3,9 +3,10 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { type TodoState } from "./todo";
+import { type TodoData } from "./todos";
 
 /** Which content the secondary panel renders. */
-export type PanelView = "settings" | "lists" | "status";
+export type PanelView = "settings" | "lists" | "status" | "search";
 
 export interface PanelAnchor {
   /** Logical-pixel screen coordinates for the panel's top-left corner. */
@@ -23,6 +24,8 @@ export interface PanelRequest {
   /** Status-view context: the item whose status is being changed. */
   itemId?: string;
   state?: TodoState;
+  /** Search-view payload: a snapshot of the active list's items to search. */
+  items?: TodoData[];
 }
 
 let nonce = 0;
@@ -46,6 +49,11 @@ export interface StatusAction {
 
 export function emitStatusAction(action: StatusAction) {
   void emit("status:action", action);
+}
+
+/** Jump to an item (picked from search) in the main window. */
+export function emitFocusItem(id: string) {
+  void emit("search:focus", id);
 }
 
 /**

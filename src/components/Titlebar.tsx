@@ -1,5 +1,5 @@
 import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import { IconListCheck, IconMinus, IconPlus, IconX } from "@tabler/icons-react";
+import { IconListCheck, IconMinus, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 
@@ -126,6 +126,13 @@ export function Titlebar() {
           label="Add item"
           icon={IconPlus}
           onClick={() => useTodos.getState().addItem()}
+        />
+        <WindowButton
+          label="Search"
+          icon={IconSearch}
+          onClick={() =>
+            openPanel({ view: "search", items: useTodos.getState().items })
+          }
         />
         <WindowButton
           label="Lists"

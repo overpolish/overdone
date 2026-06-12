@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { type PanelRequest } from "../lib/panel";
 import { Lists } from "./Lists";
+import { Search } from "./Search";
 import { Settings } from "./Settings";
 import { StatusPicker } from "./StatusPicker";
 
@@ -19,6 +20,9 @@ function renderView(request: PanelRequest | null) {
   switch (request.view) {
     case "lists":
       return <Lists />;
+    case "search":
+      // Keyed by nonce so each open starts with a fresh query + autofocus.
+      return <Search key={request.nonce} items={request.items ?? []} />;
     case "status":
       return request.itemId && request.state ? (
         <StatusPicker itemId={request.itemId} state={request.state} />
