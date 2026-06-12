@@ -5,10 +5,12 @@ import {
   Stack,
   Text,
   UnstyledButton,
+  useComputedColorScheme,
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 
+import { dangerBg, dangerFg } from "../lib/styles";
 import { TODO_STATES, todoStateMeta, type TodoState } from "../lib/todo";
 
 const BOX_SIZE = 20;
@@ -91,7 +93,7 @@ function StateOption({ state, selected, onSelect }: StateOptionProps) {
         alignItems: "center",
         gap: 8,
         padding: "6px 8px",
-        borderRadius: "var(--mantine-radius-sm)",
+        borderRadius: "var(--mantine-radius-md)",
         background:
           hovered || selected
             ? "var(--mantine-color-default-hover)"
@@ -106,6 +108,7 @@ function StateOption({ state, selected, onSelect }: StateOptionProps) {
 
 function DeleteOption({ onSelect }: { onSelect: () => void }) {
   const [hovered, setHovered] = useState(false);
+  const dark = useComputedColorScheme("light") === "dark";
 
   return (
     <UnstyledButton
@@ -114,11 +117,9 @@ function DeleteOption({ onSelect }: { onSelect: () => void }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         padding: "6px 8px",
-        borderRadius: "var(--mantine-radius-sm)",
-        color: "var(--mantine-color-red-6)",
-        background: hovered
-          ? "var(--mantine-color-red-light)"
-          : "transparent",
+        borderRadius: "var(--mantine-radius-md)",
+        color: dangerFg(dark),
+        background: hovered ? dangerBg(dark) : "transparent",
       }}
     >
       <Group gap={8} wrap="nowrap">

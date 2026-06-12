@@ -72,6 +72,9 @@ export function TodoItem({ item }: TodoItemProps) {
             // line lines up with the centered checkbox.
             padding: 0,
             lineHeight: `${LINE_HEIGHT}px`,
+            // The text sits a hair low in the line box; nudge it up 1px to
+            // optically center against the checkbox.
+            transform: "translateY(-1px)",
             // Done items read as crossed-off and dimmed.
             textDecoration: done ? "line-through" : undefined,
             opacity: done ? 0.5 : 1,

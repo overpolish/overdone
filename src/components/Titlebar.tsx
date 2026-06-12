@@ -1,42 +1,68 @@
-import {
-  ActionIcon,
-  Box,
-  Center,
-  Group,
-  UnstyledButton,
-  useComputedColorScheme,
-} from "@mantine/core";
-import { IconMinus, IconSquare, IconX } from "@tabler/icons-react";
+import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
+import { IconMinus, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { platform } from "@tauri-apps/plugin-os";
+import { useState } from "react";
 
-// `platform()` reads internals injected by the Tauri OS plugin; it throws if
-// the page is opened outside the Tauri webview (e.g. a plain browser tab).
-function detectOS(): string {
-  try {
-    return platform();
-  } catch {
-    return "";
-  }
-}
-
-const os = detectOS();
-const isWindows = os === "windows";
+import { dangerBg, dangerFg } from "../lib/styles";
 
 const TITLEBAR_HEIGHT = 38;
 
+interface WindowButtonProps {
+  label: string;
+  icon: typeof IconX;
+  onClick: () => void;
+  /** Close button: tints red on hover. */
+  danger?: boolean;
+}
+
 /**
- * Custom transparent title bar.
+ * A single window control. Dimmed and chrome-free at rest so it isn't in your
+ * face; it gains a hover surface (red for close) only on pointer-over.
+ */
+function WindowButton({ label, icon: Icon, onClick, danger }: WindowButtonProps) {
+  const [hovered, setHovered] = useState(false);
+  const dark = useComputedColorScheme("light") === "dark";
+
+  return (
+    <UnstyledButton
+      aria-label={label}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        // Re-enable events for the button; the surrounding bar is a drag region.
+        pointerEvents: "auto",
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "var(--mantine-radius-md)",
+        opacity: hovered ? 1 : 0.5,
+        color: danger && hovered ? dangerFg(dark) : "var(--mantine-color-dimmed)",
+        background: hovered
+          ? danger
+            ? dangerBg(dark)
+            : "var(--mantine-color-default-hover)"
+          : "transparent",
+        transition: "opacity 120ms ease, background 120ms ease, color 120ms ease",
+      }}
+    >
+      <Icon size={14} stroke={2} style={{ display: "block" }} />
+    </UnstyledButton>
+  );
+}
+
+/**
+ * Custom transparent title bar, shared by macOS and Windows.
  *
  * - The whole bar is a Tauri drag region (`data-tauri-drag-region`).
- * - macOS keeps its native traffic lights (window config `titleBarStyle:
- *   "Overlay"`); the logo stays centered across the full bar width.
- * - Windows has no native controls here, so we render our own
+ * - Native window controls are hidden on both platforms (traffic lights on
+ *   macOS, the frame on Windows), so we render our own subtle
  *   minimize / maximize / close buttons.
+ * - The logo stays centered and opens the panel.
  */
 export function Titlebar() {
-  const appWindow = getCurrentWindow();
   // Resolve "auto" to the actual scheme. The logo is light by default (good on
   // dark backgrounds), so invert it only in light mode.
   const light = useComputedColorScheme("light") === "light";
@@ -75,37 +101,21 @@ export function Titlebar() {
         </UnstyledButton>
       </Center>
 
-      {isWindows && (
-        <Group h="100%" gap={2} pr={6} pos="absolute" top={0} right={0}>
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            radius="sm"
-            aria-label="Minimize"
-            onClick={() => void appWindow.minimize()}
-          >
-            <IconMinus size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            radius="sm"
-            aria-label="Maximize"
-            onClick={() => void appWindow.toggleMaximize()}
-          >
-            <IconSquare size={14} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="red"
-            radius="sm"
-            aria-label="Close"
-            onClick={() => void appWindow.close()}
-          >
-            <IconX size={16} />
-          </ActionIcon>
-        </Group>
-      )}
+      <Group h="100%" gap={2} pl={8} pos="absolute" top={0} left={0} wrap="nowrap">
+        {/* Both hide the app to the tray (never quit — quit is via the tray
+            menu), so neither sends the window to the dock. */}
+        <WindowButton
+          label="Close"
+          icon={IconX}
+          onClick={() => void invoke("hide_to_tray")}
+          danger
+        />
+        <WindowButton
+          label="Minimize"
+          icon={IconMinus}
+          onClick={() => void invoke("hide_to_tray")}
+        />
+      </Group>
     </Box>
   );
 }

@@ -60,6 +60,21 @@ fn background_app(app: tauri::AppHandle) {
     }
 }
 
+/// Hide the app to the tray: hide the main window (and the panel with it) so the
+/// app keeps running in the background, reachable from the tray icon. Backs the
+/// custom title bar's close *and* minimize buttons — neither quits the app and
+/// neither leaves a minimized window in the dock (quit is via the tray menu).
+#[tauri::command]
+fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
+    if let Some(panel) = app.get_webview_window("panel") {
+        let _ = panel.hide();
+    }
+    state.panel_open.store(false, Ordering::Relaxed);
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.hide();
+    }
+}
+
 /// Show the secondary panel: position it under the main window's title bar,
 /// then show and focus it. It hides itself again when it loses focus (see the
 /// blur handler in `run`).
@@ -117,9 +132,16 @@ pub fn run() {
             flag_attention,
             background_app,
             show_panel,
-            set_always_on_top
+            set_always_on_top,
+            hide_to_tray
         ])
         .setup(|app| {
+            // Tray-only app on macOS: no dock icon and no Cmd+Tab entry, so the
+            // tray icon is the sole entry point (show/hide via click, quit via
+            // its menu). Set before any window shows to avoid a dock flash.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             tray::create(app.handle())?;
 
             if let Some(window) = app.get_webview_window("main") {
@@ -129,6 +151,13 @@ pub fn run() {
                 // `titleBarStyle: "Overlay"` config.)
                 #[cfg(target_os = "windows")]
                 let _ = window.set_decorations(false);
+
+                // Hide the native traffic lights so the custom React title bar
+                // owns the window controls on macOS too (matching the panel and
+                // Windows). The `titleBarStyle: "Overlay"` config keeps the
+                // native rounded corners + shadow.
+                #[cfg(target_os = "macos")]
+                hide_traffic_lights(&window);
 
                 // Window starts hidden in the config to avoid a flash of the
                 // native frame; reveal it once it's configured.
@@ -185,17 +214,6 @@ pub fn run() {
 
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|_app_handle, _event| {
-            // Reopen the main window when the dock icon is clicked (macOS).
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                if let Some(window) = _app_handle.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                }
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("error while building tauri application");
 }
