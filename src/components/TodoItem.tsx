@@ -1,8 +1,10 @@
-import { Box, Group, Textarea } from "@mantine/core";
-import { useEffect, useRef } from "react";
+import { ActionIcon, Box, Group, Textarea } from "@mantine/core";
+import { IconMessage } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 
 import { caretEdges } from "../lib/caret";
 import { useItemMenu } from "../lib/context-menu";
+import { openDetailsPanel } from "../lib/panel";
 import { useDrag } from "../lib/reorder";
 import { type TodoData, useTodos } from "../lib/todos";
 import { StateCheckbox } from "./StateCheckbox";
@@ -36,6 +38,11 @@ export function TodoItem({ item }: TodoItemProps) {
   const dragging = useDrag((s) => s.id === item.id);
   const done = item.state === "done";
   const child = item.depth === 1;
+  // The details button appears on row hover (to avoid clutter), and stays
+  // faintly visible as an indicator when the item already has comments.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const hasComments = (item.comments?.length ?? 0) > 0;
 
   // When focus is directed here (type-to-create, search, arrow nav), grab it,
   // place the caret per the hint, and scroll the row into view — the custom
@@ -55,10 +62,13 @@ export function TodoItem({ item }: TodoItemProps) {
 
   return (
     <Group
+      ref={rowRef}
       gap={8}
       wrap="nowrap"
       align="flex-start"
       data-todo-row
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onContextMenu={(e) => {
         e.preventDefault();
         useItemMenu.getState().show(item.id, e.clientX, e.clientY);
@@ -159,6 +169,29 @@ export function TodoItem({ item }: TodoItemProps) {
           },
         }}
       />
+      {/* Details / comments. Top-anchored to align with the first text line,
+          like the checkbox. Reserved in layout so showing it doesn't reflow. */}
+      <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
+        <ActionIcon
+          aria-label="Details"
+          variant="subtle"
+          color="gray"
+          size={20}
+          onClick={() => {
+            if (rowRef.current) {
+              void openDetailsPanel(rowRef.current, item.id, item.comments ?? []);
+            }
+          }}
+          style={{
+            flexShrink: 0,
+            opacity: hovered ? 1 : hasComments ? 0.4 : 0,
+            pointerEvents: hovered || hasComments ? "auto" : "none",
+            transition: "opacity 120ms ease",
+          }}
+        >
+          <IconMessage size={14} stroke={1.8} />
+        </ActionIcon>
+      </Box>
     </Group>
   );
 }

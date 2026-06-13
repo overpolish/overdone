@@ -4,6 +4,16 @@ import { create } from "zustand";
 import { parseList } from "./markdown";
 import { type TodoState } from "./todo";
 
+/** A single timestamped comment in an item's traceable comment log. */
+export interface Comment {
+  id: string;
+  text: string;
+  /** Epoch ms when the comment was posted. */
+  createdAt: number;
+  /** Epoch ms of the last edit, if it's been edited since posting. */
+  editedAt?: number;
+}
+
 export interface TodoData {
   id: string;
   text: string;
@@ -17,6 +27,8 @@ export interface TodoData {
   updatedAt?: number;
   /** Epoch ms when the item entered the `done` state; cleared when it leaves. */
   doneAt?: number;
+  /** Traceable comment log attached to the item, edited in the details panel. */
+  comments?: Comment[];
 }
 
 /** Wall-clock now, in epoch ms — the single clock the store stamps from. */
@@ -123,6 +135,12 @@ interface TodosState {
 
   setItemState: (id: string, state: TodoState) => void;
   setItemText: (id: string, text: string) => void;
+  /**
+   * Replace an item's comment log. The details panel owns the editing session
+   * (add/edit/delete) and sends the whole updated array; the store just
+   * persists it.
+   */
+  setItemComments: (id: string, comments: Comment[]) => void;
   setTitle: (title: string) => void;
   deleteItem: (id: string) => void;
   /** Delete an item and move focus to its neighbour (previous, else next). */
@@ -203,6 +221,16 @@ export const useTodos = create<TodosState>((set, get) => {
             i.id === id ? { ...i, text, updatedAt: now() } : i,
           ),
         `text:${id}`,
+      ),
+
+    setItemComments: (id, comments) =>
+      commit(
+        (items) =>
+          items.map((i) =>
+            i.id === id ? { ...i, comments, updatedAt: now() } : i,
+          ),
+        // Coalesce a session's add/edit/delete bursts into one undo step.
+        `comments:${id}`,
       ),
 
     // Title lives outside the items undo history; it's a single field that

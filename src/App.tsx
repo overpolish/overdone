@@ -12,7 +12,7 @@ import { ScrollArea } from "./components/ScrollArea";
 import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
 import { bindMainWindow } from "./lib/main-sync";
-import { type StatusAction } from "./lib/panel";
+import { type DetailsAction, type StatusAction } from "./lib/panel";
 import { useDrag } from "./lib/reorder";
 import { useSettings } from "./lib/settings";
 import { useTodos } from "./lib/todos";
@@ -87,6 +87,17 @@ function App() {
     const unlisten = listen<string>("search:focus", (e) => {
       useTodos.getState().focusItem(e.payload);
       void getCurrentWindow().setFocus();
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  // Apply comment-log changes made in the details panel back to the store.
+  useEffect(() => {
+    const unlisten = listen<DetailsAction>("details:action", (e) => {
+      const { itemId, comments } = e.payload;
+      useTodos.getState().setItemComments(itemId, comments);
     });
     return () => {
       void unlisten.then((off) => off());

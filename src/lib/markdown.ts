@@ -62,12 +62,17 @@ export interface ParsedList {
   items: TodoData[];
 }
 
-/** Build the trailing ` <!-- ... -->` comment for an item's timestamps. */
+/** Build the trailing ` <!-- ... -->` comment for an item's metadata. */
 function serializeMeta(item: TodoData): string {
   const parts: string[] = [];
   for (const [key, field] of META_FIELDS) {
     const value = item[field];
     if (value != null) parts.push(`${key}=${new Date(value).toISOString()}`);
+  }
+  // Comments are JSON, then URL-encoded so their spaces/newlines can't break
+  // the space-separated key=value list (and they stay on the item's one line).
+  if (item.comments?.length) {
+    parts.push(`comments=${encodeURIComponent(JSON.stringify(item.comments))}`);
   }
   return parts.length ? ` <!-- ${parts.join(" ")} -->` : "";
 }
@@ -84,8 +89,25 @@ function parseMeta(text: string): { text: string; meta: Partial<TodoData> } {
   for (const pair of m[1].split(/\s+/)) {
     const eq = pair.indexOf("=");
     if (eq === -1) continue;
-    const field = META_FIELDS.find(([key]) => key === pair.slice(0, eq))?.[1];
-    const t = Date.parse(pair.slice(eq + 1));
+    const key = pair.slice(0, eq);
+    const raw = pair.slice(eq + 1);
+    if (key === "comments") {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(raw));
+        if (Array.isArray(parsed)) meta.comments = parsed;
+      } catch {
+        // Malformed metadata: drop it rather than failing the whole parse.
+      }
+      continue;
+    }
+    if (key === "comment") {
+      // Legacy single free-form comment → one entry in the new log.
+      const text = decodeURIComponent(raw);
+      if (text) meta.comments = [{ id: crypto.randomUUID(), text, createdAt: Date.now() }];
+      continue;
+    }
+    const field = META_FIELDS.find(([k]) => k === key)?.[1];
+    const t = Date.parse(raw);
     if (field && !Number.isNaN(t)) meta[field] = t;
   }
   if (Object.keys(meta).length === 0) return { text, meta: {} };

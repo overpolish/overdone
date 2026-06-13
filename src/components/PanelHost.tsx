@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { type PanelRequest } from "../lib/panel";
+import { ItemDetails } from "./ItemDetails";
 import { Lists } from "./Lists";
 import { Search } from "./Search";
 import { Settings } from "./Settings";
@@ -26,6 +27,15 @@ function renderView(request: PanelRequest | null) {
     case "status":
       return request.itemId && request.state ? (
         <StatusPicker itemId={request.itemId} state={request.state} />
+      ) : null;
+    case "details":
+      // Keyed by nonce so re-opening re-seeds the editor with the latest log.
+      return request.itemId ? (
+        <ItemDetails
+          key={request.nonce}
+          itemId={request.itemId}
+          comments={request.comments ?? []}
+        />
       ) : null;
     case "settings":
     default:

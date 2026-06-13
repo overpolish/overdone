@@ -1,59 +1,12 @@
 import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import { IconListCheck, IconMinus, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
 
 import { openPanel } from "../lib/panel";
-import { dangerBg, dangerFg } from "../lib/styles";
 import { useTodos } from "../lib/todos";
+import { IconButton } from "./IconButton";
 
 const TITLEBAR_HEIGHT = 38;
-
-interface WindowButtonProps {
-  label: string;
-  icon: typeof IconX;
-  onClick: () => void;
-  /** Close button: tints red on hover. */
-  danger?: boolean;
-}
-
-/**
- * A single window control. Dimmed and chrome-free at rest so it isn't in your
- * face; it gains a hover surface (red for close) only on pointer-over.
- */
-function WindowButton({ label, icon: Icon, onClick, danger }: WindowButtonProps) {
-  const [hovered, setHovered] = useState(false);
-  const dark = useComputedColorScheme("light") === "dark";
-
-  return (
-    <UnstyledButton
-      aria-label={label}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        // Re-enable events for the button; the surrounding bar is a drag region.
-        pointerEvents: "auto",
-        width: 22,
-        height: 22,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "var(--mantine-radius-md)",
-        opacity: hovered ? 1 : 0.5,
-        color: danger && hovered ? dangerFg(dark) : "var(--mantine-color-dimmed)",
-        background: hovered
-          ? danger
-            ? dangerBg(dark)
-            : "var(--mantine-color-default-hover)"
-          : "transparent",
-        transition: "opacity 120ms ease, background 120ms ease, color 120ms ease",
-      }}
-    >
-      <Icon size={14} stroke={2} style={{ display: "block" }} />
-    </UnstyledButton>
-  );
-}
 
 /**
  * Custom transparent title bar, shared by macOS and Windows.
@@ -106,13 +59,13 @@ export function Titlebar() {
       <Group h="100%" gap={2} pl={8} pos="absolute" top={0} left={0} wrap="nowrap">
         {/* Both hide the app to the tray (never quit — quit is via the tray
             menu), so neither sends the window to the dock. */}
-        <WindowButton
+        <IconButton
           label="Close"
           icon={IconX}
           onClick={() => void invoke("hide_to_tray")}
           danger
         />
-        <WindowButton
+        <IconButton
           label="Minimize"
           icon={IconMinus}
           onClick={() => void invoke("hide_to_tray")}
@@ -122,19 +75,19 @@ export function Titlebar() {
       {/* Add + lists on the right, mirroring the window controls on the left. */}
       <Group h="100%" gap={2} pr={8} pos="absolute" top={0} right={0} wrap="nowrap">
         {/* Backup for type-to-create: makes a new item and focuses it. */}
-        <WindowButton
+        <IconButton
           label="Add item"
           icon={IconPlus}
           onClick={() => useTodos.getState().addItem()}
         />
-        <WindowButton
+        <IconButton
           label="Search"
           icon={IconSearch}
           onClick={() =>
             openPanel({ view: "search", items: useTodos.getState().items })
           }
         />
-        <WindowButton
+        <IconButton
           label="Lists"
           icon={IconListCheck}
           onClick={() => openPanel({ view: "lists" })}

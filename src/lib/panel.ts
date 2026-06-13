@@ -3,10 +3,10 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { type TodoState } from "./todo";
-import { type TodoData } from "./todos";
+import { type Comment, type TodoData } from "./todos";
 
 /** Which content the secondary panel renders. */
-export type PanelView = "settings" | "lists" | "status" | "search";
+export type PanelView = "settings" | "lists" | "status" | "search" | "details";
 
 export interface PanelAnchor {
   /** Logical-pixel screen coordinates for the panel's top-left corner. */
@@ -26,6 +26,8 @@ export interface PanelRequest {
   state?: TodoState;
   /** Search-view payload: a snapshot of the active list's items to search. */
   items?: TodoData[];
+  /** Details-view payload: the item's current comment log to seed the editor. */
+  comments?: Comment[];
 }
 
 let nonce = 0;
@@ -54,6 +56,40 @@ export function emitStatusAction(action: StatusAction) {
 /** Jump to an item (picked from search) in the main window. */
 export function emitFocusItem(id: string) {
   void emit("search:focus", id);
+}
+
+/** A comment-log change made in the details panel, sent to the main window. */
+export interface DetailsAction {
+  itemId: string;
+  comments: Comment[];
+}
+
+export function emitDetailsAction(action: DetailsAction) {
+  void emit("details:action", action);
+}
+
+/**
+ * Open the details panel for an item, pinned just below its row (top-left
+ * aligned with the row, like the status picker sits below a checkbox).
+ */
+export async function openDetailsPanel(
+  rowEl: HTMLElement,
+  itemId: string,
+  comments: Comment[],
+) {
+  const rect = rowEl.getBoundingClientRect();
+  const win = getCurrentWindow();
+  const [scale, innerPos] = await Promise.all([
+    win.scaleFactor(),
+    win.innerPosition(),
+  ]);
+  const inner = innerPos.toLogical(scale);
+  openPanel({
+    view: "details",
+    itemId,
+    comments,
+    anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },
+  });
 }
 
 /**
