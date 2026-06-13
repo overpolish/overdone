@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 
+import { parseList, renderMarkdown } from "./markdown";
+
 /** One stored list as surfaced in the lists picker. */
 export interface ListMeta {
   id: string;
@@ -129,9 +131,12 @@ export function broadcastListsChanged() {
 }
 
 /**
- * Export a list to a user-chosen folder: its markdown (named from the title)
- * plus a `media/` subfolder of attachments, so the markdown's relative
- * references resolve. Returns the chosen folder, or null if cancelled.
+ * Export a list to a user-chosen folder as clean, human-readable markdown
+ * (named from the title) plus a `media/` subfolder of attachments, so the
+ * markdown's relative references resolve. The stored file uses a metadata-laden
+ * round-trip format; here we re-render it through {@link renderMarkdown} so the
+ * exported file reads like real markdown. Returns the chosen folder, or null if
+ * cancelled.
  */
 export async function exportList(
   id: string,
@@ -140,7 +145,10 @@ export async function exportList(
   const name = (title.trim() || "Untitled").replace(/[/\\:]/g, "-");
   const dir = await openDialog({ directory: true, title: "Export list to folder" });
   if (!dir || Array.isArray(dir)) return null;
-  await invoke("export_list_to_dir", { id, dir, fileName: `${name}.md` });
+  const stored = await invoke<string>("read_list", { id });
+  const parsed = parseList(stored);
+  const content = renderMarkdown(parsed.title || title, parsed.items, parsed.assignees);
+  await invoke("export_list_to_dir", { id, dir, fileName: `${name}.md`, content });
   return dir;
 }
 

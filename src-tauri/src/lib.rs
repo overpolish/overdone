@@ -183,18 +183,19 @@ fn write_list(app: tauri::AppHandle, id: String, content: String) -> Result<(), 
 
 /// Export a list to a user-chosen folder: its markdown (named `file_name`) plus
 /// a `media/` subfolder holding its attachments, so the markdown's relative
-/// `media/...` references resolve in the exported folder.
+/// `media/...` references resolve in the exported folder. The caller supplies
+/// the rendered `content` (clean export markdown, not the raw storage format).
 #[tauri::command]
 fn export_list_to_dir(
     app: tauri::AppHandle,
     id: String,
     dir: String,
     file_name: String,
+    content: String,
 ) -> Result<(), String> {
     if !is_safe_component(&file_name) {
         return Err(format!("invalid file name: {file_name}"));
     }
-    let content = read_list(app.clone(), id.clone())?;
     let dest_dir = PathBuf::from(&dir);
     std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
     std::fs::write(dest_dir.join(&file_name), content).map_err(|e| e.to_string())?;
