@@ -26,17 +26,3 @@ export function fuzzyScore(text: string, query: string): number | null {
   }
   return score;
 }
-
-/** Filter + rank items by a fuzzy query. An empty query returns all items as-is. */
-export function fuzzyFilter<T>(
-  items: T[],
-  query: string,
-  key: (item: T) => string,
-): T[] {
-  if (!query.trim()) return items;
-  return items
-    .map((item) => ({ item, score: fuzzyScore(key(item), query) }))
-    .filter((r): r is { item: T; score: number } => r.score !== null)
-    .sort((a, b) => b.score - a.score)
-    .map((r) => r.item);
-}

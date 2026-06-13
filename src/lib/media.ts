@@ -237,6 +237,14 @@ export function toStoredHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
+/** Visible plain text of comment HTML (markup and media stripped), collapsed to
+ * single spaces — for fuzzy-searching and result snippets. */
+export function htmlToText(html: string): string {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 /** Attachment filenames referenced by the given comment HTML (for pruning). */
 export function referencedMedia(texts: string[]): string[] {
   const found = new Set<string>();
