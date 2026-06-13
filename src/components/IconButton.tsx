@@ -1,6 +1,6 @@
 import { UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import { type IconProps } from "@tabler/icons-react";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
 
 import { dangerBg, dangerFg } from "../lib/styles";
 
@@ -23,10 +23,26 @@ interface IconButtonProps {
 export function IconButton({ label, icon: Icon, onClick, danger, active }: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const dark = useComputedColorScheme("light") === "dark";
+  const ref = useRef<HTMLButtonElement>(null);
+
+  // When the button's box straddles a physical pixel, WKWebView smears the thin
+  // icon strokes asymmetrically so the glyph reads off-center (and appears to
+  // jump on hover when the background reveals it). Nudge the button onto the
+  // device grid so the strokes stay crisp. (Same fix as the assignee chips.)
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transform = "none";
+    const { left, top } = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const snap = (v: number) => Math.round(v * dpr) / dpr - v;
+    el.style.transform = `translate(${snap(left)}px, ${snap(top)}px)`;
+  });
 
   const strong = active || hovered;
   return (
     <UnstyledButton
+      ref={ref}
       aria-label={label}
       // Preserve the editor's selection/focus when used as a format toggle:
       // taking button focus on mousedown would collapse the selection.

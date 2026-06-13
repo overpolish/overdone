@@ -5,6 +5,7 @@ import {
   IconList,
   IconListNumbers,
   IconPhoto,
+  IconSitemap,
   IconUnderline,
 } from "@tabler/icons-react";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -13,6 +14,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useRef } from "react";
 
 import { Attachment } from "../lib/attachment";
+import { Mermaid } from "../lib/mermaid-node";
 import { IconButton } from "./IconButton";
 
 interface UseCommentEditorOptions {
@@ -59,6 +61,7 @@ export function useCommentEditor({
       StarterKit,
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Attachment,
+      Mermaid,
     ],
     content,
     autofocus: autoFocus ? "end" : false,
@@ -142,6 +145,11 @@ export function FormatBar({
         active={active?.ordered}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
       />
+      <IconButton
+        label="Insert diagram"
+        icon={IconSitemap}
+        onClick={() => editor.chain().focus().insertMermaid().run()}
+      />
       {onAddMedia && (
         <IconButton label="Insert image or video" icon={IconPhoto} onClick={onAddMedia} />
       )}
@@ -187,8 +195,9 @@ export function CommentInput({
 
 /** Whether editor HTML carries no content (so Post/Save should no-op). */
 export function htmlIsEmpty(html: string): boolean {
-  // An embedded attachment counts as content on its own (image/video-only).
+  // An embedded attachment or diagram counts as content on its own.
   if (/<(?:img|video)\b/i.test(html)) return false;
+  if (/data-mermaid/i.test(html)) return false;
   // Otherwise strip tags, drop non-breaking spaces, and check for any text.
   return html.replace(/<[^>]*>/g, "").replace(/ /g, "").trim() === "";
 }

@@ -1,10 +1,12 @@
 import { Box } from "@mantine/core";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { emitEditAction, type PanelRequest } from "../lib/panel";
 import { AssigneePanel } from "./AssigneePanel";
+import { closeDiagramModal, useDiagramModalOpen } from "./DiagramModal";
 import { ItemDetails } from "./ItemDetails";
 import { Lists } from "./Lists";
 import { Search } from "./Search";
@@ -67,6 +69,10 @@ function renderView(request: PanelRequest | null) {
 export function PanelHost() {
   const [request, setRequest] = useState<PanelRequest | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  // The in-panel diagram modal needs more room than the ~340px details panel; while
+  // it's open, grow the panel window ~2x (centered) and restore it on close.
+  const diagramOpen = useDiagramModalOpen();
+  const wasExpanded = useRef(false);
 
   // Receive open requests from the main window.
   useEffect(() => {
@@ -108,6 +114,28 @@ export function PanelHost() {
       anchorY: request.anchor?.y ?? null,
     });
   }, [request]);
+
+  // The panel dismisses itself on blur (handled natively); close the diagram
+  // modal too, so it doesn't linger (and re-show) the next time the panel opens.
+  useEffect(() => {
+    const off = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (!focused) closeDiagramModal();
+    });
+    return () => {
+      void off.then((f) => f());
+    };
+  }, []);
+
+  // Grow the panel window ~2x (centered) while the diagram modal is open, and
+  // restore it on close. The base content size stays ~340px (the modal renders
+  // in a portal, outside the measured content), so this never fights the
+  // content-fit ResizeObserver below.
+  useEffect(() => {
+    if (wasExpanded.current === diagramOpen || !ref.current) return;
+    wasExpanded.current = diagramOpen;
+    const { width, height } = measure(ref.current);
+    void invoke("set_panel_expanded", { expanded: diagramOpen, width, height });
+  }, [diagramOpen]);
 
   // Keep the window fitted while it's open and its content changes.
   useEffect(() => {

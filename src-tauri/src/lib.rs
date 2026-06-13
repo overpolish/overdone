@@ -829,6 +829,38 @@ fn resize_panel(
     }
 }
 
+/// Grow/shrink the panel around its horizontal center (keeping its top edge),
+/// used to give the in-panel diagram modal ~2x the room while it's open and to
+/// restore the size when it closes. `width`/`height` are the panel's base content
+/// size (logical px); `expanded` doubles the width. Centered so it doesn't drift
+/// to one side or off-screen (re-clamped to the work area).
+#[tauri::command]
+fn set_panel_expanded(app: tauri::AppHandle, expanded: bool, width: f64, height: f64) {
+    let (Some(main), Some(panel)) = (
+        app.get_webview_window("main"),
+        app.get_webview_window("panel"),
+    ) else {
+        return;
+    };
+    let (Ok(old_pos), Ok(old_size), Ok(scale)) =
+        (panel.outer_position(), panel.outer_size(), panel.scale_factor())
+    else {
+        return;
+    };
+
+    let target_w = if expanded { width * 2.0 } else { width };
+    let _ = panel.set_size(LogicalSize::new(target_w, height));
+
+    // Keep the window's center fixed (top edge unchanged) as the width changes.
+    let center_x = old_pos.x + old_size.width as i32 / 2;
+    let new_w = (target_w * scale).round() as i32;
+    let new_h = (height * scale).round() as i32;
+    let x = center_x - new_w / 2;
+    let pos = clamp_to_work_area(&panel, &main, x, old_pos.y, new_w, new_h)
+        .unwrap_or_else(|| PhysicalPosition::new(x, old_pos.y));
+    let _ = panel.set_position(pos);
+}
+
 /// Hide the panel (e.g. after picking a status). Mirrors the blur-dismiss path.
 #[tauri::command]
 fn close_panel(app: tauri::AppHandle) {
@@ -896,6 +928,7 @@ pub fn run() {
             background_app,
             open_panel,
             resize_panel,
+            set_panel_expanded,
             close_panel,
             set_always_on_top,
             set_passthrough,

@@ -20,10 +20,12 @@ import {
   toDisplayHtml,
   toStoredHtml,
 } from "../lib/media";
+import { renderMermaidInHtml } from "../lib/mermaid";
 import { closePanel, emitDetailsAction } from "../lib/panel";
 import { useSettings } from "../lib/settings";
 import { type Assignee, type Comment } from "../lib/todos";
 import { AssigneePicker, useAssigneeEditor } from "./AssigneePicker";
+import { DiagramModalHost, useDiagramEditor } from "./DiagramModal";
 import {
   CommentInput,
   FormatBar,
@@ -165,6 +167,7 @@ export function ItemDetails({
 
   return (
     <Stack gap="md" w={340}>
+      <DiagramModalHost />
       <Group gap={8} wrap="nowrap">
         <IconInfoCircle size={18} stroke={1.8} />
         <Title order={5}>Details</Title>
@@ -265,6 +268,36 @@ function CommentRow({
   onDelete,
 }: CommentRowProps) {
   const [hovered, setHovered] = useState(false);
+  const openDiagram = useDiagramEditor();
+
+  // Write an edited diagram back into the comment: replace the nth stored
+  // `<pre data-mermaid>` (the one that was clicked) with the new source.
+  const saveDiagram = (index: number, code: string) => {
+    const doc = new DOMParser().parseFromString(comment.text, "text/html");
+    const pre = doc.querySelectorAll("pre[data-mermaid]")[index];
+    if (!pre) return;
+    pre.textContent = code;
+    onSave(doc.body.innerHTML);
+  };
+
+  // Comment HTML with attachment refs resolved to asset URLs. Diagrams are then
+  // rendered into it asynchronously (below); until that resolves we show the raw
+  // HTML, so non-diagram comments render immediately.
+  const displayHtml = toDisplayHtml(comment.text, mediaDir);
+  const [rendered, setRendered] = useState(displayHtml);
+  useEffect(() => {
+    if (!displayHtml.includes("data-mermaid")) {
+      setRendered(displayHtml);
+      return;
+    }
+    let cancelled = false;
+    void renderMermaidInHtml(displayHtml).then((html) => {
+      if (!cancelled) setRendered(html);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [displayHtml]);
 
   if (editing) {
     return (
@@ -297,11 +330,22 @@ function CommentRow({
         style={{ wordBreak: "break-word" }}
         onClick={(e) => {
           const el = e.target as HTMLElement;
-          if (el.tagName === "IMG") {
+          // A click anywhere inside a rendered diagram opens it (zoom/pan, with
+          // an Edit button); a broken one opens straight into the editor.
+          const diagram = el.closest<HTMLElement>(".mermaid-rendered");
+          if (diagram) {
+            const index = Number(diagram.dataset.mermaidIndex);
+            openDiagram({
+              code: diagram.dataset.mermaidSrc ?? "",
+              editable: true,
+              initialMode: diagram.classList.contains("mermaid-broken") ? "edit" : "view",
+              onSave: (code) => saveDiagram(index, code),
+            });
+          } else if (el.tagName === "IMG") {
             void openFullSize(el.getAttribute("src") ?? "", mediaDir);
           }
         }}
-        dangerouslySetInnerHTML={{ __html: toDisplayHtml(comment.text, mediaDir) }}
+        dangerouslySetInnerHTML={{ __html: rendered }}
       />
       <Group justify="space-between" wrap="nowrap" mt={4} gap={4}>
         <Text size="10px" c="dimmed">
