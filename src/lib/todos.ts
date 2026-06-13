@@ -149,6 +149,12 @@ interface TodosState {
    * on the next render (set when a freshly-created, untitled list is opened).
    */
   focusTitle: boolean;
+  /**
+   * Id of the item whose editing panel (details / assignees / status) is
+   * currently open, so its row can be highlighted as "being edited". Null when
+   * no item-scoped panel is open. Transient — not part of undo history.
+   */
+  editingId: string | null;
 
   setItemState: (id: string, state: TodoState) => void;
   setItemText: (id: string, text: string) => void;
@@ -187,6 +193,8 @@ interface TodosState {
   addItem: (initialText?: string) => void;
   clearFocus: () => void;
   clearFocusTitle: () => void;
+  /** Set (or clear, with null) the item whose editing panel is open. */
+  setEditingId: (id: string | null) => void;
   /** Focus an item's text field (e.g. when picked from search). */
   focusItem: (id: string, caret?: "start" | "end") => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
@@ -225,6 +233,7 @@ export const useTodos = create<TodosState>((set, get) => {
     focusId: null,
     focusCaret: "end",
     focusTitle: false,
+    editingId: null,
 
     setItemState: (id, state) =>
       commit((items) => {
@@ -411,6 +420,8 @@ export const useTodos = create<TodosState>((set, get) => {
     clearFocus: () => set({ focusId: null, focusCaret: "end" }),
 
     clearFocusTitle: () => set({ focusTitle: false }),
+
+    setEditingId: (id) => set({ editingId: id }),
 
     focusItem: (id, caret = "end") => set({ focusId: id, focusCaret: caret }),
 

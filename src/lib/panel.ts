@@ -46,8 +46,16 @@ export interface PanelRequest {
 
 let nonce = 0;
 
+/** Views that edit a specific item — their row is highlighted while open. */
+const ITEM_VIEWS: readonly PanelView[] = ["details", "assignee", "status"];
+
 /** Open (or switch) the secondary panel to a view. Emitted from the main window. */
 export function openPanel(request: Omit<PanelRequest, "nonce">) {
+  // Highlight the edited item's row in the main window (cleared when the panel
+  // closes; see the `panel:closed` listener). Non-item views clear it.
+  useTodos.getState().setEditingId(
+    ITEM_VIEWS.includes(request.view) ? (request.itemId ?? null) : null,
+  );
   void emit("panel:open", { ...request, nonce: ++nonce } satisfies PanelRequest);
 }
 

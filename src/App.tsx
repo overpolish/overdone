@@ -124,6 +124,17 @@ function App() {
     };
   }, []);
 
+  // Clear the "item being edited" row highlight when the panel hides (blur,
+  // Escape, status pick, etc.). Opening a panel sets it; this is the close side.
+  useEffect(() => {
+    const unlisten = listen("panel:closed", () => {
+      useTodos.getState().setEditingId(null);
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
   // Undo/redo forwarded from a focused panel window (which can't reach the
   // store itself).
   useEffect(() => {

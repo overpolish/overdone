@@ -3,7 +3,7 @@ mod tray;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{LogicalSize, Manager, PhysicalPosition};
+use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition};
 
 /// Shared window state.
 struct WindowState {
@@ -278,7 +278,6 @@ fn ffmpeg_installed() -> bool {
 /// UI can show feedback. Runs off the UI thread; no-ops if already installed.
 #[tauri::command]
 async fn download_ffmpeg(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Emitter;
     tauri::async_runtime::spawn_blocking(move || {
         use ffmpeg_sidecar::download::{
             auto_download_with_progress, FfmpegDownloadProgressEvent as E,
@@ -458,6 +457,8 @@ fn hide_panel(app: &tauri::AppHandle) {
         let _ = panel.hide();
     }
     state.panel_open.store(false, Ordering::Relaxed);
+    // Tell the main window to drop its "item being edited" row highlight.
+    let _ = app.emit("panel:closed", ());
     if let Some(main) = app.get_webview_window("main") {
         let on_top = state.always_on_top.load(Ordering::Relaxed);
         let _ = main.set_always_on_top(on_top);

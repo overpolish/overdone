@@ -50,6 +50,9 @@ export function TodoItem({ item }: TodoItemProps) {
   // ids, e.g. a just-removed person undo briefly reintroduces).
   const roster = useTodos((s) => s.assignees);
   const assignees = resolveAssignees(item.assignees ?? [], roster);
+  // Highlight this row while its editing panel (details / assignees / status)
+  // is open, so it's clear which item the floating panel is editing.
+  const editing = useTodos((s) => s.editingId === item.id);
 
   // When focus is directed here (type-to-create, search, arrow nav), grab it,
   // place the caret per the hint, and scroll the row into view — the custom
@@ -87,6 +90,25 @@ export function TodoItem({ item }: TodoItemProps) {
         transition: "opacity 120ms ease",
       }}
     >
+      {/* Highlight backing the row while its editing panel is open. Behind the
+          content (zIndex -1) and bled out a touch so it reads as a padded
+          surface rather than a tight box. */}
+      {editing && (
+        <Box
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            marginInline: -8,
+            marginBlock: -2,
+            borderRadius: "var(--mantine-radius-sm)",
+            background: "var(--mantine-color-default-hover)",
+            boxShadow: "inset 0 0 0 1px var(--mantine-color-default-border)",
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
+        />
+      )}
       {/* Nesting guide: a faint vertical line under the parent's checkbox. */}
       {child && (
         <div
