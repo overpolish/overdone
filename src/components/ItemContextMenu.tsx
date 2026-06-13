@@ -145,7 +145,7 @@ function MenuRow({ label, icon: Icon, onClick, danger }: MenuRowProps) {
         alignItems: "center",
         gap: 8,
         padding: "6px 8px",
-        borderRadius: "var(--mantine-radius-sm)",
+        borderRadius: "var(--mantine-radius-md)",
         color: danger ? dangerFg(dark) : undefined,
         background: hovered
           ? danger

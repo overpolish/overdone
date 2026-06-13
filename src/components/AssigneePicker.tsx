@@ -150,7 +150,7 @@ export function AssigneePicker({ roster, value, onChange, onCreate }: AssigneePi
           }}
         >
           {/* ~2.5 rows tall so the rest scroll (a partial row + shadow hints
-              there's more). Each option row is roughly 29px. */}
+              there's more). Each option row is roughly 30px. */}
           <ScrollArea maxHeight={76} radius={0}>
             <Box p={4}>
               {available.map((a) => (
@@ -267,7 +267,7 @@ function Option({ onSelect, children }: { onSelect: () => void; children: React.
         alignItems: "center",
         gap: 8,
         width: "100%",
-        padding: "5px 8px",
+        padding: "6px 8px",
         borderRadius: "var(--mantine-radius-md)",
         background: hovered ? "var(--mantine-color-default-hover)" : "transparent",
       }}

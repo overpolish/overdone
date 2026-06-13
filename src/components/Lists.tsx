@@ -1,18 +1,9 @@
-import {
-  ActionIcon,
-  Group,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-  UnstyledButton,
-  useComputedColorScheme,
-} from "@mantine/core";
+import { ActionIcon, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconDownload, IconListCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 import { exportList, type ListMeta, useLists } from "../lib/lists";
-import { dangerBg, dangerFg } from "../lib/styles";
+import { IconButton } from "./IconButton";
 import { ScrollArea } from "./ScrollArea";
 
 /** Human-readable file size, e.g. "820 B", "12 KB", "3.4 MB". */
@@ -87,50 +78,6 @@ export function Lists() {
   );
 }
 
-interface RowButtonProps {
-  icon: typeof IconTrash;
-  label: string;
-  onClick: () => void;
-  /** Whether the row is hovered (controls fade-in). */
-  visible: boolean;
-  /** Destructive styling (red on hover). */
-  danger?: boolean;
-}
-
-/** A hover-revealed action button on a list row (export / delete). */
-function RowButton({ icon: Icon, label, onClick, visible, danger }: RowButtonProps) {
-  const [hovered, setHovered] = useState(false);
-  const dark = useComputedColorScheme("light") === "dark";
-
-  return (
-    <UnstyledButton
-      aria-label={label}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        flexShrink: 0,
-        width: 24,
-        height: 24,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "var(--mantine-radius-md)",
-        color: danger ? dangerFg(dark) : "var(--mantine-color-dimmed)",
-        background: hovered
-          ? danger
-            ? dangerBg(dark)
-            : "var(--mantine-color-default-hover)"
-          : "transparent",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 120ms ease, background 120ms ease",
-      }}
-    >
-      <Icon size={14} stroke={2} style={{ display: "block" }} />
-    </UnstyledButton>
-  );
-}
-
 interface ListRowProps {
   list: ListMeta;
   active: boolean;
@@ -196,21 +143,22 @@ function ListRow({
         </Text>
       )}
 
-      <RowButton
-        icon={IconDownload}
-        label={`Export ${list.title || "Untitled"}`}
-        onClick={onExport}
-        visible={hovered}
-      />
-      {canDelete && (
-        <RowButton
-          icon={IconTrash}
-          label={`Delete ${list.title || "Untitled"}`}
-          onClick={onDelete}
-          visible={hovered}
-          danger
+      {/* Export / delete reveal on hover to keep the row uncluttered. */}
+      <Group gap={2} wrap="nowrap" style={{ flexShrink: 0, opacity: hovered ? 1 : 0 }}>
+        <IconButton
+          icon={IconDownload}
+          label={`Export ${list.title || "Untitled"}`}
+          onClick={onExport}
         />
-      )}
+        {canDelete && (
+          <IconButton
+            icon={IconTrash}
+            label={`Delete ${list.title || "Untitled"}`}
+            onClick={onDelete}
+            danger
+          />
+        )}
+      </Group>
     </Group>
   );
 }
