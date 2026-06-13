@@ -3,7 +3,7 @@ mod tray;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{LogicalPosition, LogicalSize, Manager, PhysicalPosition};
+use tauri::{LogicalSize, Manager, PhysicalPosition};
 
 /// Shared window state.
 struct WindowState {
@@ -706,6 +706,38 @@ fn center_panel_under_main(
     let _ = panel.set_position(PhysicalPosition::new(x, y));
 }
 
+/// Clamp an anchored panel's physical top-left so the whole window (physical
+/// `w`×`h`) stays within the work area of the monitor it sits on — otherwise a
+/// row near the right or bottom edge would push the panel off-screen. Falls back
+/// to the main window's monitor, then the primary, if the point isn't on any.
+fn clamp_to_work_area(
+    panel: &tauri::WebviewWindow,
+    main: &tauri::WebviewWindow,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+) -> Option<PhysicalPosition<i32>> {
+    let monitor = panel
+        .monitor_from_point(x as f64, y as f64)
+        .ok()
+        .flatten()
+        .or_else(|| main.current_monitor().ok().flatten())
+        .or_else(|| panel.primary_monitor().ok().flatten())?;
+    let area = monitor.work_area();
+    let min_x = area.position.x;
+    let min_y = area.position.y;
+    // Largest top-left that keeps the panel fully visible; clamped to at least
+    // the work-area origin so an over-tall panel pins to the top-left corner
+    // rather than being shoved off the opposite edge.
+    let max_x = (area.position.x + area.size.width as i32 - w).max(min_x);
+    let max_y = (area.position.y + area.size.height as i32 - h).max(min_y);
+    Some(PhysicalPosition::new(
+        x.clamp(min_x, max_x),
+        y.clamp(min_y, max_y),
+    ))
+}
+
 /// Show the secondary panel at the given content size (logical px). With an
 /// anchor it's pinned there (top-left), used by the status picker to sit just
 /// below an item; without one it's centered under the main title bar. The panel
@@ -732,7 +764,17 @@ fn open_panel(
 
     match (anchor_x, anchor_y) {
         (Some(x), Some(y)) => {
-            let _ = panel.set_position(LogicalPosition::new(x, y));
+            // The anchor + size are logical (CSS px in the main window's space);
+            // convert to physical to compare against the monitor's work area, and
+            // clamp so an edge-of-screen row can't push the panel off-screen.
+            let scale = main.scale_factor().unwrap_or(1.0);
+            let px = (x * scale).round() as i32;
+            let py = (y * scale).round() as i32;
+            let pw = (width * scale).round() as i32;
+            let ph = (height * scale).round() as i32;
+            let pos = clamp_to_work_area(&panel, &main, px, py, pw, ph)
+                .unwrap_or_else(|| PhysicalPosition::new(px, py));
+            let _ = panel.set_position(pos);
             state.panel_anchored.store(true, Ordering::Relaxed);
         }
         _ => {
@@ -768,10 +810,19 @@ fn resize_panel(
     };
     let _ = panel.set_size(LogicalSize::new(width, height));
 
+    let Some(main) = app.get_webview_window("main") else {
+        return;
+    };
     if !state.panel_anchored.load(Ordering::Relaxed) {
-        if let Some(main) = app.get_webview_window("main") {
-            let keep_y = panel.outer_position().ok().map(|p| p.y);
-            center_panel_under_main(&main, &panel, width, keep_y);
+        let keep_y = panel.outer_position().ok().map(|p| p.y);
+        center_panel_under_main(&main, &panel, width, keep_y);
+    } else if let (Ok(pos), Ok(scale)) = (panel.outer_position(), panel.scale_factor()) {
+        // Anchored panel that grew (e.g. suggestions appeared): keep its
+        // top-left but re-clamp so the larger window doesn't spill off-screen.
+        let pw = (width * scale).round() as i32;
+        let ph = (height * scale).round() as i32;
+        if let Some(clamped) = clamp_to_work_area(&panel, &main, pos.x, pos.y, pw, ph) {
+            let _ = panel.set_position(clamped);
         }
     }
 }
