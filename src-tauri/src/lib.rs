@@ -1,6 +1,6 @@
 mod tray;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{LogicalPosition, LogicalSize, Manager, PhysicalPosition};
@@ -58,6 +58,23 @@ fn hide_traffic_lights(window: &tauri::WebviewWindow) {
 struct ListMeta {
     id: String,
     title: String,
+    /// Disk usage of the list: its markdown plus all its attachments, in bytes.
+    bytes: u64,
+}
+
+/// Total size (bytes) of all files under `dir`, recursively. 0 if absent.
+fn dir_size(dir: &Path) -> u64 {
+    let mut total = 0;
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            match entry.metadata() {
+                Ok(meta) if meta.is_file() => total += meta.len(),
+                Ok(meta) if meta.is_dir() => total += dir_size(&entry.path()),
+                _ => {}
+            }
+        }
+    }
+    total
 }
 
 /// Directory holding the per-list markdown files (`<app data>/lists`).
@@ -70,14 +87,34 @@ fn lists_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Reject anything that isn't a bare filename component (no path separators /
+/// traversal) so a crafted id or name can't escape its directory.
+fn is_safe_component(s: &str) -> bool {
+    !s.is_empty() && !s.contains('/') && !s.contains('\\') && !s.contains("..")
+}
+
 /// Resolve the on-disk path for a list id, rejecting anything that isn't a bare
 /// filename (no path separators / traversal) so a crafted id can't escape the
 /// lists directory.
 fn list_path(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
-    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
+    if !is_safe_component(id) {
         return Err(format!("invalid list id: {id}"));
     }
     Ok(lists_dir(app)?.join(format!("{id}.md")))
+}
+
+/// Directory holding a list's media attachments (`<app data>/media/<list id>`).
+fn media_dir(app: &tauri::AppHandle, list_id: &str) -> Result<PathBuf, String> {
+    if !is_safe_component(list_id) {
+        return Err(format!("invalid list id: {list_id}"));
+    }
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("media")
+        .join(list_id);
+    Ok(dir)
 }
 
 /// Extract the display title from markdown: the first `# ` heading, trimmed.
@@ -111,9 +148,12 @@ fn list_lists(app: tauri::AppHandle) -> Result<Vec<ListMeta>, String> {
             continue;
         };
         let content = std::fs::read_to_string(&path).unwrap_or_default();
+        let md_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        let media_bytes = media_dir(&app, id).map(|d| dir_size(&d)).unwrap_or(0);
         lists.push(ListMeta {
             id: id.to_string(),
             title: title_from_markdown(&content),
+            bytes: md_bytes + media_bytes,
         });
     }
 
@@ -141,18 +181,268 @@ fn write_list(app: tauri::AppHandle, id: String, content: String) -> Result<(), 
     Ok(())
 }
 
-/// Copy a list's markdown to a destination path chosen by the user (the export
-/// save dialog). Unlike the app-data files, `dest` is an arbitrary location.
+/// Export a list to a user-chosen folder: its markdown (named `file_name`) plus
+/// a `media/` subfolder holding its attachments, so the markdown's relative
+/// `media/...` references resolve in the exported folder.
 #[tauri::command]
-fn export_list(app: tauri::AppHandle, id: String, dest: String) -> Result<(), String> {
-    let content = read_list(app, id)?;
-    std::fs::write(&dest, content).map_err(|e| e.to_string())
+fn export_list_to_dir(
+    app: tauri::AppHandle,
+    id: String,
+    dir: String,
+    file_name: String,
+) -> Result<(), String> {
+    if !is_safe_component(&file_name) {
+        return Err(format!("invalid file name: {file_name}"));
+    }
+    let content = read_list(app.clone(), id.clone())?;
+    let dest_dir = PathBuf::from(&dir);
+    std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+    std::fs::write(dest_dir.join(&file_name), content).map_err(|e| e.to_string())?;
+
+    // Copy attachments (the on-disk media folder only holds referenced files,
+    // since it's pruned on list open).
+    let src_media = media_dir(&app, &id)?;
+    if src_media.is_dir() {
+        let out = dest_dir.join("media");
+        std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+        for entry in std::fs::read_dir(&src_media).map_err(|e| e.to_string())?.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let _ = std::fs::copy(&path, out.join(entry.file_name()));
+            }
+        }
+    }
+    Ok(())
 }
 
-/// Delete a list's file (ignored if it's already gone).
+/// Copy an external file into a list's media folder under `file_name` (a bare
+/// `<uuid>.<ext>` chosen by the caller). Used by drag-drop and the file picker,
+/// which provide an on-disk source path.
+#[tauri::command]
+fn import_attachment(
+    app: tauri::AppHandle,
+    list_id: String,
+    src: String,
+    file_name: String,
+) -> Result<(), String> {
+    if !is_safe_component(&file_name) {
+        return Err(format!("invalid file name: {file_name}"));
+    }
+    let dir = media_dir(&app, &list_id)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::copy(&src, dir.join(&file_name)).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Write raw bytes into a list's media folder under `file_name`. Used for
+/// clipboard paste, where the source is in-memory data rather than a file path.
+#[tauri::command]
+fn write_attachment(
+    app: tauri::AppHandle,
+    list_id: String,
+    file_name: String,
+    data: Vec<u8>,
+) -> Result<(), String> {
+    if !is_safe_component(&file_name) {
+        return Err(format!("invalid file name: {file_name}"));
+    }
+    let dir = media_dir(&app, &list_id)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(&file_name), data).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Ensure the managed ffmpeg binary is available, downloading it on first use.
+fn ensure_ffmpeg() -> Result<(), String> {
+    use ffmpeg_sidecar::{command::ffmpeg_is_installed, download::auto_download};
+    if ffmpeg_is_installed() {
+        return Ok(());
+    }
+    auto_download().map_err(|e| format!("ffmpeg download failed: {e}"))
+}
+
+/// Read a file's bytes from an arbitrary (user-chosen) path. Used to load a
+/// dragged/picked image into the webview for canvas-based compression.
+#[tauri::command]
+fn read_file(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| e.to_string())
+}
+
+/// Whether the managed ffmpeg binary is already installed.
+#[tauri::command]
+fn ffmpeg_installed() -> bool {
+    ffmpeg_sidecar::command::ffmpeg_is_installed()
+}
+
+/// Download the managed ffmpeg binary, emitting `ffmpeg:progress` events so the
+/// UI can show feedback. Runs off the UI thread; no-ops if already installed.
+#[tauri::command]
+async fn download_ffmpeg(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Emitter;
+    tauri::async_runtime::spawn_blocking(move || {
+        use ffmpeg_sidecar::download::{
+            auto_download_with_progress, FfmpegDownloadProgressEvent as E,
+        };
+        auto_download_with_progress(|event| {
+            let payload = match event {
+                E::Starting => serde_json::json!({ "phase": "starting" }),
+                E::Downloading {
+                    total_bytes,
+                    downloaded_bytes,
+                } => serde_json::json!({
+                    "phase": "downloading",
+                    "downloaded": downloaded_bytes,
+                    "total": total_bytes,
+                }),
+                E::UnpackingArchive => serde_json::json!({ "phase": "unpacking" }),
+                E::Done => serde_json::json!({ "phase": "done" }),
+            };
+            let _ = app.emit("ffmpeg:progress", payload);
+        })
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Transcode `src` into `dest`, compressing for size at good quality. Images →
+/// WebP (q82); videos → H.264/AAC MP4 — both broadly supported by the webview on
+/// macOS (WKWebView) and Windows (WebView2). ffmpeg picks the format from the
+/// destination extension.
+fn transcode(src: &Path, dest: &Path, kind: &str) -> Result<(), String> {
+    use ffmpeg_sidecar::command::FfmpegCommand;
+    use ffmpeg_sidecar::event::{FfmpegEvent, LogLevel};
+    ensure_ffmpeg()?;
+
+    let mut cmd = FfmpegCommand::new();
+    cmd.create_no_window();
+    cmd.overwrite().input(src.to_string_lossy());
+    if kind == "video" {
+        cmd.codec_video("libx264")
+            .crf(28)
+            .preset("veryfast")
+            .pix_fmt("yuv420p")
+            .codec_audio("aac")
+            .args(["-b:a", "128k", "-movflags", "+faststart"]);
+    } else {
+        cmd.codec_video("libwebp")
+            .args(["-quality", "82", "-compression_level", "6"]);
+    }
+    cmd.output(dest.to_string_lossy());
+
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    // Drain the event/log stream (also prevents the stderr pipe from filling and
+    // stalling ffmpeg) while keeping the error/fatal lines for diagnostics.
+    let mut errors = String::new();
+    if let Ok(events) = child.iter() {
+        for event in events {
+            match event {
+                FfmpegEvent::Log(LogLevel::Error | LogLevel::Fatal, msg)
+                | FfmpegEvent::Error(msg) => {
+                    errors.push_str(msg.trim());
+                    errors.push('\n');
+                }
+                _ => {}
+            }
+        }
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    if !status.success() {
+        let detail = errors.trim();
+        return Err(if detail.is_empty() {
+            "ffmpeg failed to transcode attachment".into()
+        } else {
+            format!("ffmpeg: {detail}")
+        });
+    }
+    Ok(())
+}
+
+/// Compress an on-disk file (drag-drop / picker) into a list's media folder.
+#[tauri::command]
+fn compress_path(
+    app: tauri::AppHandle,
+    list_id: String,
+    file_name: String,
+    src: String,
+    kind: String,
+) -> Result<(), String> {
+    if !is_safe_component(&file_name) {
+        return Err(format!("invalid file name: {file_name}"));
+    }
+    let dir = media_dir(&app, &list_id)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    transcode(Path::new(&src), &dir.join(&file_name), &kind)
+}
+
+/// Compress in-memory bytes (clipboard paste) into a list's media folder.
+#[tauri::command]
+fn compress_bytes(
+    app: tauri::AppHandle,
+    list_id: String,
+    file_name: String,
+    src_ext: String,
+    data: Vec<u8>,
+    kind: String,
+) -> Result<(), String> {
+    if !is_safe_component(&file_name) {
+        return Err(format!("invalid file name: {file_name}"));
+    }
+    let dir = media_dir(&app, &list_id)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // ffmpeg needs a file input; stage the bytes in a temp file named with the
+    // source extension so ffmpeg picks the right demuxer.
+    let ext = if is_safe_component(&src_ext) { src_ext.as_str() } else { "bin" };
+    let tmp = std::env::temp_dir().join(format!("overdone-src-{file_name}.{ext}"));
+    std::fs::write(&tmp, &data).map_err(|e| e.to_string())?;
+    let result = transcode(&tmp, &dir.join(&file_name), &kind);
+    let _ = std::fs::remove_file(&tmp);
+    result
+}
+
+/// Delete specific attachment files from a list's media folder (e.g. when a
+/// comment or its image is removed). Targeted — won't touch other files.
+#[tauri::command]
+fn delete_attachments(
+    app: tauri::AppHandle,
+    list_id: String,
+    files: Vec<String>,
+) -> Result<(), String> {
+    let dir = media_dir(&app, &list_id)?;
+    for file in files {
+        if is_safe_component(&file) {
+            let _ = std::fs::remove_file(dir.join(&file));
+        }
+    }
+    Ok(())
+}
+
+/// Delete any files in a list's media folder not in `keep` (the attachments its
+/// markdown still references). Called on list open to clear orphaned files.
+#[tauri::command]
+fn prune_media(app: tauri::AppHandle, list_id: String, keep: Vec<String>) -> Result<(), String> {
+    let dir = media_dir(&app, &list_id)?;
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(()), // no media folder yet
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if entry.path().is_file() && !keep.contains(&name) {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    Ok(())
+}
+
+/// Delete a list's file and its media folder (ignored if already gone).
 #[tauri::command]
 fn delete_list(app: tauri::AppHandle, id: String) -> Result<(), String> {
     let path = list_path(&app, &id)?;
+    // Remove attachments first; a stray media folder is harmless if this fails.
+    if let Ok(dir) = media_dir(&app, &id) {
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     match std::fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -522,6 +812,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         // Remember the main window's size and position across launches (restored
         // before it's shown, so there's no flash). The panel is excluded — it's
         // sized and positioned dynamically.
@@ -560,7 +851,16 @@ pub fn run() {
             read_list,
             write_list,
             delete_list,
-            export_list
+            export_list_to_dir,
+            import_attachment,
+            write_attachment,
+            compress_path,
+            compress_bytes,
+            delete_attachments,
+            prune_media,
+            read_file,
+            ffmpeg_installed,
+            download_ffmpeg
         ])
         .setup(|app| {
             // Tray-only app on macOS: no dock icon and no Cmd+Tab entry, so the

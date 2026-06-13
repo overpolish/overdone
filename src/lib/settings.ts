@@ -4,6 +4,9 @@ import { disable, enable } from "@tauri-apps/plugin-autostart";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+/** Attachment handling: keep originals, or re-encode to save space. */
+export type MediaCompression = "original" | "compressed";
+
 export interface SettingsState {
   colorScheme: MantineColorScheme;
   alwaysOnTop: boolean;
@@ -11,10 +14,13 @@ export interface SettingsState {
   passthrough: boolean;
   /** Launch the app automatically on login (registered with the OS). */
   launchAtStartup: boolean;
+  /** Whether pasted/imported attachments are compressed (via ffmpeg) or kept. */
+  mediaCompression: MediaCompression;
   setColorScheme: (value: MantineColorScheme) => void;
   setAlwaysOnTop: (value: boolean) => void;
   setPassthrough: (value: boolean) => void;
   setLaunchAtStartup: (value: boolean) => void;
+  setMediaCompression: (value: MediaCompression) => void;
 }
 
 const STORAGE_NAME = "overdone-settings";
@@ -30,6 +36,7 @@ export const useSettings = create<SettingsState>()(
       alwaysOnTop: true,
       passthrough: false,
       launchAtStartup: false,
+      mediaCompression: "original",
       setColorScheme: (colorScheme) => set({ colorScheme }),
       setAlwaysOnTop: (alwaysOnTop) => {
         set({ alwaysOnTop });
@@ -50,6 +57,7 @@ export const useSettings = create<SettingsState>()(
           // toggle reflecting the request rather than reverting silently.
         });
       },
+      setMediaCompression: (mediaCompression) => set({ mediaCompression }),
     }),
     {
       name: STORAGE_NAME,
@@ -59,6 +67,7 @@ export const useSettings = create<SettingsState>()(
         alwaysOnTop: state.alwaysOnTop,
         passthrough: state.passthrough,
         launchAtStartup: state.launchAtStartup,
+        mediaCompression: state.mediaCompression,
       }),
     },
   ),
@@ -94,6 +103,7 @@ if (typeof BroadcastChannel !== "undefined") {
       alwaysOnTop: state.alwaysOnTop,
       passthrough: state.passthrough,
       launchAtStartup: state.launchAtStartup,
+      mediaCompression: state.mediaCompression,
     });
   });
 

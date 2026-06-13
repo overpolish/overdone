@@ -1,9 +1,10 @@
-import { Box, Group } from "@mantine/core";
+import { Box, Group, Loader, Text } from "@mantine/core";
 import {
   IconBold,
   IconItalic,
   IconList,
   IconListNumbers,
+  IconPhoto,
   IconUnderline,
 } from "@tabler/icons-react";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -11,6 +12,7 @@ import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/r
 import StarterKit from "@tiptap/starter-kit";
 import { useRef } from "react";
 
+import { Attachment } from "../lib/attachment";
 import { IconButton } from "./IconButton";
 
 interface UseCommentEditorOptions {
@@ -24,6 +26,8 @@ interface UseCommentEditorOptions {
   onSubmit?: () => void;
   /** Triggered by Escape (e.g. close / cancel). */
   onEscape?: () => void;
+  /** Pasted image/video blobs (clipboard), if the host imports attachments. */
+  onPasteFiles?: (files: File[]) => void;
 }
 
 /**
@@ -39,16 +43,23 @@ export function useCommentEditor({
   onChange,
   onSubmit,
   onEscape,
+  onPasteFiles,
 }: UseCommentEditorOptions): Editor | null {
-  // Refs so the editor's (once-created) key handler always sees the latest
+  // Refs so the editor's (once-created) handlers always see the latest
   // callbacks rather than the ones captured at mount.
   const submitRef = useRef(onSubmit);
   submitRef.current = onSubmit;
   const escapeRef = useRef(onEscape);
   escapeRef.current = onEscape;
+  const pasteRef = useRef(onPasteFiles);
+  pasteRef.current = onPasteFiles;
 
   return useEditor({
-    extensions: [StarterKit, Placeholder.configure({ placeholder: placeholder ?? "" })],
+    extensions: [
+      StarterKit,
+      Placeholder.configure({ placeholder: placeholder ?? "" }),
+      Attachment,
+    ],
     content,
     autofocus: autoFocus ? "end" : false,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -64,12 +75,29 @@ export function useCommentEditor({
         }
         return false;
       },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter(
+          (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+        );
+        if (files.length && pasteRef.current) {
+          pasteRef.current(files);
+          return true;
+        }
+        return false;
+      },
     },
   });
 }
 
 /** Bold / underline / bullet / ordered-list toggles for a comment editor. */
-export function FormatBar({ editor }: { editor: Editor | null }) {
+export function FormatBar({
+  editor,
+  onAddMedia,
+}: {
+  editor: Editor | null;
+  /** When set, shows an image/video insert button (opens the file picker). */
+  onAddMedia?: () => void;
+}) {
   const active = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -114,21 +142,53 @@ export function FormatBar({ editor }: { editor: Editor | null }) {
         active={active?.ordered}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
       />
+      {onAddMedia && (
+        <IconButton label="Insert image or video" icon={IconPhoto} onClick={onAddMedia} />
+      )}
     </Group>
   );
 }
 
-/** The editor's typing surface, styled like a plain text input. */
-export function CommentInput({ editor }: { editor: Editor | null }) {
+/** The editor's typing surface, styled like a plain text input. With `busy`,
+ * shows a blocking overlay (e.g. while an attachment imports/compresses). */
+export function CommentInput({
+  editor,
+  busy,
+  busyLabel,
+}: {
+  editor: Editor | null;
+  busy?: boolean;
+  busyLabel?: string;
+}) {
   return (
-    <Box className="comment-input">
+    <Box className="comment-input" style={{ position: "relative" }}>
       <EditorContent editor={editor} />
+      {busy && (
+        <Group
+          gap={8}
+          justify="center"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "color-mix(in srgb, var(--mantine-color-body) 72%, transparent)",
+            backdropFilter: "blur(1px)",
+            borderRadius: "var(--mantine-radius-md)",
+          }}
+        >
+          <Loader size="xs" />
+          <Text size="xs" c="dimmed">
+            {busyLabel ?? "Working…"}
+          </Text>
+        </Group>
+      )}
     </Box>
   );
 }
 
-/** Whether editor HTML carries no actual text (so Post/Save should no-op). */
+/** Whether editor HTML carries no content (so Post/Save should no-op). */
 export function htmlIsEmpty(html: string): boolean {
-  // Strip tags, drop non-breaking spaces, then check for any remaining text.
+  // An embedded attachment counts as content on its own (image/video-only).
+  if (/<(?:img|video)\b/i.test(html)) return false;
+  // Otherwise strip tags, drop non-breaking spaces, and check for any text.
   return html.replace(/<[^>]*>/g, "").replace(/ /g, "").trim() === "";
 }

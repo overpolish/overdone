@@ -15,6 +15,11 @@
     "core:event:allow-emit",
     "core:event:allow-listen",
     "dialog:allow-save",
+    "dialog:allow-open",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$APPDATA/media/**" }]
+    },
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled"

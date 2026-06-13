@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
 import { parseList } from "./markdown";
+import { referencedMedia } from "./media";
 import { type TodoState } from "./todo";
 
 /** A single timestamped comment in an item's traceable comment log. */
@@ -361,6 +362,12 @@ export const useTodos = create<TodosState>((set, get) => {
         // A fresh, untitled list opens with its title field focused for naming.
         focusTitle: title === "",
       });
+      // Clear orphaned attachments (no unsaved drafts exist at load time, so any
+      // unreferenced media file is genuinely stale).
+      const keep = referencedMedia(
+        items.flatMap((it) => (it.comments ?? []).map((c) => c.text)),
+      );
+      void invoke("prune_media", { listId: id, keep });
     },
 
     undo: () => {

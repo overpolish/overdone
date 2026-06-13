@@ -35,6 +35,8 @@ function renderView(request: PanelRequest | null) {
           key={request.nonce}
           itemId={request.itemId}
           comments={request.comments ?? []}
+          listId={request.listId ?? ""}
+          mediaDir={request.mediaDir ?? ""}
         />
       ) : null;
     case "settings":

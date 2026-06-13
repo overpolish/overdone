@@ -15,6 +15,15 @@ import { exportList, type ListMeta, useLists } from "../lib/lists";
 import { dangerBg, dangerFg } from "../lib/styles";
 import { ScrollArea } from "./ScrollArea";
 
+/** Human-readable file size, e.g. "820 B", "12 KB", "3.4 MB". */
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+  const mb = kb / 1024;
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+}
+
 /**
  * Lists picker shown in the secondary panel. Quick-select any list (focusing a
  * row makes it the active list across windows), rename it inline, create a new
@@ -179,6 +188,13 @@ function ListRow({
           },
         }}
       />
+
+      {/* Disk usage at a glance; yields to the action buttons on hover. */}
+      {!hovered && (
+        <Text size="10px" c="dimmed" style={{ flexShrink: 0 }}>
+          {formatBytes(list.bytes)}
+        </Text>
+      )}
 
       <RowButton
         icon={IconDownload}

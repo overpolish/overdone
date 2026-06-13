@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
+import { appDataDir, join } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { type TodoState } from "./todo";
-import { type Comment, type TodoData } from "./todos";
+import { type Comment, type TodoData, useTodos } from "./todos";
 
 /** Which content the secondary panel renders. */
 export type PanelView = "settings" | "lists" | "status" | "search" | "details";
@@ -28,6 +29,9 @@ export interface PanelRequest {
   items?: TodoData[];
   /** Details-view payload: the item's current comment log to seed the editor. */
   comments?: Comment[];
+  /** Details-view context: the active list's id and its media folder (abs path). */
+  listId?: string;
+  mediaDir?: string;
 }
 
 let nonce = 0;
@@ -79,15 +83,21 @@ export async function openDetailsPanel(
 ) {
   const rect = rowEl.getBoundingClientRect();
   const win = getCurrentWindow();
-  const [scale, innerPos] = await Promise.all([
+  const listId = useTodos.getState().activeId ?? "";
+  const [scale, innerPos, base] = await Promise.all([
     win.scaleFactor(),
     win.innerPosition(),
+    appDataDir(),
   ]);
   const inner = innerPos.toLogical(scale);
+  // Absolute path of this list's media folder, for resolving attachment URLs.
+  const mediaDir = listId ? await join(base, "media", listId) : "";
   openPanel({
     view: "details",
     itemId,
     comments,
+    listId,
+    mediaDir,
     anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },
   });
 }

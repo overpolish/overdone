@@ -1,11 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 
 /** One stored list as surfaced in the lists picker. */
 export interface ListMeta {
   id: string;
   title: string;
+  /** Disk usage (markdown + attachments) in bytes, from the backend. */
+  bytes: number;
 }
 
 interface ListsState {
@@ -127,22 +129,19 @@ export function broadcastListsChanged() {
 }
 
 /**
- * Export a list's markdown to a user-chosen location, defaulting the filename to
- * the list title. Returns the destination path, or null if the dialog was
- * cancelled.
+ * Export a list to a user-chosen folder: its markdown (named from the title)
+ * plus a `media/` subfolder of attachments, so the markdown's relative
+ * references resolve. Returns the chosen folder, or null if cancelled.
  */
 export async function exportList(
   id: string,
   title: string,
 ): Promise<string | null> {
   const name = (title.trim() || "Untitled").replace(/[/\\:]/g, "-");
-  const dest = await save({
-    defaultPath: `${name}.md`,
-    filters: [{ name: "Markdown", extensions: ["md"] }],
-  });
-  if (!dest) return null;
-  await invoke("export_list", { id, dest });
-  return dest;
+  const dir = await openDialog({ directory: true, title: "Export list to folder" });
+  if (!dir || Array.isArray(dir)) return null;
+  await invoke("export_list_to_dir", { id, dir, fileName: `${name}.md` });
+  return dir;
 }
 
 if (channel) {

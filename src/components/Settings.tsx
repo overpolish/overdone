@@ -3,6 +3,8 @@ import {
   Box,
   Checkbox,
   Group,
+  Progress,
+  SegmentedControl,
   Stack,
   Text,
   Title,
@@ -10,8 +12,26 @@ import {
   useMantineColorScheme,
 } from "@mantine/core";
 import { IconDeviceDesktop, IconMoon, IconSettings, IconSun } from "@tabler/icons-react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useRef, useState } from "react";
 
-import { useSettings } from "../lib/settings";
+import { type MediaCompression, useSettings } from "../lib/settings";
+
+/** Progress phase for the one-time ffmpeg download (enabling compression). */
+interface FfmpegProgress {
+  phase: "starting" | "downloading" | "unpacking" | "done";
+  downloaded?: number;
+  total?: number;
+}
+
+interface DownloadState {
+  active: boolean;
+  /** 0–100, or null while indeterminate (before byte totals are known). */
+  pct: number | null;
+  label: string;
+  error?: string;
+}
 
 type ColorScheme = "light" | "dark" | "auto";
 
@@ -29,6 +49,52 @@ export function Settings() {
   const setPassthrough = useSettings((state) => state.setPassthrough);
   const launchAtStartup = useSettings((state) => state.launchAtStartup);
   const setLaunchAtStartup = useSettings((state) => state.setLaunchAtStartup);
+  const mediaCompression = useSettings((state) => state.mediaCompression);
+  const setMediaCompression = useSettings((state) => state.setMediaCompression);
+  const [download, setDownload] = useState<DownloadState | null>(null);
+  const downloadingRef = useRef(false);
+
+  // Switching to "Compressed" downloads ffmpeg up front (with progress) rather
+  // than silently on first import, so there's clear feedback.
+  const onMediaChange = (value: MediaCompression) => {
+    setMediaCompression(value);
+    if (value === "compressed") void ensureFfmpeg();
+  };
+
+  const ensureFfmpeg = async () => {
+    if (downloadingRef.current) return;
+    if (await invoke<boolean>("ffmpeg_installed").catch(() => false)) return;
+
+    downloadingRef.current = true;
+    setDownload({ active: true, pct: null, label: "Preparing download…" });
+    let unlisten = () => {};
+    try {
+      unlisten = await listen<FfmpegProgress>("ffmpeg:progress", (e) => {
+        const p = e.payload;
+        if (p.phase === "downloading" && p.total) {
+          setDownload({
+            active: true,
+            pct: Math.round((p.downloaded! / p.total) * 100),
+            label: "Downloading ffmpeg…",
+          });
+        } else if (p.phase === "unpacking") {
+          setDownload({ active: true, pct: 100, label: "Unpacking…" });
+        }
+      });
+      await invoke("download_ffmpeg");
+      setDownload({ active: false, pct: 100, label: "ffmpeg ready" });
+    } catch {
+      setDownload({
+        active: false,
+        pct: null,
+        label: "",
+        error: "ffmpeg download failed — it'll retry on first use.",
+      });
+    } finally {
+      unlisten();
+      downloadingRef.current = false;
+    }
+  };
 
   return (
     <Stack gap="md" w={300}>
@@ -107,6 +173,47 @@ export function Settings() {
           onChange={(event) => setLaunchAtStartup(event.currentTarget.checked)}
         />
       </Group>
+
+      <Stack gap={4}>
+        <Group justify="space-between" wrap="nowrap">
+          <Text size="sm" fw={500}>
+            Attachments
+          </Text>
+          <SegmentedControl
+            size="xs"
+            value={mediaCompression}
+            onChange={(value) => onMediaChange(value as MediaCompression)}
+            data={[
+              { label: "Lossless", value: "original" },
+              { label: "Compressed", value: "compressed" },
+            ]}
+          />
+        </Group>
+        <Text size="xs" c="dimmed">
+          Compressed re-encodes pasted/added images & videos to save space.
+          Lossless keeps originals.
+        </Text>
+
+        {download?.active && (
+          <Stack gap={2} mt={2}>
+            <Progress value={download.pct ?? 100} size="sm" animated />
+            <Text size="xs" c="dimmed">
+              {download.label}
+              {download.pct != null ? ` ${download.pct}%` : ""}
+            </Text>
+          </Stack>
+        )}
+        {download && !download.active && download.error && (
+          <Text size="xs" c="red">
+            {download.error}
+          </Text>
+        )}
+        {download && !download.active && !download.error && (
+          <Text size="xs" c="dimmed">
+            {download.label}
+          </Text>
+        )}
+      </Stack>
 
       <Stack gap={4}>
         <Group
