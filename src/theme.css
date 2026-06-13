@@ -28,3 +28,56 @@ body,
   height: 100%;
 }
 
+/* Comment rich-text editor, styled to read like a plain text input: a bordered
+ * box that shows a focus ring, with a comfortable minimum typing area. */
+.comment-input {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  transition: border-color 120ms ease;
+}
+.comment-input:focus-within {
+  border-color: var(--mantine-primary-color-filled);
+}
+.comment-input .ProseMirror {
+  min-height: 2.6em;
+  padding: 6px 8px;
+  font-size: var(--mantine-font-size-sm);
+  outline: none;
+}
+.comment-input .ProseMirror p {
+  margin: 0;
+}
+.comment-input .ProseMirror ul,
+.comment-input .ProseMirror ol {
+  margin: 0.2em 0;
+  padding-left: 1.4em;
+}
+.comment-input .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--mantine-color-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Rendered comment HTML (bold / underline / bullet + ordered lists from the
+ * editor), kept tight so entries read as compact log lines. */
+.comment-body > :first-child {
+  margin-top: 0;
+}
+.comment-body > :last-child {
+  margin-bottom: 0;
+}
+.comment-body p {
+  margin: 0;
+}
+.comment-body p + p {
+  margin-top: 0.4em;
+}
+.comment-body ul,
+.comment-body ol {
+  margin: 0.2em 0;
+  padding-left: 1.4em;
+}
+

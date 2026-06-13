@@ -10,20 +10,27 @@ interface IconButtonProps {
   onClick: () => void;
   /** Tints red on hover (destructive actions like close / delete). */
   danger?: boolean;
+  /** Toggle controls (e.g. format bar): renders an "on" surface when set. */
+  active?: boolean;
 }
 
 /**
  * A small square icon button: dimmed and chrome-free at rest, gaining a hover
  * surface (red for destructive actions) only on pointer-over. Shared by the
- * title bar's window controls and the comment log's edit/delete actions.
+ * title bar's window controls, the comment log's edit/delete actions, and the
+ * comment editor's format toggles (via `active`).
  */
-export function IconButton({ label, icon: Icon, onClick, danger }: IconButtonProps) {
+export function IconButton({ label, icon: Icon, onClick, danger, active }: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const dark = useComputedColorScheme("light") === "dark";
 
+  const strong = active || hovered;
   return (
     <UnstyledButton
       aria-label={label}
+      // Preserve the editor's selection/focus when used as a format toggle:
+      // taking button focus on mousedown would collapse the selection.
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -37,13 +44,19 @@ export function IconButton({ label, icon: Icon, onClick, danger }: IconButtonPro
         alignItems: "center",
         justifyContent: "center",
         borderRadius: "var(--mantine-radius-md)",
-        opacity: hovered ? 1 : 0.5,
-        color: danger && hovered ? dangerFg(dark) : "var(--mantine-color-dimmed)",
-        background: hovered
-          ? danger
-            ? dangerBg(dark)
-            : "var(--mantine-color-default-hover)"
-          : "transparent",
+        opacity: strong ? 1 : 0.5,
+        color:
+          danger && hovered
+            ? dangerFg(dark)
+            : active
+              ? "var(--mantine-color-text)"
+              : "var(--mantine-color-dimmed)",
+        background:
+          hovered || active
+            ? danger && hovered
+              ? dangerBg(dark)
+              : "var(--mantine-color-default-hover)"
+            : "transparent",
         transition: "opacity 120ms ease, background 120ms ease, color 120ms ease",
       }}
     >
