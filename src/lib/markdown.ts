@@ -30,6 +30,7 @@ const STATE_TO_MARKER: Record<TodoState, string> = {
   inProgress: "/",
   onHold: "-",
   done: "x",
+  cancelled: "~",
 };
 
 const MARKER_TO_STATE: Record<string, TodoState> = {
@@ -39,6 +40,7 @@ const MARKER_TO_STATE: Record<string, TodoState> = {
   "-": "onHold",
   x: "done",
   X: "done",
+  "~": "cancelled",
 };
 
 /**

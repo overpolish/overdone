@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fuzzyScore } from "../lib/fuzzy";
 import { htmlToText } from "../lib/media";
 import { closePanel, emitFocusItem } from "../lib/panel";
+import { isStruck } from "../lib/todo";
 import { type TodoData } from "../lib/todos";
 import { ScrollArea } from "./ScrollArea";
 import { StateBox } from "./StateBox";
@@ -123,7 +124,7 @@ function ResultRow({
   onSelect: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const done = item.state === "done";
+  const done = isStruck(item.state);
 
   return (
     <UnstyledButton

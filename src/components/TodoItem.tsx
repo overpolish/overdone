@@ -7,6 +7,7 @@ import { caretEdges } from "../lib/caret";
 import { useItemMenu } from "../lib/context-menu";
 import { openAssigneePanel, openDetailsPanel } from "../lib/panel";
 import { useDrag } from "../lib/reorder";
+import { isStruck } from "../lib/todo";
 import { type TodoData, useTodos } from "../lib/todos";
 import { AddAssigneeButton, AssigneeAvatars } from "./AssigneeAvatar";
 import { StateCheckbox } from "./StateCheckbox";
@@ -38,7 +39,7 @@ export function TodoItem({ item }: TodoItemProps) {
   const focusCaret = useTodos((s) => s.focusCaret);
   const clearFocus = useTodos((s) => s.clearFocus);
   const dragging = useDrag((s) => s.id === item.id);
-  const done = item.state === "done";
+  const done = isStruck(item.state);
   const child = item.depth === 1;
   // The details button appears on row hover (to avoid clutter), and stays
   // faintly visible as an indicator when the item already has comments.
