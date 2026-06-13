@@ -1,4 +1,4 @@
-import { type TodoData } from "./todos";
+import { type Assignee, type TodoData } from "./todos";
 import { type TodoState } from "./todo";
 
 /**
@@ -50,6 +50,9 @@ const ITEM_RE = /^( {2})?- \[(.?)\]\s?(.*)$/;
 /** Trailing metadata comment on an item's first line. */
 const META_RE = /\s*<!--\s*(.*?)\s*-->\s*$/;
 
+/** List-level metadata line (the assignee roster), placed under the title. */
+const ROSTER_RE = /^<!--\s*overdone:assignees=(.*?)\s*-->\s*$/;
+
 /** The metadata keys carried in the comment, in serialization order. */
 const META_FIELDS = [
   ["created", "createdAt"],
@@ -60,6 +63,8 @@ const META_FIELDS = [
 export interface ParsedList {
   title: string;
   items: TodoData[];
+  /** The list's assignee roster (empty if the file carries none). */
+  assignees: Assignee[];
 }
 
 /** Build the trailing ` <!-- ... -->` comment for an item's metadata. */
@@ -68,6 +73,11 @@ function serializeMeta(item: TodoData): string {
   for (const [key, field] of META_FIELDS) {
     const value = item[field];
     if (value != null) parts.push(`${key}=${new Date(value).toISOString()}`);
+  }
+  // Assignee ids are UUIDs (no spaces/commas), so a plain comma-joined list is
+  // safe within the space-separated key=value metadata.
+  if (item.assignees?.length) {
+    parts.push(`assignees=${item.assignees.join(",")}`);
   }
   // Comments are JSON, then URL-encoded so their spaces/newlines can't break
   // the space-separated key=value list (and they stay on the item's one line).
@@ -100,6 +110,11 @@ function parseMeta(text: string): { text: string; meta: Partial<TodoData> } {
       }
       continue;
     }
+    if (key === "assignees") {
+      const ids = raw.split(",").filter(Boolean);
+      if (ids.length) meta.assignees = ids;
+      continue;
+    }
     if (key === "comment") {
       // Legacy single free-form comment → one entry in the new log.
       const text = decodeURIComponent(raw);
@@ -115,8 +130,18 @@ function parseMeta(text: string): { text: string; meta: Partial<TodoData> } {
 }
 
 /** Build the markdown for a list. */
-export function serializeList(title: string, items: TodoData[]): string {
-  const lines: string[] = [`# ${title}`, ""];
+export function serializeList(
+  title: string,
+  items: TodoData[],
+  assignees: Assignee[] = [],
+): string {
+  const lines: string[] = [`# ${title}`];
+  // List-level roster, on its own line under the title (URL-encoded JSON so it
+  // can't break the line). Invisible in any rendered markdown view.
+  if (assignees.length) {
+    lines.push(`<!-- overdone:assignees=${encodeURIComponent(JSON.stringify(assignees))} -->`);
+  }
+  lines.push("");
   for (const item of items) {
     const indent = item.depth === 1 ? "  " : "";
     const marker = STATE_TO_MARKER[item.state];
@@ -148,6 +173,7 @@ export function setMarkdownTitle(content: string, title: string): string {
 export function parseList(content: string): ParsedList {
   const lines = content.split(/\r?\n/);
   let title = "";
+  let assignees: Assignee[] = [];
   const items: TodoData[] = [];
 
   for (const line of lines) {
@@ -157,6 +183,18 @@ export function parseList(content: string): ParsedList {
         title = heading[1].trim();
         continue;
       }
+    }
+
+    // List-level roster line (appears before any item, under the title).
+    const roster = line.match(ROSTER_RE);
+    if (roster) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(roster[1]));
+        if (Array.isArray(parsed)) assignees = parsed;
+      } catch {
+        // Malformed roster: drop it rather than failing the whole parse.
+      }
+      continue;
     }
 
     const item = line.match(ITEM_RE);
@@ -178,5 +216,5 @@ export function parseList(content: string): ParsedList {
     }
   }
 
-  return { title, items };
+  return { title, items, assignees };
 }

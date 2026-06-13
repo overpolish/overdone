@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { type PanelRequest } from "../lib/panel";
+import { emitEditAction, type PanelRequest } from "../lib/panel";
+import { AssigneePanel } from "./AssigneePanel";
 import { ItemDetails } from "./ItemDetails";
 import { Lists } from "./Lists";
 import { Search } from "./Search";
@@ -37,11 +38,22 @@ function renderView(request: PanelRequest | null) {
           comments={request.comments ?? []}
           listId={request.listId ?? ""}
           mediaDir={request.mediaDir ?? ""}
+          roster={request.roster ?? []}
+          assigneeIds={request.assigneeIds ?? []}
+        />
+      ) : null;
+    case "assignee":
+      return request.itemId ? (
+        <AssigneePanel
+          key={request.nonce}
+          itemId={request.itemId}
+          roster={request.roster ?? []}
+          assigneeIds={request.assigneeIds ?? []}
         />
       ) : null;
     case "settings":
     default:
-      return <Settings />;
+      return <Settings key={request.nonce} roster={request.roster ?? []} />;
   }
 }
 
@@ -64,6 +76,25 @@ export function PanelHost() {
     return () => {
       void unlisten.then((off) => off());
     };
+  }, []);
+
+  // Cmd/Ctrl+Z/Y in a panel can't reach the main window's store, so forward it
+  // (e.g. undoing an assignee change made here). Skip when a text field is
+  // focused so its native text undo still works.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
+        return;
+      }
+      e.preventDefault();
+      emitEditAction(key === "y" || e.shiftKey ? "redo" : "undo");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Each new request: measure the freshly-rendered view and open at that size.

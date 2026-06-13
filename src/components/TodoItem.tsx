@@ -1,12 +1,14 @@
-import { ActionIcon, Box, Group, Textarea } from "@mantine/core";
+import { ActionIcon, Box, Group, Textarea, UnstyledButton } from "@mantine/core";
 import { IconMessage } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 
+import { resolveAssignees } from "../lib/assignee";
 import { caretEdges } from "../lib/caret";
 import { useItemMenu } from "../lib/context-menu";
-import { openDetailsPanel } from "../lib/panel";
+import { openAssigneePanel, openDetailsPanel } from "../lib/panel";
 import { useDrag } from "../lib/reorder";
 import { type TodoData, useTodos } from "../lib/todos";
+import { AddAssigneeButton, AssigneeAvatars } from "./AssigneeAvatar";
 import { StateCheckbox } from "./StateCheckbox";
 
 interface TodoItemProps {
@@ -41,8 +43,13 @@ export function TodoItem({ item }: TodoItemProps) {
   // The details button appears on row hover (to avoid clutter), and stays
   // faintly visible as an indicator when the item already has comments.
   const rowRef = useRef<HTMLDivElement>(null);
+  const assigneeRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   const hasComments = (item.comments?.length ?? 0) > 0;
+  // Resolve the item's assignee ids against the roster (skipping any unknown
+  // ids, e.g. a just-removed person undo briefly reintroduces).
+  const roster = useTodos((s) => s.assignees);
+  const assignees = resolveAssignees(item.assignees ?? [], roster);
 
   // When focus is directed here (type-to-create, search, arrow nav), grab it,
   // place the caret per the hint, and scroll the row into view — the custom
@@ -169,6 +176,52 @@ export function TodoItem({ item }: TodoItemProps) {
           },
         }}
       />
+      {/* Right-side controls (assignees + details) sit in their own tight group
+          so they stay close together, while the row's wider gap separates them
+          from the text. */}
+      <Group gap={2} wrap="nowrap" align="flex-start">
+      {/* Assignee control, top-anchored to the first text line like the other
+          controls and reserved in layout. Click the avatars to reassign; with
+          nobody assigned, a dashed "add" circle appears on hover. */}
+      <Box
+        ref={assigneeRef}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          // Right-aligned with a minimum width: the add circle / single avatar
+          // reserve a steady slot whose right edge lines up with the details
+          // icon, while multiple avatars grow leftward (keeping the gap to the
+          // icon constant) instead of overflowing a fixed-width box.
+          justifyContent: "flex-end",
+          minWidth: 20,
+          height: LINE_HEIGHT,
+          // Empty + not hovered: hide the add affordance but keep its slot.
+          opacity: assignees.length > 0 || hovered ? 1 : 0,
+          pointerEvents: assignees.length > 0 || hovered ? "auto" : "none",
+          transition: "opacity 120ms ease",
+        }}
+      >
+        {assignees.length > 0 ? (
+          <UnstyledButton
+            aria-label="Change assignees"
+            onClick={() => {
+              if (assigneeRef.current) void openAssigneePanel(assigneeRef.current, item.id);
+            }}
+            style={{ display: "flex", alignItems: "center" }}
+          >
+            {/* 14px disc matches the IconCirclePlus's drawn ring at size 18
+                (Tabler insets the circle to ~75% of the icon box). */}
+            <AssigneeAvatars assignees={assignees} size={14} />
+          </UnstyledButton>
+        ) : (
+          <AddAssigneeButton
+            size={18}
+            onClick={() => {
+              if (assigneeRef.current) void openAssigneePanel(assigneeRef.current, item.id);
+            }}
+          />
+        )}
+      </Box>
       {/* Details / comments. Top-anchored to align with the first text line,
           like the checkbox. Reserved in layout so showing it doesn't reflow. */}
       <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
@@ -192,6 +245,7 @@ export function TodoItem({ item }: TodoItemProps) {
           <IconMessage size={14} stroke={1.8} />
         </ActionIcon>
       </Box>
+      </Group>
     </Group>
   );
 }

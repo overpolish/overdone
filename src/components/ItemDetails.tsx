@@ -22,7 +22,8 @@ import {
 } from "../lib/media";
 import { closePanel, emitDetailsAction } from "../lib/panel";
 import { useSettings } from "../lib/settings";
-import { type Comment } from "../lib/todos";
+import { type Assignee, type Comment } from "../lib/todos";
+import { AssigneePicker, useAssigneeEditor } from "./AssigneePicker";
 import {
   CommentInput,
   FormatBar,
@@ -39,6 +40,10 @@ interface ItemDetailsProps {
   /** Active list id and its media folder (abs path), for attachments. */
   listId: string;
   mediaDir: string;
+  /** The list's assignee roster, to seed the picker's suggestions. */
+  roster: Assignee[];
+  /** The item's current assignee ids. */
+  assigneeIds: string[];
 }
 
 /** Compact, human timestamp for a comment (e.g. "Jun 13, 2:05 PM"). */
@@ -78,9 +83,17 @@ function useMediaBusy() {
  * The panel owns the editing session and streams the whole updated log back to
  * the main window (which owns the list and autosaves) on each change.
  */
-export function ItemDetails({ itemId, comments: initial, listId, mediaDir }: ItemDetailsProps) {
+export function ItemDetails({
+  itemId,
+  comments: initial,
+  listId,
+  mediaDir,
+  roster: initialRoster,
+  assigneeIds: initialAssigneeIds,
+}: ItemDetailsProps) {
   const [comments, setComments] = useState<Comment[]>(initial);
   const [draft, setDraft] = useState("");
+  const assignees = useAssigneeEditor(itemId, initialRoster, initialAssigneeIds);
   // Which comment is being edited (single source of truth across rows).
   const [editingId, setEditingId] = useState<string | null>(null);
   const { busy, busyLabel, error, run } = useMediaBusy();
@@ -158,6 +171,18 @@ export function ItemDetails({ itemId, comments: initial, listId, mediaDir }: Ite
       </Group>
 
       <Stack gap="xs">
+        <Text size="xs" fw={600} c="dimmed">
+          ASSIGNEES
+        </Text>
+        <AssigneePicker
+          roster={assignees.roster}
+          value={assignees.assigneeIds}
+          onChange={assignees.onChange}
+          onCreate={assignees.onCreate}
+        />
+      </Stack>
+
+      <Stack gap="xs">
         {/* Heading carries the format controls for the composer on its right. */}
         <Group justify="space-between" wrap="nowrap" align="center" h={22}>
           <Text size="xs" fw={600} c="dimmed">
@@ -187,7 +212,7 @@ export function ItemDetails({ itemId, comments: initial, listId, mediaDir }: Ite
         </Group>
 
         {comments.length > 0 && (
-          <ScrollArea maxHeight={260} radius="var(--mantine-radius-md)">
+          <ScrollArea maxHeight={260}>
             {/* Newest first; storage stays chronological (new posts append). */}
             <Stack gap={8} pt={4} pb={2}>
               {comments
@@ -268,7 +293,7 @@ function CommentRow({
           too small to expand into); videos keep their inline controls. */}
       <Box
         className="comment-body"
-        fz="sm"
+        fz="xs"
         style={{ wordBreak: "break-word" }}
         onClick={(e) => {
           const el = e.target as HTMLElement;

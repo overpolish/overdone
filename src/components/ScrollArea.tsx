@@ -13,7 +13,11 @@ interface ScrollAreaProps {
   children: ReactNode;
   /** Cap the scroll height (e.g. the lists panel). Omit to fill the parent. */
   maxHeight?: number | string;
-  /** Round the shadow corners (e.g. to match a rounded list). */
+  /**
+   * Corner radius for the container. It's rounded *and* clipped, so the scroll
+   * shadows follow the same curve at the corners. Defaults to the standard `md`
+   * radius; pass `0` to opt out (e.g. a full-bleed, window-filling scroll).
+   */
   radius?: number | string;
   /** Applied to the outer (positioned) container. */
   style?: CSSProperties;
@@ -22,9 +26,15 @@ interface ScrollAreaProps {
 /**
  * A vertical scroll container with soft top/bottom shadows that fade in only
  * when there's more content to scroll to in that direction — a cue that the
- * list continues past the edge.
+ * list continues past the edge. The container is rounded and clips its content,
+ * so the shadows round with it instead of squaring off at the corners.
  */
-export function ScrollArea({ children, maxHeight, radius, style }: ScrollAreaProps) {
+export function ScrollArea({
+  children,
+  maxHeight,
+  radius = "var(--mantine-radius-md)",
+  style,
+}: ScrollAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // 0..1 strength of each shadow, scaled by how far there is to scroll.
   const [top, setTop] = useState(0);
@@ -63,7 +73,17 @@ export function ScrollArea({ children, maxHeight, radius, style }: ScrollAreaPro
   const alpha = dark ? 0.4 : 0.14;
 
   return (
-    <div style={{ position: "relative", minHeight: 0, ...style }}>
+    <div
+      style={{
+        position: "relative",
+        minHeight: 0,
+        borderRadius: radius,
+        // Clip content (and the shadows) to the rounded corners so the shadows
+        // curve with the container rather than squaring off.
+        overflow: radius ? "hidden" : undefined,
+        ...style,
+      }}
+    >
       <div
         ref={scrollRef}
         style={{
@@ -74,8 +94,8 @@ export function ScrollArea({ children, maxHeight, radius, style }: ScrollAreaPro
       >
         {children}
       </div>
-      <Shadow side="top" strength={top} alpha={alpha} radius={radius} />
-      <Shadow side="bottom" strength={bottom} alpha={alpha} radius={radius} />
+      <Shadow side="top" strength={top} alpha={alpha} />
+      <Shadow side="bottom" strength={bottom} alpha={alpha} />
     </div>
   );
 }
@@ -84,13 +104,11 @@ function Shadow({
   side,
   strength,
   alpha,
-  radius,
 }: {
   side: "top" | "bottom";
   /** 0..1, driven by remaining scroll distance at this edge. */
   strength: number;
   alpha: number;
-  radius?: number | string;
 }) {
   const dir = side === "top" ? "to bottom" : "to top";
   return (
@@ -103,11 +121,6 @@ function Shadow({
         height: SHADOW_HEIGHT,
         pointerEvents: "none",
         background: `linear-gradient(${dir}, rgba(0,0,0,${alpha}), rgba(0,0,0,0))`,
-        // Round only the outer corners (top edge / bottom edge) so it follows
-        // the rounded list rather than reading as a pill.
-        ...(side === "top"
-          ? { borderTopLeftRadius: radius, borderTopRightRadius: radius }
-          : { borderBottomLeftRadius: radius, borderBottomRightRadius: radius }),
         opacity: strength,
       }}
     />

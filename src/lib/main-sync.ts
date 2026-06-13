@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { broadcastListsChanged, setRenameWriter, useLists } from "./lists";
 import { serializeList, setMarkdownTitle } from "./markdown";
+import { emitAssigneesSync } from "./panel";
 import { useTodos } from "./todos";
 
 /**
@@ -56,9 +57,28 @@ export function bindMainWindow() {
       return;
     }
     if (!state.activeId) return;
-    if (state.items === prev.items && state.title === prev.title) return;
 
-    pending = { id: state.activeId, content: serializeList(state.title, state.items) };
+    // Keep an open assignee picker (a separate window) live with the store, so
+    // changes from any source — including undo/redo — reflect there too.
+    if (state.items !== prev.items || state.assignees !== prev.assignees) {
+      emitAssigneesSync({
+        roster: state.assignees,
+        byItem: Object.fromEntries(state.items.map((i) => [i.id, i.assignees ?? []])),
+      });
+    }
+
+    if (
+      state.items === prev.items &&
+      state.title === prev.title &&
+      state.assignees === prev.assignees
+    ) {
+      return;
+    }
+
+    pending = {
+      id: state.activeId,
+      content: serializeList(state.title, state.items, state.assignees),
+    };
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, SAVE_DELAY_MS);
   });

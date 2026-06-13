@@ -4,10 +4,16 @@ import { appDataDir, join } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { type TodoState } from "./todo";
-import { type Comment, type TodoData, useTodos } from "./todos";
+import { type Assignee, type Comment, type TodoData, useTodos } from "./todos";
 
 /** Which content the secondary panel renders. */
-export type PanelView = "settings" | "lists" | "status" | "search" | "details";
+export type PanelView =
+  | "settings"
+  | "lists"
+  | "status"
+  | "search"
+  | "details"
+  | "assignee";
 
 export interface PanelAnchor {
   /** Logical-pixel screen coordinates for the panel's top-left corner. */
@@ -32,6 +38,10 @@ export interface PanelRequest {
   /** Details-view context: the active list's id and its media folder (abs path). */
   listId?: string;
   mediaDir?: string;
+  /** The active list's assignee roster (details + settings views). */
+  roster?: Assignee[];
+  /** Details-view payload: the item's current assignee ids. */
+  assigneeIds?: string[];
 }
 
 let nonce = 0;
@@ -72,6 +82,49 @@ export function emitDetailsAction(action: DetailsAction) {
   void emit("details:action", action);
 }
 
+/** An item's assignee change made in the details panel, sent to the main window.
+ * `newAssignees` carries any roster entries created in the same action. */
+export interface AssigneeAction {
+  itemId: string;
+  assigneeIds: string[];
+  newAssignees?: Assignee[];
+}
+
+export function emitAssigneeAction(action: AssigneeAction) {
+  void emit("assignee:action", action);
+}
+
+/** A roster-management change made in Settings, sent to the main window. */
+export type RosterAction =
+  | { type: "add"; assignee: Assignee }
+  | { type: "rename"; id: string; name: string }
+  | { type: "recolor"; id: string; color: string }
+  | { type: "remove"; id: string };
+
+export function emitRosterAction(action: RosterAction) {
+  void emit("roster:action", action);
+}
+
+/** Undo/redo pressed while a panel window holds focus, forwarded to the main
+ * window (which owns the list + its history). */
+export type EditActionType = "undo" | "redo";
+
+export function emitEditAction(type: EditActionType) {
+  void emit("edit:action", type);
+}
+
+/** The main window's current assignee state, pushed to the panel so an open
+ * picker stays live with the store (e.g. after an undo/redo). */
+export interface AssigneesSync {
+  roster: Assignee[];
+  /** Each item's assignee ids, keyed by item id. */
+  byItem: Record<string, string[]>;
+}
+
+export function emitAssigneesSync(sync: AssigneesSync) {
+  void emit("assignees:sync", sync);
+}
+
 /**
  * Open the details panel for an item, pinned just below its row (top-left
  * aligned with the row, like the status picker sits below a checkbox).
@@ -83,7 +136,9 @@ export async function openDetailsPanel(
 ) {
   const rect = rowEl.getBoundingClientRect();
   const win = getCurrentWindow();
-  const listId = useTodos.getState().activeId ?? "";
+  const { activeId, assignees: roster, items } = useTodos.getState();
+  const listId = activeId ?? "";
+  const assigneeIds = items.find((i) => i.id === itemId)?.assignees ?? [];
   const [scale, innerPos, base] = await Promise.all([
     win.scaleFactor(),
     win.innerPosition(),
@@ -98,6 +153,32 @@ export async function openDetailsPanel(
     comments,
     listId,
     mediaDir,
+    roster,
+    assigneeIds,
+    anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },
+  });
+}
+
+/**
+ * Open the assignee picker for an item, pinned just below the clicked control
+ * (the row's avatars / add button), so people can be assigned without leaving
+ * the list.
+ */
+export async function openAssigneePanel(anchorEl: HTMLElement, itemId: string) {
+  const rect = anchorEl.getBoundingClientRect();
+  const win = getCurrentWindow();
+  const { assignees: roster, items } = useTodos.getState();
+  const assigneeIds = items.find((i) => i.id === itemId)?.assignees ?? [];
+  const [scale, innerPos] = await Promise.all([
+    win.scaleFactor(),
+    win.innerPosition(),
+  ]);
+  const inner = innerPos.toLogical(scale);
+  openPanel({
+    view: "assignee",
+    itemId,
+    roster,
+    assigneeIds,
     anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },
   });
 }

@@ -96,7 +96,7 @@ export function Search({ items }: { items: TodoData[] }) {
           No matches
         </Text>
       ) : (
-        <ScrollArea maxHeight={260} radius="var(--mantine-radius-md)">
+        <ScrollArea maxHeight={260}>
           <Stack gap={2}>
             {results.map(({ item, snippet }) => (
               <ResultRow

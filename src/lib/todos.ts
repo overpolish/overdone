@@ -5,6 +5,15 @@ import { parseList } from "./markdown";
 import { referencedMedia } from "./media";
 import { type TodoState } from "./todo";
 
+/** A person who can be assigned to items, scoped to a single list's roster. */
+export interface Assignee {
+  id: string;
+  /** Display name, free-form. Drives the avatar's initials. */
+  name: string;
+  /** Mantine color-family name (e.g. "blue"), registered in the theme. */
+  color: string;
+}
+
 /** A single timestamped comment in an item's traceable comment log. */
 export interface Comment {
   id: string;
@@ -30,6 +39,8 @@ export interface TodoData {
   doneAt?: number;
   /** Traceable comment log attached to the item, edited in the details panel. */
   comments?: Comment[];
+  /** Ids of the list-roster assignees on this item (see `Assignee`). */
+  assignees?: string[];
 }
 
 /** Wall-clock now, in epoch ms — the single clock the store stamps from. */
@@ -107,6 +118,11 @@ interface TodosState {
   activeId: string | null;
   /** Title of the active list (the markdown `# ` heading). */
   title: string;
+  /**
+   * The active list's assignee roster. List-level state (like `title`), kept
+   * outside the items undo history; items reference entries here by id.
+   */
+  assignees: Assignee[];
   items: TodoData[];
   /** Past/future snapshots of `items` for undo/redo. */
   past: TodoData[][];
@@ -142,6 +158,16 @@ interface TodosState {
    * persists it.
    */
   setItemComments: (id: string, comments: Comment[]) => void;
+  /** Replace an item's assignee list (ids into the roster). */
+  setItemAssignees: (id: string, assignees: string[]) => void;
+  /** Add a new person to the roster. */
+  addAssignee: (assignee: Assignee) => void;
+  /** Rename a roster member (propagates everywhere, since items hold ids). */
+  renameAssignee: (id: string, name: string) => void;
+  /** Recolor a roster member. */
+  setAssigneeColor: (id: string, color: string) => void;
+  /** Remove a roster member and unassign it from every item. */
+  removeAssignee: (id: string) => void;
   setTitle: (title: string) => void;
   deleteItem: (id: string) => void;
   /** Delete an item and move focus to its neighbour (previous, else next). */
@@ -191,6 +217,7 @@ export const useTodos = create<TodosState>((set, get) => {
   return {
     activeId: null,
     title: "",
+    assignees: [],
     items: [],
     past: [],
     future: [],
@@ -233,6 +260,51 @@ export const useTodos = create<TodosState>((set, get) => {
         // Coalesce a session's add/edit/delete bursts into one undo step.
         `comments:${id}`,
       ),
+
+    setItemAssignees: (id, assignees) =>
+      commit(
+        (items) =>
+          items.map((i) =>
+            i.id === id ? { ...i, assignees, updatedAt: now() } : i,
+          ),
+        // Coalesce a session's add/remove bursts into one undo step.
+        `assignees:${id}`,
+      ),
+
+    // Roster ops live outside the items undo history (like `title`): a single
+    // list-level field that autosaves with the rest of the list.
+    addAssignee: (assignee) =>
+      set((s) =>
+        // Idempotent by id: the details panel may re-send a freshly created
+        // entry alongside later edits, so guard against duplicates.
+        s.assignees.some((a) => a.id === assignee.id)
+          ? s
+          : { assignees: [...s.assignees, assignee] },
+      ),
+
+    renameAssignee: (id, name) =>
+      set((s) => ({
+        assignees: s.assignees.map((a) => (a.id === id ? { ...a, name } : a)),
+      })),
+
+    setAssigneeColor: (id, color) =>
+      set((s) => ({
+        assignees: s.assignees.map((a) => (a.id === id ? { ...a, color } : a)),
+      })),
+
+    removeAssignee: (id) => {
+      set((s) => ({ assignees: s.assignees.filter((a) => a.id !== id) }));
+      // Strip the id from every item that referenced it (one undo step).
+      commit(
+        (items) =>
+          items.map((i) =>
+            i.assignees?.includes(id)
+              ? { ...i, assignees: i.assignees.filter((x) => x !== id), updatedAt: now() }
+              : i,
+          ),
+        null,
+      );
+    },
 
     // Title lives outside the items undo history; it's a single field that
     // autosaves like the rest of the list.
@@ -349,10 +421,11 @@ export const useTodos = create<TodosState>((set, get) => {
       } catch {
         // Missing/unreadable file: start from an empty list.
       }
-      const { title, items } = parseList(content);
+      const { title, items, assignees } = parseList(content);
       set({
         activeId: id,
         title,
+        assignees,
         // Fix any structural quirks and ensure parent states match their kids.
         items: withRollup(normalizeDepths(items)),
         past: [],

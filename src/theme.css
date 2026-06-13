@@ -40,9 +40,9 @@ body,
   border-color: var(--mantine-primary-color-filled);
 }
 .comment-input .ProseMirror {
-  min-height: 2.6em;
-  padding: 6px 8px;
-  font-size: var(--mantine-font-size-sm);
+  min-height: 2.4em;
+  padding: 5px 8px;
+  font-size: var(--mantine-font-size-xs);
   outline: none;
 }
 .comment-input .ProseMirror p {

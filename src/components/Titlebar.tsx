@@ -36,7 +36,9 @@ export function Titlebar() {
       <Center h="100%" style={{ pointerEvents: "none" }}>
         <UnstyledButton
           aria-label="Open settings"
-          onClick={() => openPanel({ view: "settings" })}
+          onClick={() =>
+            openPanel({ view: "settings", roster: useTodos.getState().assignees })
+          }
           style={{
             pointerEvents: "auto",
             display: "flex",

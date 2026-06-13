@@ -12,7 +12,13 @@ import { ScrollArea } from "./components/ScrollArea";
 import { TodoItem } from "./components/TodoItem";
 import { Titlebar } from "./components/Titlebar";
 import { bindMainWindow } from "./lib/main-sync";
-import { type DetailsAction, type StatusAction } from "./lib/panel";
+import {
+  type AssigneeAction,
+  type DetailsAction,
+  type EditActionType,
+  type RosterAction,
+  type StatusAction,
+} from "./lib/panel";
 import { useDrag } from "./lib/reorder";
 import { useSettings } from "./lib/settings";
 import { useTodos } from "./lib/todos";
@@ -104,6 +110,48 @@ function App() {
     };
   }, []);
 
+  // Apply assignee changes made in the details panel: register any newly created
+  // roster members first, then set the item's assignee list.
+  useEffect(() => {
+    const unlisten = listen<AssigneeAction>("assignee:action", (e) => {
+      const { itemId, assigneeIds, newAssignees } = e.payload;
+      const todos = useTodos.getState();
+      newAssignees?.forEach((a) => todos.addAssignee(a));
+      todos.setItemAssignees(itemId, assigneeIds);
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  // Undo/redo forwarded from a focused panel window (which can't reach the
+  // store itself).
+  useEffect(() => {
+    const unlisten = listen<EditActionType>("edit:action", (e) => {
+      const todos = useTodos.getState();
+      if (e.payload === "redo") todos.redo();
+      else todos.undo();
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  // Apply roster management changes made in Settings back to the store.
+  useEffect(() => {
+    const unlisten = listen<RosterAction>("roster:action", (e) => {
+      const todos = useTodos.getState();
+      const a = e.payload;
+      if (a.type === "add") todos.addAssignee(a.assignee);
+      else if (a.type === "rename") todos.renameAssignee(a.id, a.name);
+      else if (a.type === "recolor") todos.setAssigneeColor(a.id, a.color);
+      else if (a.type === "remove") todos.removeAssignee(a.id);
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
   // Apply persisted window preferences on startup.
   useEffect(() => {
     const { alwaysOnTop, passthrough } = useSettings.getState();
@@ -167,7 +215,7 @@ function App() {
     >
       <Titlebar />
 
-      <ScrollArea style={{ flex: 1 }}>
+      <ScrollArea radius={0} style={{ flex: 1 }}>
         <Stack gap={0} p="sm" pos="relative">
           {items.length === 0 ? (
             <Stack align="center" gap={6} pt="xl" c="dimmed">

@@ -66,7 +66,7 @@ export function Lists() {
           No lists yet. Create one with the + button.
         </Text>
       ) : (
-        <ScrollArea maxHeight={240} radius="var(--mantine-radius-md)">
+        <ScrollArea maxHeight={240}>
           <Stack gap={2}>
             {lists.map((list) => (
               <ListRow
