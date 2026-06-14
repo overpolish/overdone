@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconInfoCircle, IconSend } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";

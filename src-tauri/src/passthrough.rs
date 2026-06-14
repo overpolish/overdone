@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! Click-through ("passthrough") behavior for the main window: while enabled the
 //! window hides and passes clicks through when the cursor is over it (unless it's
 //! focused or the modifier is held). A click-through window receives no

@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { Stack, Text } from "@mantine/core";
 import { IconKeyboard } from "@tabler/icons-react";
 

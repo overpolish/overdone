@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! Platform-specific native window helpers (macOS / Windows), with no-op or
 //! `None` fallbacks elsewhere. Keeps the cfg-gated FFI out of the cross-platform
 //! command and windowing code.

@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 /**
  * Caret line-boundary detection for a textarea that accounts for *soft-wrapped*
  * lines, not just explicit newlines. Arrow-key navigation between items uses

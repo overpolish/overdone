@@ -1,4 +1,9 @@
 /*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
+/*
  * shadcn-style neutral primary needs an explicit foreground per color scheme.
  * The primary *background* flips between schemes (near-black in light,
  * near-white in dark via primaryShade), but Mantine's core styles pin

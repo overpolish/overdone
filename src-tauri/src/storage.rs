@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! On-disk list storage: path resolution (with traversal guards), list
 //! enumeration, and the read/write/export/delete commands.
 

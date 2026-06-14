@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! Miscellaneous window/app commands driven from the UI: attention/tray badge,
 //! backgrounding, hide-to-tray, and the always-on-top / screen-capture toggles.
 

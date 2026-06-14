@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! The secondary floating "panel" window: showing it (centered under the main
 //! title bar or anchored below a row), keeping it on-screen, resizing it to fit
 //! content, expanding it for the diagram modal, and hiding it.

@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { type TodoState } from "../todo";
 
 /** A person who can be assigned to items, scoped to a single list's roster. */

@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! Media attachment file ops: importing, writing, pruning, and deleting files in
 //! a list's media folder, plus reading an arbitrary file for the webview.
 

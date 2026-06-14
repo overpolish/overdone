@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { type PointerEvent as ReactPointerEvent, useRef } from "react";
 import { create } from "zustand";
 

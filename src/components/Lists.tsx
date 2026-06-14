@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { ActionIcon, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconDownload, IconListCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";

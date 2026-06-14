@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { Group, Stack, Text } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import { IconBell, IconCalendar } from "@tabler/icons-react";

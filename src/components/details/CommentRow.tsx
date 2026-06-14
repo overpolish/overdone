@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import { IconCheck, IconPencil, IconTrash } from "@tabler/icons-react";
 import { type Editor } from "@tiptap/react";

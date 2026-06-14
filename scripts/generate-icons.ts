@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 #!/usr/bin/env node
 import { exec } from "node:child_process";
 import fs from "node:fs";

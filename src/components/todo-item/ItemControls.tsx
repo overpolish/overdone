@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { ActionIcon, Box, Group, UnstyledButton } from "@mantine/core";
 import { IconBell, IconCalendar, IconMessage } from "@tabler/icons-react";
 import { useRef } from "react";

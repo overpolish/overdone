@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import { type IconProps } from "@tabler/icons-react";
 import { type ComponentType, useLayoutEffect, useRef, useState } from "react";

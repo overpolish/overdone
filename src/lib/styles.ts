@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 /**
  * Scheme-aware "danger" (destructive) hover styling, shared by the title bar's
  * close button and the dropdown's delete row.

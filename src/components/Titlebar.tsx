@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import { IconListCheck, IconMinus, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";

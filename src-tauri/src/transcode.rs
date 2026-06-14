@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 //! ffmpeg-backed attachment compression: ensuring/downloading the managed
 //! binary and transcoding images (→ WebP) and videos (→ H.264/AAC MP4).
 

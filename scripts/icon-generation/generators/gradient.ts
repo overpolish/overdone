@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 /* eslint-disable no-magic-numbers */
 import { colord } from "colord";
 import sharp from "sharp";

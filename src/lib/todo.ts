@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 import { IconCheck, IconClock, IconProgress, IconX } from "@tabler/icons-react";
 
 /** The lifecycle states a todo item can be in. `todo` is the default. */

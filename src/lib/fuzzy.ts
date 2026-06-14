@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
 /**
  * Tiny dependency-free fuzzy matcher. For a todo list (tens–hundreds of items) a
  * linear scan with this scorer is effectively instant, so there's no need for an
