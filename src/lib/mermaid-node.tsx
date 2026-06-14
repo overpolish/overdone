@@ -2,7 +2,7 @@ import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 
-import { useDiagramEditor } from "../components/DiagramModal";
+import { useDiagramEditor } from "../components/diagram";
 import { IconButton } from "../components/IconButton";
 import { useRenderedSvg } from "./use-mermaid";
 

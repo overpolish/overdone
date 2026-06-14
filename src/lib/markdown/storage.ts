@@ -1,69 +1,12 @@
-import { type Assignee, type TodoData } from "./todos";
-import { type TodoState } from "./todo";
-
-/**
- * Markdown serialization for a list. A list file looks like:
- *
- *   # My list
- *
- *   - [ ] A todo
- *     - [ ] A sub-item
- *   - [-] Something on hold
- *   - [x] Something done
- *     with a second line of detail
- *
- * Todo and done use the standard GitHub task-list markers so the files stay
- * readable in any markdown viewer; on-hold uses `- [-]` and in-progress `- [/]`
- * (the Obsidian/Tasks conventions). Sub-items (one level only) are indented two
- * spaces. An item's text may span multiple lines: continuation lines are
- * indented two spaces past the item's marker and rejoined on parse.
- *
- * Per-item timestamps (created / last-updated / done) are tacked onto the end of
- * the item's first line as an HTML comment, e.g.
- *   - [x] Ship it <!-- created=2026-06-12T09:00:00.000Z done=2026-06-12T10:00:00.000Z -->
- * Comments are invisible in any rendered markdown view, so the files stay clean,
- * and they round-trip back into the item's metadata on parse.
- */
-
-const STATE_TO_MARKER: Record<TodoState, string> = {
-  todo: " ",
-  inProgress: "/",
-  onHold: "-",
-  done: "x",
-  cancelled: "~",
-};
-
-const MARKER_TO_STATE: Record<string, TodoState> = {
-  " ": "todo",
-  "": "todo",
-  "/": "inProgress", // the Obsidian/Tasks in-progress convention
-  "-": "onHold",
-  x: "done",
-  X: "done",
-  "~": "cancelled",
-};
-
-/**
- * Matches a task line, capturing an optional two-space indent (= sub-item), the
- * marker, and the trailing text.
- */
-const ITEM_RE = /^( {2})?- \[(.?)\]\s?(.*)$/;
-
-/** Trailing metadata comment on an item's first line. */
-const META_RE = /\s*<!--\s*(.*?)\s*-->\s*$/;
-
-/** List-level metadata line (the assignee roster), placed under the title. */
-const ROSTER_RE = /^<!--\s*overdone:assignees=(.*?)\s*-->\s*$/;
-
-/** The metadata keys carried in the comment, in serialization order. */
-const META_FIELDS = [
-  ["created", "createdAt"],
-  ["updated", "updatedAt"],
-  ["done", "doneAt"],
-  ["notify", "notifyAt"],
-  ["notified", "notifiedAt"],
-  ["due", "dueDate"],
-] as const;
+import { type Assignee, type TodoData } from "../todos";
+import {
+  ITEM_RE,
+  MARKER_TO_STATE,
+  META_FIELDS,
+  META_RE,
+  ROSTER_RE,
+  STATE_TO_MARKER,
+} from "./constants";
 
 export interface ParsedList {
   title: string;
@@ -156,92 +99,6 @@ export function serializeList(
     // the item and parse back into the same multi-line text.
     for (const line of rest) lines.push(`${indent}  ${line}`);
   }
-  return lines.join("\n") + "\n";
-}
-
-/**
- * Compact, human timestamp for export (e.g. "Jun 13, 2:05 PM"). Mirrors the
- * format shown in the item-details panel.
- */
-function formatTimestamp(ts: number): string {
-  return new Date(ts).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-/** Human label for the non-binary states, shown as an italic tag on export. */
-const STATE_LABEL: Partial<Record<TodoState, string>> = {
-  inProgress: "in progress",
-  onHold: "on hold",
-};
-
-/**
- * Render a list as clean, human-readable markdown for export — no round-trip
- * metadata comments. Unlike {@link serializeList} (the storage format, which
- * tucks timestamps/assignees/comments into trailing HTML comments so it parses
- * back losslessly), this produces markdown meant to be *read*:
- *
- *   - Standard GitHub task-list checkboxes: `- [x]` done, `- [ ]` everything
- *     else, with an italic `_(in progress)_` / `_(on hold)_` tag for those
- *     states and `~~strikethrough~~` text for cancelled items.
- *   - Assignees resolved from the roster to `@Name` and appended after an em
- *     dash.
- *   - Comments rendered as a nested blockquote log, each prefixed with its
- *     timestamp.
- *   - Done items annotated with a light `_done Jun 13_` date.
- *
- * This is one-way: the result is not meant to be parsed back.
- */
-export function renderMarkdown(
-  title: string,
-  items: TodoData[],
-  assignees: Assignee[] = [],
-): string {
-  const nameById = new Map(assignees.map((a) => [a.id, a.name]));
-  const lines: string[] = [`# ${title || "Untitled"}`, ""];
-
-  for (const item of items) {
-    const indent = item.depth === 1 ? "  " : "";
-    const cont = `${indent}  `;
-    const marker = item.state === "done" ? "x" : " ";
-
-    const [first = "", ...rest] = item.text.split("\n");
-    let text = first;
-    if (item.state === "cancelled" && text.trim()) text = `~~${text}~~`;
-
-    // Trailing annotations: assignees, a state tag, and a done date.
-    const tail: string[] = [];
-    const names = (item.assignees ?? [])
-      .map((id) => nameById.get(id))
-      .filter((n): n is string => !!n)
-      .map((n) => `@${n}`);
-    if (names.length) tail.push(`— ${names.join(", ")}`);
-    const label = STATE_LABEL[item.state];
-    if (label) tail.push(`_(${label})_`);
-    if (item.state === "done" && item.doneAt != null) {
-      tail.push(`_done ${formatTimestamp(item.doneAt)}_`);
-    }
-
-    lines.push(
-      `${indent}- [${marker}] ${[text, ...tail].filter(Boolean).join(" ")}`.trimEnd(),
-    );
-    // Continuation lines of the item's text sit under the marker.
-    for (const line of rest) lines.push(`${cont}${line}`);
-
-    // Comment log as a nested blockquote, oldest first.
-    for (const comment of item.comments ?? []) {
-      const stamp = formatTimestamp(comment.createdAt);
-      const edited = comment.editedAt != null ? " (edited)" : "";
-      const [head = "", ...more] = comment.text.split("\n");
-      lines.push(`${cont}> **${stamp}**${edited}: ${head}`.trimEnd());
-      for (const line of more) lines.push(`${cont}> ${line}`);
-    }
-  }
-
   return lines.join("\n") + "\n";
 }
 

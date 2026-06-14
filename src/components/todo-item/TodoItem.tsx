@@ -1,38 +1,18 @@
-import { ActionIcon, Box, Group, Textarea, UnstyledButton } from "@mantine/core";
-import { IconBell, IconCalendar, IconMessage } from "@tabler/icons-react";
-import dayjs from "dayjs";
+import { Box, Group, Textarea } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 
-import { resolveAssignees } from "../lib/assignee";
-import { caretEdges } from "../lib/caret";
-import { useItemMenu } from "../lib/context-menu";
-import { openAssigneePanel, openDetailsPanel } from "../lib/panel";
-import { useDrag } from "../lib/reorder";
-import { isStruck } from "../lib/todo";
-import { type TodoData, useTodos } from "../lib/todos";
-import { AddAssigneeButton, AssigneeAvatars } from "./AssigneeAvatar";
-import { StateCheckbox } from "./StateCheckbox";
+import { resolveAssignees } from "../../lib/assignee";
+import { caretEdges } from "../../lib/caret";
+import { useItemMenu } from "../../lib/context-menu";
+import { useDrag } from "../../lib/reorder";
+import { type TodoData, useTodos } from "../../lib/todos";
+import { StateCheckbox } from "../StateCheckbox";
+import { ItemControls } from "./ItemControls";
+import { INDENT, LINE_HEIGHT, rowStatus } from "./itemStatus";
 
 interface TodoItemProps {
   item: TodoData;
 }
-
-/**
- * Line height of the text field's first row. The checkbox is centered within a
- * box of this height so it aligns with the first line, and the row stays
- * top-anchored (so the checkbox doesn't drift down) once the text wraps.
- */
-const LINE_HEIGHT = 20;
-
-/** Left inset of a sub-item, so its checkbox sits under the parent's text. */
-const INDENT = 24;
-
-/** Status accent colors, shared by the row tint and the status icons. */
-const STATUS_COLOR = {
-  overdue: "var(--mantine-color-red-6)",
-  notify: "var(--mantine-color-yellow-6)",
-  today: "var(--mantine-color-orange-6)",
-} as const;
 
 /**
  * A single todo row: the custom status checkbox plus an inline, unstyled text
@@ -48,37 +28,9 @@ export function TodoItem({ item }: TodoItemProps) {
   const focusCaret = useTodos((s) => s.focusCaret);
   const clearFocus = useTodos((s) => s.clearFocus);
   const dragging = useDrag((s) => s.id === item.id);
-  const done = isStruck(item.state);
   const child = item.depth === 1;
-  // A fired-but-unacknowledged notification: a bell shows on the right until the
-  // user clicks it to dismiss.
-  const needsAction = item.notifiedAt != null;
-  // Due urgency — only today or overdue surface an indicator (future/none don't,
-  // and a done item never nags). Stored due dates are date-only, so compare days.
-  const dueState: "overdue" | "today" | null = (() => {
-    if (item.dueDate == null || done) return null;
-    const today = dayjs().startOf("day");
-    const due = dayjs(item.dueDate).startOf("day");
-    if (due.isBefore(today)) return "overdue";
-    if (due.isSame(today)) return "today";
-    return null;
-  })();
-  // Row appearance follows a single priority: overdue (red) > notification
-  // (amber) > due today (orange). The winner tints the text and a faint full-row
-  // wash; the per-status icons keep their own colors regardless.
-  const status: keyof typeof STATUS_COLOR | null =
-    dueState === "overdue"
-      ? "overdue"
-      : needsAction && !done
-        ? "notify"
-        : dueState === "today"
-          ? "today"
-          : null;
-  const statusColor = status ? STATUS_COLOR[status] : null;
-  // The details button appears on row hover (to avoid clutter), and stays
-  // faintly visible as an indicator when the item already has comments.
+  const { done, needsAction, dueState, statusColor } = rowStatus(item);
   const rowRef = useRef<HTMLDivElement>(null);
-  const assigneeRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   const hasComments = (item.comments?.length ?? 0) > 0;
   // Resolve the item's assignee ids against the roster (skipping any unknown
@@ -254,111 +206,16 @@ export function TodoItem({ item }: TodoItemProps) {
           },
         }}
       />
-      {/* Right-side controls in fixed order: notification, due, assignees,
-          details. They sit in their own tight group so they stay close together,
-          while the row's wider gap separates them from the text. */}
-      <Group gap={2} wrap="nowrap" align="flex-start">
-      {/* Dismiss bell: only present once a notification has fired. Always visible
-          (not hover-gated) and amber so it reads as the cue for the amber text;
-          clicking acknowledges and clears the needs-action state. */}
-      {needsAction && (
-        <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
-          <ActionIcon
-            aria-label="Dismiss notification"
-            variant="subtle"
-            color="yellow.6"
-            size={20}
-            onClick={() => dismissNotification(item.id)}
-            style={{ flexShrink: 0 }}
-          >
-            <IconBell size={14} stroke={1.8} />
-          </ActionIcon>
-        </Box>
-      )}
-      {/* Due indicator: orange when due today, red when overdue (nothing for a
-          future/no due date). A non-interactive status cue — not dismissable;
-          it only clears when the due date changes or the item is done/cancelled. */}
-      {dueState && (
-        <Box
-          aria-label={dueState === "overdue" ? "Overdue" : "Due today"}
-          title={dueState === "overdue" ? "Overdue" : "Due today"}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            height: LINE_HEIGHT,
-            flexShrink: 0,
-            color: STATUS_COLOR[dueState],
-          }}
-        >
-          <IconCalendar size={14} stroke={1.8} />
-        </Box>
-      )}
-      {/* Assignee control, top-anchored to the first text line like the other
-          controls and reserved in layout. Click the avatars to reassign; with
-          nobody assigned, a dashed "add" circle appears on hover. */}
-      <Box
-        ref={assigneeRef}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          // Right-aligned with a minimum width: the add circle / single avatar
-          // reserve a steady slot whose right edge lines up with the details
-          // icon, while multiple avatars grow leftward (keeping the gap to the
-          // icon constant) instead of overflowing a fixed-width box.
-          justifyContent: "flex-end",
-          minWidth: 20,
-          height: LINE_HEIGHT,
-          // Empty + not hovered: hide the add affordance but keep its slot.
-          opacity: assignees.length > 0 || hovered ? 1 : 0,
-          pointerEvents: assignees.length > 0 || hovered ? "auto" : "none",
-          transition: "opacity 120ms ease",
-        }}
-      >
-        {assignees.length > 0 ? (
-          <UnstyledButton
-            aria-label="Change assignees"
-            onClick={() => {
-              if (assigneeRef.current) void openAssigneePanel(assigneeRef.current, item.id);
-            }}
-            style={{ display: "flex", alignItems: "center" }}
-          >
-            {/* 14px disc matches the IconCirclePlus's drawn ring at size 18
-                (Tabler insets the circle to ~75% of the icon box). */}
-            <AssigneeAvatars assignees={assignees} size={14} />
-          </UnstyledButton>
-        ) : (
-          <AddAssigneeButton
-            size={18}
-            onClick={() => {
-              if (assigneeRef.current) void openAssigneePanel(assigneeRef.current, item.id);
-            }}
-          />
-        )}
-      </Box>
-      {/* Details / comments. Top-anchored to align with the first text line,
-          like the checkbox. Reserved in layout so showing it doesn't reflow. */}
-      <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
-        <ActionIcon
-          aria-label="Details"
-          variant="subtle"
-          color="gray"
-          size={20}
-          onClick={() => {
-            if (rowRef.current) {
-              void openDetailsPanel(rowRef.current, item.id, item.comments ?? []);
-            }
-          }}
-          style={{
-            flexShrink: 0,
-            opacity: hovered ? 1 : hasComments ? 0.4 : 0,
-            pointerEvents: hovered || hasComments ? "auto" : "none",
-            transition: "opacity 120ms ease",
-          }}
-        >
-          <IconMessage size={14} stroke={1.8} />
-        </ActionIcon>
-      </Box>
-      </Group>
+      <ItemControls
+        item={item}
+        rowRef={rowRef}
+        hovered={hovered}
+        assignees={assignees}
+        dueState={dueState}
+        needsAction={needsAction}
+        hasComments={hasComments}
+        onDismiss={() => dismissNotification(item.id)}
+      />
     </Group>
   );
 }

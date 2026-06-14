@@ -6,11 +6,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { emitEditAction, type PanelRequest } from "../lib/panel";
 import { AssigneePanel } from "./AssigneePanel";
-import { closeDiagramModal, useDiagramModalOpen } from "./DiagramModal";
-import { ItemDetails } from "./ItemDetails";
+import { closeDiagramModal, useDiagramModalOpen } from "./diagram";
+import { ItemDetails } from "./details";
 import { Lists } from "./Lists";
 import { Search } from "./Search";
-import { Settings } from "./Settings";
+import { Settings } from "./settings";
 import { StatusPicker } from "./StatusPicker";
 
 /** Round up the content's rendered size to whole logical pixels. */
