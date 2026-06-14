@@ -54,6 +54,9 @@ export interface PanelRequest {
   /** Details-view payload: the item's notification time / due date (epoch ms). */
   notifyAt?: number;
   dueDate?: number;
+  /** Details-view payload: the item's created / last-updated times (epoch ms). */
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 let nonce = 0;
@@ -228,6 +231,8 @@ export async function openDetailsPanel(
     labelIds,
     notifyAt: item?.notifyAt,
     dueDate: item?.dueDate,
+    createdAt: item?.createdAt,
+    updatedAt: item?.updatedAt,
     anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },
   });
 }

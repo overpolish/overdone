@@ -58,6 +58,8 @@ function renderView(request: PanelRequest | null) {
           labelIds={request.labelIds ?? []}
           notifyAt={request.notifyAt}
           dueDate={request.dueDate}
+          createdAt={request.createdAt}
+          updatedAt={request.updatedAt}
         />
       ) : null;
     case "assignee":

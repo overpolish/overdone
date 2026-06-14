@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Button, Group, Stack, Text, Title } from "@mantine/core";
-import { IconInfoCircle, IconSend } from "@tabler/icons-react";
+import { Box, Button, Group, Stack, Text, Title } from "@mantine/core";
+import { IconSend } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { type Editor } from "@tiptap/react";
@@ -52,6 +52,21 @@ interface ItemDetailsProps {
   notifyAt?: number;
   /** The item's due date (epoch ms at UTC midnight, date only), if set. */
   dueDate?: number;
+  /** Epoch ms when the item was created. Absent for legacy items. */
+  createdAt?: number;
+  /** Epoch ms of the last edit to the item itself (text/state/nesting). */
+  updatedAt?: number;
+}
+
+/** Compact date + time stamp for the details header (e.g. "Jun 13, 2026, 2:05 PM"). */
+function formatDate(ts: number): string {
+  return new Date(ts).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /**
@@ -73,6 +88,8 @@ export function ItemDetails({
   labelIds: initialLabelIds,
   notifyAt: initialNotifyAt,
   dueDate: initialDueDate,
+  createdAt,
+  updatedAt,
 }: ItemDetailsProps) {
   const [comments, setComments] = useState<Comment[]>(initial);
   const [draft, setDraft] = useState("");
@@ -148,12 +165,63 @@ export function ItemDetails({
     );
   };
 
+  // Any edit made in this panel (labels, assignees, dates, comments) bumps the
+  // store's `updatedAt`, but our `updatedAt` prop is a snapshot from open time -
+  // so stamp a local "touched" time too, keeping the header live without a
+  // reopen. Skips the first render (mount isn't an edit).
+  const [touchedAt, setTouchedAt] = useState(0);
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    setTouchedAt(Date.now());
+  }, [comments, labels.labelIds, assignees.assigneeIds, dates.notifyAt, dates.dueDate]);
+
+  // "Last updated" tracks the latest activity on the item - its own edits plus
+  // any comment posts/edits (live, so editing here updates it immediately).
+  const lastUpdated = Math.max(
+    updatedAt ?? 0,
+    createdAt ?? 0,
+    touchedAt,
+    ...comments.flatMap((c) => [c.createdAt, c.editedAt ?? 0]),
+  );
+
   return (
     <Stack gap="md" w={620}>
       <DiagramModalHost />
-      <Group gap={8} wrap="nowrap">
-        <IconInfoCircle size={18} stroke={1.8} />
-        <Title order={5}>Details</Title>
+      <Group justify="space-between" wrap="nowrap" align="center">
+        <Group gap={8} wrap="nowrap" align="center">
+          <Box
+            w={3}
+            h={14}
+            bg="var(--mantine-color-default-border)"
+            style={{ borderRadius: "var(--mantine-radius-sm)" }}
+          />
+          <Title order={5}>Details</Title>
+        </Group>
+        {(lastUpdated > 0 || createdAt) && (
+          <Group gap={8} wrap="nowrap" align="center">
+            {lastUpdated > 0 && (
+              <Text size="10px" c="dimmed">
+                Updated {formatDate(lastUpdated)}
+              </Text>
+            )}
+            {lastUpdated > 0 && createdAt && (
+              <Box
+                w={1}
+                h={10}
+                bg="var(--mantine-color-default-border)"
+              />
+            )}
+            {createdAt && (
+              <Text size="10px" c="dimmed">
+                Created {formatDate(createdAt)}
+              </Text>
+            )}
+          </Group>
+        )}
       </Group>
 
       <Group gap="lg" align="flex-start" wrap="nowrap">
