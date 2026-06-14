@@ -20,6 +20,10 @@
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$APPDATA/media/**" }]
     },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }]
+    },
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled"

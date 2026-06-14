@@ -8,6 +8,7 @@ import { IconCheck, IconPencil, IconTrash } from "@tabler/icons-react";
 import { type Editor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 
+import { openExternal } from "../../lib/links";
 import {
   insertPastedFiles,
   openFullSize,
@@ -116,6 +117,13 @@ export function CommentRow({
         style={{ wordBreak: "break-word" }}
         onClick={(e) => {
           const el = e.target as HTMLElement;
+          // A link opens in the default browser - never navigate the app webview.
+          const anchor = el.closest<HTMLAnchorElement>("a[href]");
+          if (anchor) {
+            e.preventDefault();
+            void openExternal(anchor.href);
+            return;
+          }
           // A click anywhere inside a rendered diagram opens it (zoom/pan, with
           // an Edit button); a broken one opens straight into the editor.
           const diagram = el.closest<HTMLElement>(".mermaid-rendered");

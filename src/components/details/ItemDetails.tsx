@@ -31,6 +31,7 @@ import { DiagramModalHost } from "../diagram";
 import { ScrollArea } from "../ScrollArea";
 import { CommentRow } from "./CommentRow";
 import { DatesSection, useDatesEditor } from "./DatesSection";
+import { LinksSection } from "./LinksSection";
 import { useMediaBusy } from "./useMediaBusy";
 
 interface ItemDetailsProps {
@@ -317,6 +318,10 @@ export function ItemDetails({
               onCreate={assignees.onCreate}
             />
           </Stack>
+
+          {/* A read-only roll-up of links found in the comments. Comments are
+              the source of truth - no separate list. */}
+          <LinksSection comments={comments} />
         </Stack>
       </Group>
     </Stack>

@@ -163,6 +163,24 @@ video {
   outline-offset: 1px;
 }
 
+/* Links in comments (rendered and in the editor) are plain <a> tags, so match
+ * them to Mantine's Anchor - which the Links section uses - rather than the
+ * browser-default blue: same color, always underlined. */
+.comment-body a,
+.comment-input .ProseMirror a {
+  color: var(--mantine-color-anchor);
+  text-decoration: underline;
+}
+/* Rendered comments: a link is clickable (opens in the browser). */
+.comment-body a {
+  cursor: pointer;
+}
+/* In the editor a link is editable text: clicking places the caret, so keep the
+ * text cursor (the floating bubble offers open / edit / unlink). */
+.comment-input .ProseMirror a {
+  cursor: text;
+}
+
 /* Mermaid diagram node in the composer: a compact render with a hover toolbar;
  * editing opens the full-screen modal. */
 .mermaid-node {
