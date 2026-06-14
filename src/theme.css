@@ -62,6 +62,30 @@ body,
   height: 100%;
 }
 
+/*
+ * The window is an app surface, not a document: text selection is off by
+ * default everywhere (headings, labels, thumbnails, chrome), so dragging never
+ * leaves stray highlights. Selection opts back in only where text is meant to
+ * be read or edited - form inputs, the comment editor, and rendered comments.
+ */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"],
+.comment-body {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* Images/video are never selectable, even inside an opted-in comment body. */
+img,
+video {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Comment rich-text editor, styled to read like a plain text input: a bordered
  * box that shows a focus ring, with a comfortable minimum typing area. */
 .comment-input {
