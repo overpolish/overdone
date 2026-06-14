@@ -33,23 +33,44 @@ export function normalizeUrl(raw: string): string | null {
   }
 }
 
+/** Per-comment cache of the http(s) anchors parsed from its HTML, keyed by the
+ * (immutable) comment object. The store swaps a comment's object on edit, so a
+ * stale entry is never read; unrelated re-scans - e.g. a roster change driving a
+ * Search re-index - reuse it, and a WeakMap lets dropped comments be collected.
+ */
+const anchorCache = new WeakMap<Comment, ScannedLink[]>();
+
+/** The http(s) anchors in one comment, in document order (intra-comment dupes
+ * left in for the caller to dedupe). Parses - and caches - the HTML once. */
+function commentAnchors(comment: Comment): ScannedLink[] {
+  const cached = anchorCache.get(comment);
+  if (cached) return cached;
+  const out: ScannedLink[] = [];
+  const doc = new DOMParser().parseFromString(comment.text, "text/html");
+  doc.querySelectorAll("a[href]").forEach((a) => {
+    const url = a.getAttribute("href")?.trim();
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    const text = (a.textContent ?? "").trim();
+    out.push({ url, title: text && text !== url ? text : undefined });
+  });
+  anchorCache.set(comment, out);
+  return out;
+}
+
 /**
  * Pull the hyperlinks out of an item's comment log, newest comment first and
  * deduped by URL. These are the `<a href>` anchors the editor's link mark (and
  * autolink) produce; only http(s) links are surfaced. The first anchor seen for
  * a URL wins its title, so the most recent mention's label is the one shown.
+ * Each comment's HTML is parsed once and cached (see {@link commentAnchors}).
  */
 export function scanCommentLinks(comments: Comment[]): ScannedLink[] {
   const found = new Map<string, ScannedLink>();
   // Newest first so the freshest mention's anchor text wins the title.
   for (const comment of [...comments].reverse()) {
-    const doc = new DOMParser().parseFromString(comment.text, "text/html");
-    doc.querySelectorAll("a[href]").forEach((a) => {
-      const url = a.getAttribute("href")?.trim();
-      if (!url || !/^https?:\/\//i.test(url) || found.has(url)) return;
-      const text = (a.textContent ?? "").trim();
-      found.set(url, { url, title: text && text !== url ? text : undefined });
-    });
+    for (const link of commentAnchors(comment)) {
+      if (!found.has(link.url)) found.set(link.url, link);
+    }
   }
   return [...found.values()];
 }

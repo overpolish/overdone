@@ -14,11 +14,25 @@ import { linkLabel, scanCommentLinks, type ScannedLink } from "../lib/links";
 import { htmlToText } from "../lib/media";
 import { closePanel, emitFocusItem } from "../lib/panel";
 import { isStruck } from "../lib/todo";
-import { type Assignee, type Label, type TodoData } from "../lib/todos";
+import { type Assignee, type Comment, type Label, type TodoData } from "../lib/todos";
 import { AssigneeAvatar } from "./AssigneeAvatar";
 import { LabelBadge } from "./LabelBadge";
 import { ScrollArea } from "./ScrollArea";
 import { StateBox } from "./StateBox";
+
+/** A comment's plain text, cached by the (immutable) comment object so a roster
+ * change driving a re-index - or an item edit that leaves a given comment
+ * untouched - reuses the parse rather than re-running the DOMParser. Mirrors the
+ * anchor cache that backs {@link scanCommentLinks}. */
+const commentText = new WeakMap<Comment, string>();
+function textOf(comment: Comment): string {
+  let text = commentText.get(comment);
+  if (text === undefined) {
+    text = htmlToText(comment.text);
+    commentText.set(comment, text);
+  }
+  return text;
+}
 
 /** A ranked match, plus the hint to show for why it matched: a comment excerpt,
  * a label, or an assignee (when the hit wasn't the item's title). */
@@ -63,7 +77,7 @@ export function Search({
       items.map((item) => ({
         item,
         comments: (item.comments ?? [])
-          .map((c) => htmlToText(c.text))
+          .map((c) => textOf(c))
           .filter(Boolean),
         labels: resolveLabels(item.labels ?? [], labelRoster),
         assignees: resolveAssignees(item.assignees ?? [], assigneeRoster),
