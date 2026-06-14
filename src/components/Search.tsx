@@ -4,12 +4,13 @@
  */
 
 import { Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
-import { IconMessage, IconSearch } from "@tabler/icons-react";
+import { IconLink, IconMessage, IconSearch } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { resolveAssignees } from "../lib/assignee";
 import { fuzzyScore } from "../lib/fuzzy";
 import { resolveLabels } from "../lib/label";
+import { linkLabel, scanCommentLinks, type ScannedLink } from "../lib/links";
 import { htmlToText } from "../lib/media";
 import { closePanel, emitFocusItem } from "../lib/panel";
 import { isStruck } from "../lib/todo";
@@ -29,12 +30,15 @@ interface Match {
   label?: Label;
   /** The assignee that matched, or undefined if an assignee didn't win. */
   assignee?: Assignee;
+  /** The link that matched, or undefined if a link didn't win. */
+  link?: ScannedLink;
 }
 
 /**
  * Quick-find for the active list, shown in the panel. Fuzzy-filters items by
- * title, comment text, label name, *and* assignee name as you type; picking one
- * jumps to it in the main window and closes the panel.
+ * title, comment text, label name, assignee name, *and* the links shared in
+ * their comments as you type; picking one jumps to it in the main window and
+ * closes the panel.
  */
 export function Search({
   items,
@@ -63,6 +67,7 @@ export function Search({
           .filter(Boolean),
         labels: resolveLabels(item.labels ?? [], labelRoster),
         assignees: resolveAssignees(item.assignees ?? [], assigneeRoster),
+        links: scanCommentLinks(item.comments ?? []),
       })),
     [items, labelRoster, assigneeRoster],
   );
@@ -71,7 +76,7 @@ export function Search({
     if (!query.trim()) return items.map((item) => ({ item }));
 
     const matches: { match: Match; score: number }[] = [];
-    for (const { item, comments, labels, assignees } of indexed) {
+    for (const { item, comments, labels, assignees, links } of indexed) {
       // Score each field separately, then take the best. Scoring a single
       // concatenated string would let a query match across the gap between
       // fields, producing matches that don't exist in any one of them.
@@ -97,17 +102,30 @@ export function Search({
           bestAssignee = { score, assignee };
         }
       }
+      let bestLink: { score: number; link: ScannedLink } | null = null;
+      for (const link of links) {
+        // Match the user-facing label (title, else tidied host + path) and the
+        // raw URL, taking the better - so either what's shown or the address
+        // typed can find it.
+        const label = fuzzyScore(linkLabel(link), query) ?? -Infinity;
+        const url = fuzzyScore(link.url, query) ?? -Infinity;
+        const score = Math.max(label, url);
+        if (score !== -Infinity && (!bestLink || score > bestLink.score)) {
+          bestLink = { score, link };
+        }
+      }
 
       const score = Math.max(
         titleScore ?? -Infinity,
         bestLabel?.score ?? -Infinity,
         bestAssignee?.score ?? -Infinity,
         bestComment?.score ?? -Infinity,
+        bestLink?.score ?? -Infinity,
       );
       if (score === -Infinity) continue;
 
       // Pick the hint from whichever field won (title shows none). Order breaks
-      // ties: title, then label, then assignee, then comment.
+      // ties: title, then label, then assignee, then comment, then link.
       const match: Match = { item };
       if (titleScore !== null && score === titleScore) {
         // title match - no hint needed
@@ -117,6 +135,8 @@ export function Search({
         match.assignee = bestAssignee.assignee;
       } else if (bestComment && score === bestComment.score) {
         match.snippet = excerpt(bestComment.text, query);
+      } else if (bestLink && score === bestLink.score) {
+        match.link = bestLink.link;
       }
       matches.push({ score, match });
     }
@@ -149,13 +169,14 @@ export function Search({
       ) : (
         <ScrollArea maxHeight={260}>
           <Stack gap={2}>
-            {results.map(({ item, snippet, label, assignee }) => (
+            {results.map(({ item, snippet, label, assignee, link }) => (
               <ResultRow
                 key={item.id}
                 item={item}
                 snippet={snippet}
                 label={label}
                 assignee={assignee}
+                link={link}
                 onSelect={() => pick(item.id)}
               />
             ))}
@@ -171,18 +192,21 @@ function ResultRow({
   snippet,
   label,
   assignee,
+  link,
   onSelect,
 }: {
   item: TodoData;
   snippet?: string;
   label?: Label;
   assignee?: Assignee;
+  link?: ScannedLink;
   onSelect: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const done = isStruck(item.state);
-  // A second line shows why a non-title field matched (comment / label / assignee).
-  const hasHint = Boolean(snippet || label || assignee);
+  // A second line shows why a non-title field matched (comment / label /
+  // assignee / link).
+  const hasHint = Boolean(snippet || label || assignee || link);
 
   return (
     <UnstyledButton
@@ -236,6 +260,17 @@ function ResultRow({
           >
             <AssigneeAvatar assignee={assignee} size={14} withTooltip={false} />
             {assignee.name}
+          </Text>
+        )}
+        {link && (
+          <Text
+            size="xs"
+            c="dimmed"
+            truncate
+            style={{ display: "flex", alignItems: "center", gap: 4 }}
+          >
+            <IconLink size={12} style={{ flexShrink: 0 }} />
+            {linkLabel(link)}
           </Text>
         )}
       </Stack>
