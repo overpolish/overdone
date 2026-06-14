@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { Footer } from "./components/Footer";
 import { ItemContextMenu } from "./components/ItemContextMenu";
@@ -14,14 +14,17 @@ import { Titlebar } from "./components/Titlebar";
 import { bindMainWindow } from "./lib/main-sync";
 import {
   type AssigneeAction,
+  type DatesAction,
   type DetailsAction,
   type EditActionType,
   type RosterAction,
   type StatusAction,
 } from "./lib/panel";
+import { notify } from "./lib/notifications";
+import { isStruck } from "./lib/todo";
 import { useDrag } from "./lib/reorder";
 import { useSettings } from "./lib/settings";
-import { useTodos } from "./lib/todos";
+import { type TodoData, useTodos } from "./lib/todos";
 
 /** Line showing where a dragged item will land (positioned via the drag store). */
 function DropIndicator() {
@@ -123,6 +126,55 @@ function App() {
       void unlisten.then((off) => off());
     };
   }, []);
+
+  // Apply notification-time / due-date changes made in the details panel.
+  useEffect(() => {
+    const unlisten = listen<DatesAction>("dates:action", (e) => {
+      const { itemId, notifyAt, dueDate } = e.payload;
+      useTodos.getState().setItemDates(itemId, { notifyAt, dueDate });
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  // Fire a desktop reminder when an item's notification time arrives. We re-arm
+  // a timer per item whenever the item set changes; a past-due time fires at
+  // once. Firing flags the item as "needs action" (markNotified clears notifyAt
+  // and sets notifiedAt), so it's one-shot — it won't re-fire on the next change
+  // or a restart, and stays amber + belled in the list until dismissed.
+  useEffect(() => {
+    // setTimeout overflows past the 32-bit ms range and would fire instantly;
+    // skip far-future reminders here — they re-arm once the time is in range
+    // (on the next item change or app restart).
+    const MAX_DELAY = 2 ** 31 - 1;
+    const fire = (item: TodoData) => {
+      void notify("Item needs action", item.text);
+      useTodos.getState().markNotified(item.id);
+    };
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (const item of items) {
+      // A resolved (done/cancelled) item never notifies; reopening re-arms it.
+      if (item.notifyAt == null || isStruck(item.state)) continue;
+      const delay = item.notifyAt - Date.now();
+      if (delay <= 0) fire(item);
+      else if (delay <= MAX_DELAY) timers.push(setTimeout(() => fire(item), delay));
+    }
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, [items]);
+
+  // Keep the red tray badge lit while any item has an unacknowledged
+  // notification, and clear it once they're all dismissed. The badge tracks
+  // pending notifications (not window focus), so it survives focusing the app
+  // and persists across restarts (notifiedAt is saved). Only toggle on change to
+  // avoid re-setting the tray icon on every keystroke.
+  const trayAlertRef = useRef(false);
+  useEffect(() => {
+    const pending = items.some((i) => i.notifiedAt != null);
+    if (pending === trayAlertRef.current) return;
+    trayAlertRef.current = pending;
+    void invoke("set_tray_alert", { on: pending });
+  }, [items]);
 
   // Clear the "item being edited" row highlight when the panel hides (blur,
   // Escape, status pick, etc.). Opening a panel sets it; this is the close side.

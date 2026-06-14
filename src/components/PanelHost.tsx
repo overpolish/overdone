@@ -42,6 +42,8 @@ function renderView(request: PanelRequest | null) {
           mediaDir={request.mediaDir ?? ""}
           roster={request.roster ?? []}
           assigneeIds={request.assigneeIds ?? []}
+          notifyAt={request.notifyAt}
+          dueDate={request.dueDate}
         />
       ) : null;
     case "assignee":

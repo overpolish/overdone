@@ -1,5 +1,8 @@
 import { Box, Button, Group, Stack, Text, Title } from "@mantine/core";
+import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import {
+  IconBell,
+  IconCalendar,
   IconCheck,
   IconInfoCircle,
   IconPencil,
@@ -7,6 +10,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
+import dayjs from "dayjs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { type Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,7 +25,7 @@ import {
   toStoredHtml,
 } from "../lib/media";
 import { renderMermaidInHtml } from "../lib/mermaid";
-import { closePanel, emitDetailsAction } from "../lib/panel";
+import { closePanel, emitDatesAction, emitDetailsAction } from "../lib/panel";
 import { useSettings } from "../lib/settings";
 import { type Assignee, type Comment } from "../lib/todos";
 import { AssigneePicker, useAssigneeEditor } from "./AssigneePicker";
@@ -46,6 +50,10 @@ interface ItemDetailsProps {
   roster: Assignee[];
   /** The item's current assignee ids. */
   assigneeIds: string[];
+  /** The item's notification time (epoch ms, date + time), if set. */
+  notifyAt?: number;
+  /** The item's due date (epoch ms at UTC midnight, date only), if set. */
+  dueDate?: number;
 }
 
 /** Compact, human timestamp for a comment (e.g. "Jun 13, 2:05 PM"). */
@@ -77,6 +85,115 @@ function useMediaBusy() {
   return { busy: count > 0, busyLabel: compressing ? "Compressing…" : "Adding…", error, run };
 }
 
+// Mantine's date components speak strings: dates are "YYYY-MM-DD", date-times
+// "YYYY-MM-DD HH:mm:ss" (local wall-clock). The store keeps epoch ms, so convert
+// at the boundary. A due date is stored at local midnight (date-only).
+const DATE_FMT = "YYYY-MM-DD";
+const DATETIME_FMT = "YYYY-MM-DD HH:mm:ss";
+
+const toDateStr = (ms: number | undefined) => (ms == null ? null : dayjs(ms).format(DATE_FMT));
+const toDateTimeStr = (ms: number | undefined) =>
+  ms == null ? null : dayjs(ms).format(DATETIME_FMT);
+const fromStr = (s: string | null) => (s ? dayjs(s).valueOf() : undefined);
+
+/** Today at 00:00 as a date string — the floor for both fields (no past dates). */
+const todayStr = () => dayjs().startOf("day").format(DATE_FMT);
+
+/**
+ * Controller for editing one item's notification time and due date. Holds the
+ * working pair locally and streams each change back to the main window (the
+ * list owner) which persists it. Both values are sent together so clearing one
+ * is unambiguous. Mirrors the comment editor's fire-and-forget flow (no
+ * back-sync), so it stays simple — the panel re-seeds from the store on reopen.
+ */
+function useDatesEditor(
+  itemId: string,
+  initialNotifyAt: number | undefined,
+  initialDueDate: number | undefined,
+) {
+  const [notifyAt, setNotifyAtState] = useState(initialNotifyAt);
+  const [dueDate, setDueDateState] = useState(initialDueDate);
+
+  const setNotifyAt = (ms: number | undefined) => {
+    setNotifyAtState(ms);
+    emitDatesAction({ itemId, notifyAt: ms, dueDate });
+  };
+  const setDueDate = (ms: number | undefined) => {
+    setDueDateState(ms);
+    emitDatesAction({ itemId, notifyAt, dueDate: ms });
+  };
+
+  return { notifyAt, dueDate, setNotifyAt, setDueDate };
+}
+
+/**
+ * Notification time + due date, stacked in the panel's right column. Each opens
+ * a Mantine picker in a popover (floats over the panel rather than growing it);
+ * both are floored to today so nothing can be scheduled in the past. Floating
+ * (vs. the old in-flow picker) keeps the panel from ballooning when a field is
+ * open; the popover shifts to stay within the window.
+ */
+function DatesSection({ dates }: { dates: ReturnType<typeof useDatesEditor> }) {
+  const min = todayStr();
+  const icon = (Icon: typeof IconBell) => (
+    <Icon size={14} stroke={1.8} style={{ display: "block" }} />
+  );
+
+  // A notification can't fire in the past: minDate blocks past days, and this
+  // clamps a same-day time that's already gone up to now.
+  const changeNotify = (s: string | null) => {
+    let ms = fromStr(s);
+    if (ms != null && ms < Date.now()) ms = Date.now();
+    dates.setNotifyAt(ms);
+  };
+
+  return (
+    <>
+      <Stack gap={6}>
+        <Text size="xs" fw={600} c="dimmed">
+          NOTIFY
+        </Text>
+        <DateTimePicker
+          size="xs"
+          clearable
+          minDate={min}
+          value={toDateTimeStr(dates.notifyAt)}
+          onChange={changeNotify}
+          defaultTimeValue={dayjs().format("HH:mm")}
+          valueFormat="MMM D, h:mm A"
+          placeholder="Set…"
+          leftSection={icon(IconBell)}
+          // Open to the left of the field — it lives in the panel's right
+          // column, so dropping down/right would clip against the window edge.
+          popoverProps={{ position: "left-start" }}
+          // Plain spin fields, no nested time dropdown (it would clip / stack a
+          // second popover); commit is live, so hide the submit ✓ — the popover
+          // closes on outside-click.
+          timePickerProps={{ withDropdown: false, format: "12h" }}
+          submitButtonProps={{ style: { display: "none" } }}
+        />
+      </Stack>
+      <Stack gap={6}>
+        <Text size="xs" fw={600} c="dimmed">
+          DUE
+        </Text>
+        <DatePickerInput
+          size="xs"
+          clearable
+          minDate={min}
+          value={toDateStr(dates.dueDate)}
+          onChange={(s) => dates.setDueDate(fromStr(s))}
+          valueFormat="MMM D, YYYY"
+          placeholder="Set…"
+          leftSection={icon(IconCalendar)}
+          // Open to the left (see NOTIFY above) so the calendar clears the window edge.
+          popoverProps={{ position: "left-start" }}
+        />
+      </Stack>
+    </>
+  );
+}
+
 /**
  * Item details, shown in the floating panel pinned below the row. For now this
  * is the comment log — post (⌘/Ctrl+Enter or the Post button), edit, and delete
@@ -92,10 +209,13 @@ export function ItemDetails({
   mediaDir,
   roster: initialRoster,
   assigneeIds: initialAssigneeIds,
+  notifyAt: initialNotifyAt,
+  dueDate: initialDueDate,
 }: ItemDetailsProps) {
   const [comments, setComments] = useState<Comment[]>(initial);
   const [draft, setDraft] = useState("");
   const assignees = useAssigneeEditor(itemId, initialRoster, initialAssigneeIds);
+  const dates = useDatesEditor(itemId, initialNotifyAt, initialDueDate);
   // Which comment is being edited (single source of truth across rows).
   const [editingId, setEditingId] = useState<string | null>(null);
   const { busy, busyLabel, error, run } = useMediaBusy();
@@ -166,81 +286,91 @@ export function ItemDetails({
   };
 
   return (
-    <Stack gap="md" w={340}>
+    <Stack gap="md" w={620}>
       <DiagramModalHost />
       <Group gap={8} wrap="nowrap">
         <IconInfoCircle size={18} stroke={1.8} />
         <Title order={5}>Details</Title>
       </Group>
 
-      <Stack gap="xs">
-        <Text size="xs" fw={600} c="dimmed">
-          ASSIGNEES
-        </Text>
-        <AssigneePicker
-          roster={assignees.roster}
-          value={assignees.assigneeIds}
-          onChange={assignees.onChange}
-          onCreate={assignees.onCreate}
-        />
-      </Stack>
+      <Group gap="lg" align="flex-start" wrap="nowrap">
+        {/* Left column: the comment log + composer. */}
+        <Stack gap="xs" style={{ flex: 1, minWidth: 0 }}>
+          {/* Heading carries the format controls for the composer on its right. */}
+          <Group justify="space-between" wrap="nowrap" align="center" h={22}>
+            <Text size="xs" fw={600} c="dimmed">
+              COMMENTS
+            </Text>
+            <FormatBar
+              editor={composer}
+              onAddMedia={() => composer && run(() => pickAndInsert(composer, listId, mediaDir))}
+            />
+          </Group>
 
-      <Stack gap="xs">
-        {/* Heading carries the format controls for the composer on its right. */}
-        <Group justify="space-between" wrap="nowrap" align="center" h={22}>
-          <Text size="xs" fw={600} c="dimmed">
-            COMMENTS
-          </Text>
-          <FormatBar
-            editor={composer}
-            onAddMedia={() => composer && run(() => pickAndInsert(composer, listId, mediaDir))}
-          />
-        </Group>
+          <CommentInput editor={composer} busy={busy} busyLabel={busyLabel} />
+          {error && (
+            <Text size="xs" c="red">
+              {error}
+            </Text>
+          )}
+          <Group justify="flex-end">
+            <Button
+              size="xs"
+              onClick={post}
+              disabled={htmlIsEmpty(draft)}
+              leftSection={<IconSend size={14} stroke={1.8} />}
+            >
+              Post
+            </Button>
+          </Group>
 
-        <CommentInput editor={composer} busy={busy} busyLabel={busyLabel} />
-        {error && (
-          <Text size="xs" c="red">
-            {error}
-          </Text>
-        )}
-        <Group justify="flex-end">
-          <Button
-            size="xs"
-            onClick={post}
-            disabled={htmlIsEmpty(draft)}
-            leftSection={<IconSend size={14} stroke={1.8} />}
-          >
-            Post
-          </Button>
-        </Group>
+          {comments.length > 0 && (
+            <ScrollArea maxHeight={300}>
+              {/* Newest first; storage stays chronological (new posts append). */}
+              <Stack gap={8} pt={4} pb={2}>
+                {comments
+                  .slice()
+                  .reverse()
+                  .map((c) => (
+                    <CommentRow
+                      key={c.id}
+                      comment={c}
+                      listId={listId}
+                      mediaDir={mediaDir}
+                      editing={editingId === c.id}
+                      onStartEdit={() => setEditingId(c.id)}
+                      onSave={(html) => {
+                        saveEdit(c.id, html);
+                        setEditingId(null);
+                      }}
+                      onCancel={() => setEditingId(null)}
+                      onDelete={() => remove(c.id)}
+                    />
+                  ))}
+              </Stack>
+            </ScrollArea>
+          )}
+        </Stack>
 
-        {comments.length > 0 && (
-          <ScrollArea maxHeight={260}>
-            {/* Newest first; storage stays chronological (new posts append). */}
-            <Stack gap={8} pt={4} pb={2}>
-              {comments
-                .slice()
-                .reverse()
-                .map((c) => (
-                  <CommentRow
-                    key={c.id}
-                    comment={c}
-                    listId={listId}
-                    mediaDir={mediaDir}
-                    editing={editingId === c.id}
-                    onStartEdit={() => setEditingId(c.id)}
-                    onSave={(html) => {
-                      saveEdit(c.id, html);
-                      setEditingId(null);
-                    }}
-                    onCancel={() => setEditingId(null)}
-                    onDelete={() => remove(c.id)}
-                  />
-                ))}
-            </Stack>
-          </ScrollArea>
-        )}
-      </Stack>
+        {/* Right column: due date, notification, and assignees. A min height
+            gives the panel a consistent floor so it isn't cramped on items with
+            few/no comments (the left column drives height once it's taller). */}
+        <Stack gap="md" w={220} mih={250}>
+          <DatesSection dates={dates} />
+
+          <Stack gap="xs">
+            <Text size="xs" fw={600} c="dimmed">
+              ASSIGNEES
+            </Text>
+            <AssigneePicker
+              roster={assignees.roster}
+              value={assignees.assigneeIds}
+              onChange={assignees.onChange}
+              onCreate={assignees.onCreate}
+            />
+          </Stack>
+        </Stack>
+      </Group>
     </Stack>
   );
 }

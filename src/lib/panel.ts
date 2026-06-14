@@ -42,6 +42,9 @@ export interface PanelRequest {
   roster?: Assignee[];
   /** Details-view payload: the item's current assignee ids. */
   assigneeIds?: string[];
+  /** Details-view payload: the item's notification time / due date (epoch ms). */
+  notifyAt?: number;
+  dueDate?: number;
 }
 
 let nonce = 0;
@@ -102,6 +105,18 @@ export function emitAssigneeAction(action: AssigneeAction) {
   void emit("assignee:action", action);
 }
 
+/** An item's notification time / due date change made in the details panel,
+ * sent to the main window. Both values are sent each time (absent = cleared). */
+export interface DatesAction {
+  itemId: string;
+  notifyAt?: number;
+  dueDate?: number;
+}
+
+export function emitDatesAction(action: DatesAction) {
+  void emit("dates:action", action);
+}
+
 /** A roster-management change made in Settings, sent to the main window. */
 export type RosterAction =
   | { type: "add"; assignee: Assignee }
@@ -146,7 +161,8 @@ export async function openDetailsPanel(
   const win = getCurrentWindow();
   const { activeId, assignees: roster, items } = useTodos.getState();
   const listId = activeId ?? "";
-  const assigneeIds = items.find((i) => i.id === itemId)?.assignees ?? [];
+  const item = items.find((i) => i.id === itemId);
+  const assigneeIds = item?.assignees ?? [];
   const [scale, innerPos, base] = await Promise.all([
     win.scaleFactor(),
     win.innerPosition(),
@@ -163,6 +179,8 @@ export async function openDetailsPanel(
     mediaDir,
     roster,
     assigneeIds,
+    notifyAt: item?.notifyAt,
+    dueDate: item?.dueDate,
     anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },
   });
 }

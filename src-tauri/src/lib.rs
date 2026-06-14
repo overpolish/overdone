@@ -647,13 +647,22 @@ fn set_passthrough(app: tauri::AppHandle, value: bool, state: tauri::State<Windo
 }
 
 /// Grab the user's attention: show the red tray badge and bounce the dock icon
-/// (macOS) / flash the taskbar (Windows). Cleared automatically on focus.
+/// (macOS) / flash the taskbar (Windows). The badge persists until every
+/// notification is dismissed (see `set_tray_alert`); the dock bounce is cleared
+/// by the OS on focus.
 #[tauri::command]
 fn flag_attention(app: tauri::AppHandle) {
     tray::set_alert(&app, true);
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
     }
+}
+
+/// Set the red tray badge on/off. Driven by the count of unacknowledged
+/// notifications, so the badge stays lit until the user dismisses them all.
+#[tauri::command]
+fn set_tray_alert(app: tauri::AppHandle, on: bool) {
+    tray::set_alert(&app, on);
 }
 
 /// Send the app to the background so a following notification shows as a banner
@@ -925,6 +934,7 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             flag_attention,
+            set_tray_alert,
             background_app,
             open_panel,
             resize_panel,
@@ -976,8 +986,10 @@ pub fn run() {
                 // native frame; reveal it once it's configured.
                 let _ = window.show();
 
-                // Clear the tray badge on focus; hide to the tray instead of
-                // quitting when the window is closed (reopened via tray/dock).
+                // Hide to the tray instead of quitting when the window is closed
+                // (reopened via tray/dock). The tray badge is NOT cleared on
+                // focus — it tracks unacknowledged notifications (set_tray_alert)
+                // and stays lit until they're all dismissed.
                 let handle = app.handle().clone();
                 let win = window.clone();
                 window.on_window_event(move |event| match event {
@@ -989,7 +1001,6 @@ pub fn run() {
                         // Focus makes the window interactive even in passthrough.
                         apply_passthrough(&handle);
                         if *focused {
-                            tray::set_alert(&handle, false);
                             // Clicking the main window dismisses the popover panel.
                             hide_panel(&handle);
                         }

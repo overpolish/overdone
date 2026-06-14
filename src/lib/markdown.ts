@@ -60,6 +60,9 @@ const META_FIELDS = [
   ["created", "createdAt"],
   ["updated", "updatedAt"],
   ["done", "doneAt"],
+  ["notify", "notifyAt"],
+  ["notified", "notifiedAt"],
+  ["due", "dueDate"],
 ] as const;
 
 export interface ParsedList {

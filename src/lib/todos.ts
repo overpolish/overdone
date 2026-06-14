@@ -3,7 +3,7 @@ import { create } from "zustand";
 
 import { parseList } from "./markdown";
 import { referencedMedia } from "./media";
-import { type TodoState } from "./todo";
+import { isStruck, type TodoState } from "./todo";
 
 /** A person who can be assigned to items, scoped to a single list's roster. */
 export interface Assignee {
@@ -41,6 +41,13 @@ export interface TodoData {
   comments?: Comment[];
   /** Ids of the list-roster assignees on this item (see `Assignee`). */
   assignees?: string[];
+  /** Epoch ms for a scheduled notification (date AND time), set in details. */
+  notifyAt?: number;
+  /** Epoch ms when a scheduled notification fired — the item "needs action"
+   * (shown amber, with a bell) until the user dismisses it. */
+  notifiedAt?: number;
+  /** Epoch ms (UTC midnight) of the item's due date — date only, no time. */
+  dueDate?: number;
 }
 
 /** Wall-clock now, in epoch ms — the single clock the store stamps from. */
@@ -56,6 +63,10 @@ function applyState(item: TodoData, state: TodoState, t: number): TodoData {
     state,
     updatedAt: t,
     doneAt: state === "done" ? (item.doneAt ?? t) : undefined,
+    // Resolving an item (done/cancelled) dismisses any fired notification — it no
+    // longer needs action. A still-scheduled `notifyAt` is kept (the scheduler
+    // skips struck items), so reopening the item restores its reminder.
+    notifiedAt: isStruck(state) ? undefined : item.notifiedAt,
   };
 }
 
@@ -75,25 +86,6 @@ function normalizeDepths(items: TodoData[]): TodoData[] {
   });
 }
 
-/**
- * Recompute every parent's done state from its children: done when all children
- * are done, and un-done (→ todo) if it was done but they aren't. A parent's
- * non-done state is left alone otherwise.
- */
-function withRollup(items: TodoData[], t = now()): TodoData[] {
-  const out = items.slice();
-  for (let i = 0; i < out.length; i++) {
-    if (out[i].depth !== 0) continue;
-    const kids: TodoData[] = [];
-    for (let j = i + 1; j < out.length && out[j].depth === 1; j++) kids.push(out[j]);
-    if (kids.length === 0) continue;
-    const allDone = kids.every((k) => k.state === "done");
-    if (allDone && out[i].state !== "done") out[i] = applyState(out[i], "done", t);
-    else if (!allDone && out[i].state === "done") out[i] = applyState(out[i], "todo", t);
-  }
-  return out;
-}
-
 /** Whether the item at `i` is a top item with at least one sub-item. */
 function hasChildren(items: TodoData[], i: number): boolean {
   return items[i]?.depth === 0 && items[i + 1]?.depth === 1;
@@ -110,7 +102,7 @@ function removeItem(items: TodoData[], id: string): TodoData[] {
       next[j] = { ...next[j], depth: 0 };
     }
   }
-  return normalizeDepths(withRollup(next));
+  return normalizeDepths(next);
 }
 
 interface TodosState {
@@ -166,6 +158,21 @@ interface TodosState {
   setItemComments: (id: string, comments: Comment[]) => void;
   /** Replace an item's assignee list (ids into the roster). */
   setItemAssignees: (id: string, assignees: string[]) => void;
+  /**
+   * Set an item's notification time and/or due date. Both are passed each call
+   * (the details panel owns the editing session and sends the current pair), so
+   * an absent value clears that field. One commit, so they coalesce into a
+   * single undo step.
+   */
+  setItemDates: (
+    id: string,
+    dates: { notifyAt?: number; dueDate?: number },
+  ) => void;
+  /** A scheduled notification fired: clear notifyAt and flag the item as needing
+   * action (amber + bell in the list) until dismissed. */
+  markNotified: (id: string) => void;
+  /** Acknowledge a fired notification (the bell): clear the needs-action flag. */
+  dismissNotification: (id: string) => void;
   /** Add a new person to the roster. */
   addAssignee: (assignee: Assignee) => void;
   /** Rename a roster member (propagates everywhere, since items hold ids). */
@@ -240,15 +247,17 @@ export const useTodos = create<TodosState>((set, get) => {
         const i = items.findIndex((x) => x.id === id);
         if (i === -1) return items;
         const t = now();
-        let next = items.map((it, idx) => (idx === i ? applyState(it, state, t) : it));
-        // Setting a parent cascades to all its sub-items (group control).
-        if (next[i].depth === 0) {
+        const next = items.map((it, idx) => (idx === i ? applyState(it, state, t) : it));
+        // Cancelling a parent cancels its sub-items too — except any already
+        // done (a finished sub-task stays done). No other state cascades, and
+        // nothing rolls up: completion is per-item and explicit, since a parent's
+        // sub-items may be a partial list rather than the whole picture.
+        if (state === "cancelled" && next[i].depth === 0) {
           for (let j = i + 1; j < next.length && next[j].depth === 1; j++) {
-            next[j] = applyState(next[j], state, t);
+            if (next[j].state !== "done") next[j] = applyState(next[j], "cancelled", t);
           }
         }
-        // Setting a sub-item rolls its done state up to the parent.
-        return withRollup(next, t);
+        return next;
       }, null),
 
     setItemText: (id, text) =>
@@ -279,6 +288,34 @@ export const useTodos = create<TodosState>((set, get) => {
         // Coalesce a session's add/remove bursts into one undo step.
         `assignees:${id}`,
       ),
+
+    setItemDates: (id, dates) =>
+      commit(
+        (items) =>
+          items.map((i) =>
+            // Spread the pair so an absent (undefined) field is cleared, not kept.
+            i.id === id ? { ...i, ...dates, updatedAt: now() } : i,
+          ),
+        // Coalesce repeated edits to the same item's dates into one undo step.
+        `dates:${id}`,
+      ),
+
+    // Notification state changes go through `set` (not `commit`): firing is an
+    // automatic, time-driven event, so it shouldn't land on the undo stack — but
+    // a new `items` array still triggers autosave so the flag persists.
+    markNotified: (id) =>
+      set((s) => ({
+        items: s.items.map((i) =>
+          i.id === id ? { ...i, notifyAt: undefined, notifiedAt: now() } : i,
+        ),
+      })),
+
+    dismissNotification: (id) =>
+      set((s) => ({
+        items: s.items.map((i) =>
+          i.id === id ? { ...i, notifiedAt: undefined } : i,
+        ),
+      })),
 
     // Roster ops live outside the items undo history (like `title`): a single
     // list-level field that autosaves with the rest of the list.
@@ -352,7 +389,7 @@ export const useTodos = create<TodosState>((set, get) => {
         let to = dropIndex > from ? dropIndex - blockLen : dropIndex;
         to = Math.max(0, Math.min(to, without.length));
         const next = [...without.slice(0, to), ...block, ...without.slice(to)];
-        return normalizeDepths(withRollup(next));
+        return normalizeDepths(next);
       }, null),
 
     indentItem: (id) =>
@@ -365,7 +402,7 @@ export const useTodos = create<TodosState>((set, get) => {
         const next = items.map((it, idx) =>
           idx === i ? { ...it, depth: 1, updatedAt: now() } : it,
         );
-        return withRollup(next);
+        return next;
       }, null),
 
     outdentItem: (id) =>
@@ -375,7 +412,7 @@ export const useTodos = create<TodosState>((set, get) => {
         const next = items.map((it, idx) =>
           idx === i ? { ...it, depth: 0, updatedAt: now() } : it,
         );
-        return withRollup(next);
+        return next;
       }, null),
 
     addSubItem: (parentId) => {
@@ -396,7 +433,7 @@ export const useTodos = create<TodosState>((set, get) => {
           createdAt: t,
           updatedAt: t,
         });
-        return withRollup(next);
+        return next;
       }, `text:${id}`);
       set({ focusId: id });
     },
@@ -437,8 +474,8 @@ export const useTodos = create<TodosState>((set, get) => {
         activeId: id,
         title,
         assignees,
-        // Fix any structural quirks and ensure parent states match their kids.
-        items: withRollup(normalizeDepths(items)),
+        // Fix any structural quirks (item states are taken as-is — no rollup).
+        items: normalizeDepths(items),
         past: [],
         future: [],
         lastKey: null,

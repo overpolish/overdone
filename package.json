@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@mantine/core": "^9.3.1",
+    "@mantine/dates": "9.3.1",
     "@mantine/hooks": "^9.3.1",
     "@mantine/tiptap": "^9.3.1",
     "@tabler/icons-react": "^3.44.0",
@@ -32,6 +33,7 @@
     "@tiptap/pm": "^3.26.1",
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
+    "dayjs": "^1.11.21",
     "mermaid": "^11.15.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

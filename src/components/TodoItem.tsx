@@ -1,5 +1,6 @@
 import { ActionIcon, Box, Group, Textarea, UnstyledButton } from "@mantine/core";
-import { IconMessage } from "@tabler/icons-react";
+import { IconBell, IconCalendar, IconMessage } from "@tabler/icons-react";
+import dayjs from "dayjs";
 import { useEffect, useRef, useState } from "react";
 
 import { resolveAssignees } from "../lib/assignee";
@@ -26,12 +27,20 @@ const LINE_HEIGHT = 20;
 /** Left inset of a sub-item, so its checkbox sits under the parent's text. */
 const INDENT = 24;
 
+/** Status accent colors, shared by the row tint and the status icons. */
+const STATUS_COLOR = {
+  overdue: "var(--mantine-color-red-6)",
+  notify: "var(--mantine-color-yellow-6)",
+  today: "var(--mantine-color-orange-6)",
+} as const;
+
 /**
  * A single todo row: the custom status checkbox plus an inline, unstyled text
  * field. Reads/writes through the todos store so edits flow through undo/redo.
  */
 export function TodoItem({ item }: TodoItemProps) {
   const setItemText = useTodos((s) => s.setItemText);
+  const dismissNotification = useTodos((s) => s.dismissNotification);
   const deleteItemFocusNeighbor = useTodos((s) => s.deleteItemFocusNeighbor);
   const indentItem = useTodos((s) => s.indentItem);
   const outdentItem = useTodos((s) => s.outdentItem);
@@ -41,6 +50,31 @@ export function TodoItem({ item }: TodoItemProps) {
   const dragging = useDrag((s) => s.id === item.id);
   const done = isStruck(item.state);
   const child = item.depth === 1;
+  // A fired-but-unacknowledged notification: a bell shows on the right until the
+  // user clicks it to dismiss.
+  const needsAction = item.notifiedAt != null;
+  // Due urgency — only today or overdue surface an indicator (future/none don't,
+  // and a done item never nags). Stored due dates are date-only, so compare days.
+  const dueState: "overdue" | "today" | null = (() => {
+    if (item.dueDate == null || done) return null;
+    const today = dayjs().startOf("day");
+    const due = dayjs(item.dueDate).startOf("day");
+    if (due.isBefore(today)) return "overdue";
+    if (due.isSame(today)) return "today";
+    return null;
+  })();
+  // Row appearance follows a single priority: overdue (red) > notification
+  // (amber) > due today (orange). The winner tints the text and a faint full-row
+  // wash; the per-status icons keep their own colors regardless.
+  const status: keyof typeof STATUS_COLOR | null =
+    dueState === "overdue"
+      ? "overdue"
+      : needsAction && !done
+        ? "notify"
+        : dueState === "today"
+          ? "today"
+          : null;
+  const statusColor = status ? STATUS_COLOR[status] : null;
   // The details button appears on row hover (to avoid clutter), and stays
   // faintly visible as an indicator when the item already has comments.
   const rowRef = useRef<HTMLDivElement>(null);
@@ -91,6 +125,24 @@ export function TodoItem({ item }: TodoItemProps) {
         transition: "opacity 120ms ease",
       }}
     >
+      {/* Status wash backing the row (red overdue / amber notification / orange
+          due-today, by priority), matching the tinted text + icon. Bleeds only
+          horizontally — rows are flush (Stack gap 0), so a vertical bleed would
+          overlap the neighbour's wash and double up into a dark seam. */}
+      {statusColor && (
+        <Box
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            marginInline: -8,
+            borderRadius: "var(--mantine-radius-sm)",
+            background: `color-mix(in srgb, ${statusColor} 14%, transparent)`,
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
+        />
+      )}
       {/* Highlight backing the row while its editing panel is open. Behind the
           content (zIndex -1) and bled out a touch so it reads as a padded
           surface rather than a tight box. */}
@@ -195,14 +247,52 @@ export function TodoItem({ item }: TodoItemProps) {
             // Done items read as crossed-off and dimmed.
             textDecoration: done ? "line-through" : undefined,
             opacity: done ? 0.5 : 1,
+            // Status tints the text (red/amber/orange by priority); done items
+            // never tint, reading as resolved (status is already null then).
+            color: statusColor ?? undefined,
             transition: "opacity 120ms ease",
           },
         }}
       />
-      {/* Right-side controls (assignees + details) sit in their own tight group
-          so they stay close together, while the row's wider gap separates them
-          from the text. */}
+      {/* Right-side controls in fixed order: notification, due, assignees,
+          details. They sit in their own tight group so they stay close together,
+          while the row's wider gap separates them from the text. */}
       <Group gap={2} wrap="nowrap" align="flex-start">
+      {/* Dismiss bell: only present once a notification has fired. Always visible
+          (not hover-gated) and amber so it reads as the cue for the amber text;
+          clicking acknowledges and clears the needs-action state. */}
+      {needsAction && (
+        <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
+          <ActionIcon
+            aria-label="Dismiss notification"
+            variant="subtle"
+            color="yellow.6"
+            size={20}
+            onClick={() => dismissNotification(item.id)}
+            style={{ flexShrink: 0 }}
+          >
+            <IconBell size={14} stroke={1.8} />
+          </ActionIcon>
+        </Box>
+      )}
+      {/* Due indicator: orange when due today, red when overdue (nothing for a
+          future/no due date). A non-interactive status cue — not dismissable;
+          it only clears when the due date changes or the item is done/cancelled. */}
+      {dueState && (
+        <Box
+          aria-label={dueState === "overdue" ? "Overdue" : "Due today"}
+          title={dueState === "overdue" ? "Overdue" : "Due today"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            height: LINE_HEIGHT,
+            flexShrink: 0,
+            color: STATUS_COLOR[dueState],
+          }}
+        >
+          <IconCalendar size={14} stroke={1.8} />
+        </Box>
+      )}
       {/* Assignee control, top-anchored to the first text line like the other
           controls and reserved in layout. Click the avatars to reassign; with
           nobody assigned, a dashed "add" circle appears on hover. */}
