@@ -24,11 +24,21 @@ pub fn hide_panel(app: &tauri::AppHandle) {
     state.panel_open.store(false, Ordering::Relaxed);
     // Tell the main window to drop its "item being edited" row highlight.
     let _ = app.emit("panel:closed", ());
-    if let Some(main) = app.get_webview_window("main") {
-        let on_top = state.always_on_top.load(Ordering::Relaxed);
-        let _ = main.set_always_on_top(on_top);
-    }
-    apply_passthrough(app);
+    // Restore the main window's always-on-top level on the *next* main-thread
+    // tick rather than inline. When the panel is dismissed by clicking the main
+    // title bar, this runs during the same mousedown that the title bar's native
+    // drag region uses to start a window drag - changing the window level in the
+    // middle of that gesture makes macOS re-seat the drag and snap the window
+    // sideways. Deferring it lets the click/drag settle first.
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        let state = app.state::<WindowState>();
+        if let Some(main) = app.get_webview_window("main") {
+            let on_top = state.always_on_top.load(Ordering::Relaxed);
+            let _ = main.set_always_on_top(on_top);
+        }
+        apply_passthrough(&app);
+    });
 }
 
 /// Center the panel horizontally under the main window's title bar, given the
