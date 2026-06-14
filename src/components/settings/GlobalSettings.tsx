@@ -8,6 +8,7 @@ import {
   Box,
   Checkbox,
   Group,
+  Kbd,
   Progress,
   SegmentedControl,
   Stack,
@@ -25,6 +26,31 @@ import { listen } from "@tauri-apps/api/event";
 import { useRef, useState } from "react";
 
 import { type MediaCompression, useSettings } from "../../lib/settings";
+import { ScrollArea } from "../ScrollArea";
+
+// Modifier glyphs differ per platform: ⌘/⌥/⇧ on macOS, spelled out on Windows.
+const IS_MAC =
+  typeof navigator !== "undefined" && /mac/i.test(navigator.platform || navigator.userAgent);
+const MOD = IS_MAC ? "⌘" : "Ctrl";
+const SHIFT = IS_MAC ? "⇧" : "Shift";
+
+/** Keyboard shortcuts shown in settings, keys on the left and action on right. */
+const SHORTCUTS: { keys: string[]; label: string }[] = [
+  { keys: [MOD, "F"], label: "Search" },
+  { keys: [MOD, "L"], label: "Lists" },
+  { keys: [MOD, ","], label: "Settings" },
+  { keys: [MOD, "N"], label: "New item" },
+  { keys: ["A–Z"], label: "Type to start a new item" },
+  { keys: [MOD, "Z"], label: "Undo" },
+  { keys: [MOD, SHIFT, "Z"], label: "Redo" },
+  { keys: ["Esc"], label: "Drop focus from the field" },
+  { keys: [MOD, "]"], label: "Indent item" },
+  { keys: [MOD, "["], label: "Outdent item" },
+  { keys: ["↵"], label: "Confirm item" },
+  { keys: [SHIFT, "↵"], label: "New line within an item" },
+  { keys: ["⌫"], label: "Delete empty item" },
+  { keys: ["↑", "↓"], label: "Move between items" },
+];
 
 /** Progress phase for the one-time ffmpeg download (enabling compression). */
 interface FfmpegProgress {
@@ -261,6 +287,30 @@ export function GlobalSettings() {
           The window hides and passes clicks through while the cursor is over it.
           Hold ⌘ (Ctrl on Windows) to click it; once focused it stays put.
         </Text>
+      </Stack>
+
+      <Stack gap={4}>
+        <Text size="sm" fw={500}>
+          Keyboard shortcuts
+        </Text>
+        <ScrollArea maxHeight={150} style={{ border: "1px solid var(--mantine-color-default-border)" }}>
+          <Stack gap={0} p={4}>
+            {SHORTCUTS.map(({ keys, label }) => (
+              <Group key={label} justify="space-between" wrap="nowrap" gap="md" px={6} py={4}>
+                <Group gap={3} wrap="nowrap" style={{ flexShrink: 0 }}>
+                  {keys.map((k) => (
+                    <Kbd key={k} size="xs">
+                      {k}
+                    </Kbd>
+                  ))}
+                </Group>
+                <Text size="xs" c="dimmed" ta="right">
+                  {label}
+                </Text>
+              </Group>
+            ))}
+          </Stack>
+        </ScrollArea>
       </Stack>
     </Stack>
   );

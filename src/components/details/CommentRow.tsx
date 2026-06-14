@@ -55,6 +55,10 @@ export function CommentRow({
   onDelete,
 }: CommentRowProps) {
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  // Reveal the actions on hover or keyboard focus, so tabbing through the log
+  // lands on visible buttons instead of invisible (opacity: 0) tab stops.
+  const revealed = hovered || focused;
   const openDiagram = useDiagramEditor();
 
   // Write an edited diagram back into the comment: replace the nth stored
@@ -102,6 +106,8 @@ export function CommentRow({
     <Box
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
       style={{
         padding: "6px 8px",
         borderRadius: "var(--mantine-radius-md)",
@@ -146,8 +152,8 @@ export function CommentRow({
           {formatTime(comment.createdAt)}
           {comment.editedAt ? " · edited" : ""}
         </Text>
-        {/* Edit/delete reveal on hover to keep the log uncluttered. */}
-        <Group gap={2} wrap="nowrap" style={{ opacity: hovered ? 1 : 0 }}>
+        {/* Edit/delete reveal on hover or focus to keep the log uncluttered. */}
+        <Group gap={2} wrap="nowrap" style={{ opacity: revealed ? 1 : 0 }}>
           <IconButton label="Edit comment" icon={IconPencil} onClick={onStartEdit} />
           <IconButton label="Delete comment" icon={IconTrash} danger onClick={onDelete} />
         </Group>

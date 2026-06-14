@@ -74,6 +74,23 @@ export function openPanel(request: Omit<PanelRequest, "nonce">) {
   void emit("panel:open", { ...request, nonce: ++nonce } satisfies PanelRequest);
 }
 
+/** Open the search panel over a snapshot of the active list. */
+export function openSearchPanel() {
+  const { items, labels, assignees } = useTodos.getState();
+  openPanel({ view: "search", items, labels, roster: assignees });
+}
+
+/** Open the list switcher. */
+export function openListsPanel() {
+  openPanel({ view: "lists" });
+}
+
+/** Open the settings panel (assignee / label rosters). */
+export function openSettingsPanel() {
+  const { assignees, labels } = useTodos.getState();
+  openPanel({ view: "settings", roster: assignees, labels });
+}
+
 /** Hide the panel (after a status pick, etc.). */
 export function closePanel() {
   void invoke("close_panel");

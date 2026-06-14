@@ -105,7 +105,9 @@ export function ItemControls({
             onClick={() => {
               if (assigneeRef.current) void openAssigneePanel(assigneeRef.current, item.id);
             }}
-            style={{ display: "flex", alignItems: "center" }}
+            // Round the focus ring to the avatars' shape (circle for one, stadium
+            // for a stack) rather than a sharp rectangle.
+            style={{ display: "flex", alignItems: "center", borderRadius: 999 }}
           >
             {/* 14px disc matches the IconCirclePlus's drawn ring at size 18
                 (Tabler insets the circle to ~75% of the icon box). */}

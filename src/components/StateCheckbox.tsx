@@ -39,7 +39,15 @@ export function StateCheckbox({ value, itemId }: StateCheckboxProps) {
         }
         if (ref.current) void openStatusPicker(ref.current, itemId, value);
       }}
-      style={{ display: "flex", lineHeight: 0, cursor: "grab", touchAction: "none" }}
+      style={{
+        display: "flex",
+        lineHeight: 0,
+        cursor: "grab",
+        touchAction: "none",
+        // Match the StateBox radius so the focus ring rounds to the box's shape
+        // instead of drawing a sharp rectangle around it.
+        borderRadius: "var(--mantine-radius-sm)",
+      }}
     >
       <StateBox state={value} />
     </UnstyledButton>

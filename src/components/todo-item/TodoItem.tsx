@@ -39,6 +39,11 @@ export function TodoItem({ item }: TodoItemProps) {
   const { done, needsAction, dueState, statusColor } = rowStatus(item);
   const rowRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  // Keyboard focus anywhere in the row also reveals the controls, so tabbing
+  // doesn't land on invisible (opacity: 0) buttons like the assignee / details
+  // affordances.
+  const [focusWithin, setFocusWithin] = useState(false);
+  const revealed = hovered || focusWithin;
   const hasComments = (item.comments?.length ?? 0) > 0;
   // Resolve the item's assignee ids against the roster (skipping any unknown
   // ids, e.g. a just-removed person undo briefly reintroduces).
@@ -77,6 +82,8 @@ export function TodoItem({ item }: TodoItemProps) {
       data-todo-row
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocusWithin(true)}
+      onBlurCapture={() => setFocusWithin(false)}
       onContextMenu={(e) => {
         e.preventDefault();
         useItemMenu.getState().show(item.id, e.clientX, e.clientY);
@@ -165,10 +172,11 @@ export function TodoItem({ item }: TodoItemProps) {
           value={item.text}
           onChange={(e) => setItemText(item.id, e.currentTarget.value)}
           onKeyDown={(e) => {
-            // Tab / Shift+Tab nest / un-nest the item (one level).
-            if (e.key === "Tab") {
+            // Cmd/Ctrl + ] / [ nest / un-nest the item (one level). Tab is left
+            // to the browser for normal keyboard navigation between fields.
+            if ((e.metaKey || e.ctrlKey) && (e.key === "]" || e.key === "[")) {
               e.preventDefault();
-              if (e.shiftKey) outdentItem(item.id);
+              if (e.key === "[") outdentItem(item.id);
               else indentItem(item.id);
             } else if (e.key === "Enter" && !e.shiftKey) {
               // Enter confirms the item - just drops focus (Shift+Enter still
@@ -230,7 +238,7 @@ export function TodoItem({ item }: TodoItemProps) {
       <ItemControls
         item={item}
         rowRef={rowRef}
-        hovered={hovered}
+        hovered={revealed}
         assignees={assignees}
         dueState={dueState}
         needsAction={needsAction}

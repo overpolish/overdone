@@ -69,6 +69,8 @@ export function AddAssigneeButton({
         style={{
           display: "flex",
           color: "var(--mantine-color-dimmed)",
+          // Circular focus ring to match the round add-circle icon.
+          borderRadius: "50%",
         }}
       >
         <IconCirclePlus size={size} stroke={1.8} />

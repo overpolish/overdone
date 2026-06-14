@@ -108,7 +108,8 @@ export function LabelSettings({ initial }: { initial: Label[] }) {
                     <UnstyledButton
                       aria-label={`Shuffle color for ${l.name}`}
                       onClick={() => recolor(l.id)}
-                      style={{ display: "flex" }}
+                      // Match the pill badge so the focus ring rounds to its shape.
+                      style={{ display: "flex", borderRadius: "var(--mantine-radius-xl)" }}
                     >
                       <LabelBadge label={l} size={18} />
                     </UnstyledButton>

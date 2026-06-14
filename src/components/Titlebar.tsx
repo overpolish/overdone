@@ -7,7 +7,7 @@ import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@man
 import { IconListCheck, IconMinus, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 
-import { openPanel } from "../lib/panel";
+import { openListsPanel, openSearchPanel, openSettingsPanel } from "../lib/panel";
 import { useTodos } from "../lib/todos";
 import { IconButton } from "./IconButton";
 
@@ -41,18 +41,13 @@ export function Titlebar() {
       <Center h="100%" style={{ pointerEvents: "none" }}>
         <UnstyledButton
           aria-label="Open settings"
-          onClick={() =>
-            openPanel({
-              view: "settings",
-              roster: useTodos.getState().assignees,
-              labels: useTodos.getState().labels,
-            })
-          }
+          onClick={openSettingsPanel}
           style={{
             pointerEvents: "auto",
             display: "flex",
             lineHeight: 0,
             cursor: "pointer",
+            borderRadius: "var(--mantine-radius-sm)",
           }}
         >
           <img
@@ -91,23 +86,8 @@ export function Titlebar() {
           icon={IconPlus}
           onClick={() => useTodos.getState().addItem()}
         />
-        <IconButton
-          label="Search"
-          icon={IconSearch}
-          onClick={() =>
-            openPanel({
-              view: "search",
-              items: useTodos.getState().items,
-              labels: useTodos.getState().labels,
-              roster: useTodos.getState().assignees,
-            })
-          }
-        />
-        <IconButton
-          label="Lists"
-          icon={IconListCheck}
-          onClick={() => openPanel({ view: "lists" })}
-        />
+        <IconButton label="Search" icon={IconSearch} onClick={openSearchPanel} />
+        <IconButton label="Lists" icon={IconListCheck} onClick={openListsPanel} />
       </Group>
     </Box>
   );

@@ -114,6 +114,10 @@ function ListRow({
   canDelete,
 }: ListRowProps) {
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  // Reveal the row actions on hover or keyboard focus, so tabbing through the
+  // row lands on visible buttons instead of invisible (opacity: 0) targets.
+  const revealed = hovered || focused;
 
   return (
     <Group
@@ -122,6 +126,8 @@ function ListRow({
       pr={8}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
       style={{
         borderRadius: "var(--mantine-radius-md)",
         background: active ? "var(--mantine-color-default)" : "transparent",
@@ -151,15 +157,15 @@ function ListRow({
         }}
       />
 
-      {/* Disk usage at a glance; yields to the action buttons on hover. */}
-      {!hovered && (
+      {/* Disk usage at a glance; yields to the action buttons on reveal. */}
+      {!revealed && (
         <Text size="10px" c="dimmed" style={{ flexShrink: 0 }}>
           {formatBytes(list.bytes)}
         </Text>
       )}
 
-      {/* Export / delete reveal on hover to keep the row uncluttered. */}
-      <Group gap={2} wrap="nowrap" style={{ flexShrink: 0, opacity: hovered ? 1 : 0 }}>
+      {/* Export / delete reveal on hover or focus to keep the row uncluttered. */}
+      <Group gap={2} wrap="nowrap" style={{ flexShrink: 0, opacity: revealed ? 1 : 0 }}>
         <IconButton
           icon={IconDownload}
           label={`Export ${list.title || "Untitled"}`}

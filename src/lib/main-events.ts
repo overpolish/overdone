@@ -18,6 +18,9 @@ import {
   type EditActionType,
   type LabelAction,
   type LabelRosterAction,
+  openListsPanel,
+  openSearchPanel,
+  openSettingsPanel,
   type RosterAction,
   type StatusAction,
 } from "./panel";
@@ -224,6 +227,18 @@ export function useGlobalKeyboard() {
         } else if (key === "y") {
           e.preventDefault();
           useTodos.getState().redo();
+        } else if (key === "f") {
+          e.preventDefault();
+          openSearchPanel();
+        } else if (key === "l") {
+          e.preventDefault();
+          openListsPanel();
+        } else if (key === ",") {
+          e.preventDefault();
+          openSettingsPanel();
+        } else if (key === "n") {
+          e.preventDefault();
+          useTodos.getState().addItem();
         }
         return;
       }
