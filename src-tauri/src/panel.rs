@@ -70,6 +70,7 @@ fn center_panel_under_main(
     main: &tauri::WebviewWindow,
     panel: &tauri::WebviewWindow,
     width: f64,
+    height: f64,
     keep_y: Option<i32>,
 ) {
     let (Ok(pos), Ok(main_size), Ok(scale)) =
@@ -78,10 +79,16 @@ fn center_panel_under_main(
         return;
     };
     let panel_w_phys = (width * scale) as i32;
+    let panel_h_phys = (height * scale) as i32;
     let x = pos.x + (main_size.width as i32 - panel_w_phys) / 2;
     // Below the title bar with a gap so the logo stays fully visible.
     let y = keep_y.unwrap_or(pos.y + 64);
-    let _ = panel.set_position(PhysicalPosition::new(x, y));
+    // Clamp to the work area so a tall panel (full settings, long lists) keeps
+    // its bottom on-screen instead of spilling off below - the same on-screen
+    // guarantee anchored panels (details) already get.
+    let placed = clamp_to_work_area(panel, main, x, y, panel_w_phys, panel_h_phys)
+        .unwrap_or_else(|| PhysicalPosition::new(x, y));
+    let _ = panel.set_position(placed);
 }
 
 /// Clamp an anchored panel's physical top-left so the whole window (physical
@@ -156,7 +163,7 @@ pub fn open_panel(
             state.panel_anchored.store(true, Ordering::Relaxed);
         }
         _ => {
-            center_panel_under_main(&main, &panel, width, None);
+            center_panel_under_main(&main, &panel, width, height, None);
             state.panel_anchored.store(false, Ordering::Relaxed);
         }
     }
@@ -193,7 +200,7 @@ pub fn resize_panel(
     };
     if !state.panel_anchored.load(Ordering::Relaxed) {
         let keep_y = panel.outer_position().ok().map(|p| p.y);
-        center_panel_under_main(&main, &panel, width, keep_y);
+        center_panel_under_main(&main, &panel, width, height, keep_y);
     } else if let (Ok(pos), Ok(scale)) = (panel.outer_position(), panel.scale_factor()) {
         // Anchored panel that grew (e.g. suggestions appeared): keep its
         // top-left but re-clamp so the larger window doesn't spill off-screen.

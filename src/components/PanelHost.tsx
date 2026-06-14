@@ -191,8 +191,16 @@ export function PanelHost() {
       p="md"
       bg="var(--mantine-color-body)"
       // Shrink-wrap to the content (each view sets its own width) so the
-      // measured size drives the window size.
-      style={{ width: "max-content" }}
+      // measured size drives the window size. Cap the height to the screen's
+      // work area and scroll any overflow inside, so a tall panel (long lists,
+      // full settings) can't grow past the screen: the backend only repositions
+      // an over-tall window, it never shrinks it. `vh` is useless here since the
+      // webview viewport is itself the content-sized window, so use the screen.
+      style={{
+        width: "max-content",
+        maxHeight: window.screen.availHeight - 24,
+        overflowY: "auto",
+      }}
     >
       {renderView(request)}
     </Box>
