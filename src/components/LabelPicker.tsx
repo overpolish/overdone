@@ -215,7 +215,9 @@ function LabelChip({ label, onRemove }: { label: Label; onRemove: () => void }) 
           flexShrink: 0,
           width: 14,
           height: 14,
-          marginRight: -3,
+          // Pull the × right so the gap to the chip edge (paddingInline 8 minus
+          // this) matches the 3px vertical gap above/below the 14px button.
+          marginRight: -6,
           borderRadius: "50%",
           color: fg,
           opacity: hovered ? 1 : 0.7,
