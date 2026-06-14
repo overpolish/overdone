@@ -18,6 +18,7 @@ import {
   type EditActionType,
   type LabelAction,
   type LabelRosterAction,
+  openFilterPanel,
   openListsPanel,
   openSearchPanel,
   openSettingsPanel,
@@ -229,7 +230,9 @@ export function useGlobalKeyboard() {
           useTodos.getState().redo();
         } else if (key === "f") {
           e.preventDefault();
-          openSearchPanel();
+          // Shift opens the filter panel; plain ⌘/Ctrl+F is search.
+          if (e.shiftKey) openFilterPanel();
+          else openSearchPanel();
         } else if (key === "l") {
           e.preventDefault();
           openListsPanel();

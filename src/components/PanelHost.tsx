@@ -13,6 +13,7 @@ import { emitEditAction, type PanelRequest } from "../lib/panel";
 import { AssigneePanel } from "./AssigneePanel";
 import { closeDiagramModal, useDiagramModalOpen } from "./diagram";
 import { ItemDetails } from "./details";
+import { Filter } from "./Filter";
 import { Lists } from "./Lists";
 import { Search } from "./Search";
 import { Settings } from "./settings";
@@ -35,6 +36,16 @@ function renderView(request: PanelRequest | null) {
         <Search
           key={request.nonce}
           items={request.items ?? []}
+          labels={request.labels ?? []}
+          assignees={request.roster ?? []}
+        />
+      );
+    case "filter":
+      // Keyed by nonce so re-opening re-runs the panel's mount effects.
+      return (
+        <Filter
+          key={request.nonce}
+          listId={request.listId ?? ""}
           labels={request.labels ?? []}
           assignees={request.roster ?? []}
         />

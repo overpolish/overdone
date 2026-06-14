@@ -7,6 +7,7 @@ import { Divider, Paper, Stack, Text, UnstyledButton, useComputedColorScheme } f
 import {
   IconArrowBarToLeft,
   IconArrowBarToRight,
+  IconArrowBarToUp,
   IconCornerDownRight,
   IconTrash,
   type IconProps,
@@ -53,6 +54,14 @@ export function ItemContextMenu() {
     icon: ComponentType<IconProps>;
     onClick: () => void;
   }[] = [];
+  // Only worth offering when it isn't already first (a child is never at idx 0,
+  // so this also promotes it to a top-level item).
+  if (idx > 0)
+    actions.push({
+      label: "Move to top",
+      icon: IconArrowBarToUp,
+      onClick: () => todos.moveItem(open.id, 0),
+    });
   if (!isChild)
     actions.push({
       label: "Add sub-item",

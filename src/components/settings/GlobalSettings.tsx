@@ -37,6 +37,7 @@ const SHIFT = IS_MAC ? "⇧" : "Shift";
 /** Keyboard shortcuts shown in settings, keys on the left and action on right. */
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: [MOD, "F"], label: "Search" },
+  { keys: [MOD, SHIFT, "F"], label: "Filter" },
   { keys: [MOD, "L"], label: "Lists" },
   { keys: [MOD, ","], label: "Settings" },
   { keys: [MOD, "N"], label: "New item" },

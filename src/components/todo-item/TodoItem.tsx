@@ -80,6 +80,7 @@ export function TodoItem({ item }: TodoItemProps) {
       wrap="nowrap"
       align="flex-start"
       data-todo-row
+      data-todo-id={item.id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocusCapture={() => setFocusWithin(true)}

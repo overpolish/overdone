@@ -20,3 +20,17 @@ export const dangerBg = (dark: boolean): string =>
 /** Foreground (icon/text) color for a destructive control. */
 export const dangerFg = (dark: boolean): string =>
   dark ? "var(--mantine-color-red-4)" : "var(--mantine-color-red-6)";
+
+/**
+ * Scheme-aware "warning" styling for a control that signals an altered/limited
+ * state (e.g. the title bar's filter button while a filter is active). Mirrors
+ * the danger helpers, in the amber family.
+ */
+
+/** Hover / active background for a warning control. */
+export const warningBg = (dark: boolean): string =>
+  dark ? "rgba(251, 191, 36, 0.20)" : "var(--mantine-color-amber-light)";
+
+/** Foreground (icon/text) color for a warning control. */
+export const warningFg = (dark: boolean): string =>
+  dark ? "var(--mantine-color-amber-4)" : "var(--mantine-color-amber-6)";

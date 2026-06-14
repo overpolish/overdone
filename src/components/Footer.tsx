@@ -6,6 +6,7 @@
 import { Box, Group, Text, TextInput } from "@mantine/core";
 import { useEffect, useRef } from "react";
 
+import { useVisibleItems } from "../lib/filters";
 import { TODO_STATES } from "../lib/todo";
 import { useTodos } from "../lib/todos";
 
@@ -21,6 +22,10 @@ export function Footer() {
   const items = useTodos((s) => s.items);
   const focusTitle = useTodos((s) => s.focusTitle);
   const clearFocusTitle = useTodos((s) => s.clearFocusTitle);
+  // Counts reflect what's shown: when a filter hides items, count the visible
+  // subset and surface "X of Y".
+  const visible = useVisibleItems();
+  const filtered = visible.length !== items.length;
 
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -73,7 +78,9 @@ export function Footer() {
             },
           }}
         />
-        {/* Per-state counts (colored by state) then the total, e.g. "3 1 2 (6) items". */}
+        {/* Per-state counts (colored by state) then the total, e.g. "3 1 2 (6)
+            items". While filtered, counts cover the visible subset and the total
+            reads "X of Y". */}
         <Text c="dimmed" style={{ flexShrink: 0, fontSize: "10px" }}>
           {TODO_STATES.map((meta) => (
             <Text
@@ -84,10 +91,10 @@ export function Footer() {
               mr={5}
               c={meta.color ? `${meta.color}.6` : "var(--mantine-color-text)"}
             >
-              {items.filter((i) => i.state === meta.value).length}
+              {visible.filter((i) => i.state === meta.value).length}
             </Text>
           ))}
-          ({items.length}) items
+          {filtered ? `(${visible.length} of ${items.length})` : `(${items.length})`} items
         </Text>
       </Group>
     </Box>

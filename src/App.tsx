@@ -4,13 +4,14 @@
  */
 
 import { Stack, Text } from "@mantine/core";
-import { IconKeyboard } from "@tabler/icons-react";
+import { IconFilter, IconKeyboard } from "@tabler/icons-react";
 
 import { Footer } from "./components/Footer";
 import { ItemContextMenu } from "./components/ItemContextMenu";
 import { ScrollArea } from "./components/ScrollArea";
 import { TodoItem } from "./components/todo-item";
 import { Titlebar } from "./components/Titlebar";
+import { useVisibleItems } from "./lib/filters";
 import {
   useGlobalKeyboard,
   useMainWindowStartup,
@@ -45,6 +46,9 @@ function DropIndicator() {
 
 function App() {
   const items = useTodos((s) => s.items);
+  // The list as displayed: the active filter hides non-matches and view-sorts.
+  // Schedulers/tray still track the full item set, not the visible subset.
+  const visible = useVisibleItems();
 
   useMainWindowStartup();
   usePanelActionListeners();
@@ -73,8 +77,15 @@ function App() {
                 Start typing to add items
               </Text>
             </Stack>
+          ) : visible.length === 0 ? (
+            <Stack align="center" gap={6} pt="xl" c="dimmed">
+              <IconFilter size={40} stroke={1.5} opacity={0.5} />
+              <Text size="sm" ta="center">
+                No items match the filter
+              </Text>
+            </Stack>
           ) : (
-            items.map((item) => <TodoItem key={item.id} item={item} />)
+            visible.map((item) => <TodoItem key={item.id} item={item} />)
           )}
           <DropIndicator />
         </Stack>

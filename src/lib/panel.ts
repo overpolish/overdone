@@ -17,6 +17,7 @@ export type PanelView =
   | "lists"
   | "status"
   | "search"
+  | "filter"
   | "details"
   | "assignee";
 
@@ -78,6 +79,13 @@ export function openPanel(request: Omit<PanelRequest, "nonce">) {
 export function openSearchPanel() {
   const { items, labels, assignees } = useTodos.getState();
   openPanel({ view: "search", items, labels, roster: assignees });
+}
+
+/** Open the filter panel for the active list (rosters seed the filter options;
+ * the criteria themselves live in the BroadcastChannel-synced filters store). */
+export function openFilterPanel() {
+  const { activeId, labels, assignees } = useTodos.getState();
+  openPanel({ view: "filter", listId: activeId ?? "", labels, roster: assignees });
 }
 
 /** Open the list switcher. */

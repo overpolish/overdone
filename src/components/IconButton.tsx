@@ -7,7 +7,7 @@ import { UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import { type IconProps } from "@tabler/icons-react";
 import { type ComponentType, useLayoutEffect, useRef, useState } from "react";
 
-import { dangerBg, dangerFg } from "../lib/styles";
+import { dangerBg, dangerFg, warningBg, warningFg } from "../lib/styles";
 
 interface IconButtonProps {
   label: string;
@@ -17,6 +17,8 @@ interface IconButtonProps {
   danger?: boolean;
   /** Toggle controls (e.g. format bar): renders an "on" surface when set. */
   active?: boolean;
+  /** Tints amber and stays lit to flag an altered state (e.g. filter active). */
+  warning?: boolean;
 }
 
 /**
@@ -25,7 +27,7 @@ interface IconButtonProps {
  * title bar's window controls, the comment log's edit/delete actions, and the
  * comment editor's format toggles (via `active`).
  */
-export function IconButton({ label, icon: Icon, onClick, danger, active }: IconButtonProps) {
+export function IconButton({ label, icon: Icon, onClick, danger, active, warning }: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const dark = useComputedColorScheme("light") === "dark";
   const ref = useRef<HTMLButtonElement>(null);
@@ -44,7 +46,7 @@ export function IconButton({ label, icon: Icon, onClick, danger, active }: IconB
     el.style.transform = `translate(${snap(left)}px, ${snap(top)}px)`;
   });
 
-  const strong = active || hovered;
+  const strong = active || hovered || warning;
   return (
     <UnstyledButton
       ref={ref}
@@ -69,15 +71,19 @@ export function IconButton({ label, icon: Icon, onClick, danger, active }: IconB
         color:
           danger && hovered
             ? dangerFg(dark)
-            : active
-              ? "var(--mantine-color-text)"
-              : "var(--mantine-color-dimmed)",
+            : warning
+              ? warningFg(dark)
+              : active
+                ? "var(--mantine-color-text)"
+                : "var(--mantine-color-dimmed)",
         background:
-          hovered || active
-            ? danger && hovered
-              ? dangerBg(dark)
-              : "var(--mantine-color-default-hover)"
-            : "transparent",
+          danger && hovered
+            ? dangerBg(dark)
+            : warning && hovered
+              ? warningBg(dark)
+              : hovered || active
+                ? "var(--mantine-color-default-hover)"
+                : "transparent",
         transition: "opacity 120ms ease, background 120ms ease, color 120ms ease",
       }}
     >

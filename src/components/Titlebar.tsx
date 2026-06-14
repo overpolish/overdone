@@ -4,10 +4,23 @@
  */
 
 import { Box, Center, Group, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import { IconListCheck, IconMinus, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
+import {
+  IconFilter,
+  IconListCheck,
+  IconMinus,
+  IconPlus,
+  IconSearch,
+  IconX,
+} from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 
-import { openListsPanel, openSearchPanel, openSettingsPanel } from "../lib/panel";
+import { isViewAltered, useFilters } from "../lib/filters";
+import {
+  openFilterPanel,
+  openListsPanel,
+  openSearchPanel,
+  openSettingsPanel,
+} from "../lib/panel";
 import { useTodos } from "../lib/todos";
 import { IconButton } from "./IconButton";
 
@@ -26,6 +39,14 @@ export function Titlebar() {
   // Resolve "auto" to the actual scheme. The logo is light by default (good on
   // dark backgrounds), so invert it only in light mode.
   const light = useComputedColorScheme("light") === "light";
+
+  // Amber the filter button (and signal that drag is disabled) whenever the
+  // active list's view is filtered or sorted.
+  const activeId = useTodos((s) => s.activeId);
+  const filterAltered = useFilters((s) => {
+    const c = activeId ? s.active[activeId] : null;
+    return c ? isViewAltered(c) : false;
+  });
 
   return (
     <Box
@@ -87,6 +108,12 @@ export function Titlebar() {
           onClick={() => useTodos.getState().addItem()}
         />
         <IconButton label="Search" icon={IconSearch} onClick={openSearchPanel} />
+        <IconButton
+          label="Filter"
+          icon={IconFilter}
+          onClick={openFilterPanel}
+          warning={filterAltered}
+        />
         <IconButton label="Lists" icon={IconListCheck} onClick={openListsPanel} />
       </Group>
     </Box>
