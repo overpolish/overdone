@@ -95,6 +95,8 @@ function GlobalSettings() {
   const setPassthrough = useSettings((state) => state.setPassthrough);
   const launchAtStartup = useSettings((state) => state.launchAtStartup);
   const setLaunchAtStartup = useSettings((state) => state.setLaunchAtStartup);
+  const excludeFromCapture = useSettings((state) => state.excludeFromCapture);
+  const setExcludeFromCapture = useSettings((state) => state.setExcludeFromCapture);
   const mediaCompression = useSettings((state) => state.mediaCompression);
   const setMediaCompression = useSettings((state) => state.setMediaCompression);
   const [download, setDownload] = useState<DownloadState | null>(null);
@@ -214,6 +216,27 @@ function GlobalSettings() {
           onChange={(event) => setLaunchAtStartup(event.currentTarget.checked)}
         />
       </Group>
+
+      <Stack gap={4}>
+        <Group
+          component="label"
+          justify="space-between"
+          wrap="nowrap"
+          style={{ cursor: "pointer" }}
+        >
+          <Text size="sm" fw={500}>
+            Hide from screen sharing
+          </Text>
+          <Checkbox
+            checked={excludeFromCapture}
+            onChange={(event) => setExcludeFromCapture(event.currentTarget.checked)}
+          />
+        </Group>
+        <Text size="xs" c="dimmed">
+          Excludes the window from screen recordings and sharing apps (Zoom,
+          Teams, OBS…).
+        </Text>
+      </Stack>
 
       <Stack gap={4}>
         <Group justify="space-between" wrap="nowrap">

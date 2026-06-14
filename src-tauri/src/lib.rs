@@ -33,6 +33,10 @@ struct WindowState {
     passthrough_active: AtomicBool,
     /// Whether the passthrough poll loop is running.
     passthrough_polling: AtomicBool,
+    /// Exclude the app's windows from screen capture / screen sharing (maps to
+    /// `NSWindowSharingNone` on macOS and `WDA_EXCLUDEFROMCAPTURE` on Windows).
+    /// Defaults on so the contents stay private during screen shares.
+    content_protected: AtomicBool,
 }
 
 /// Hide the macOS traffic-light buttons (close/minimize/zoom) on a window that
@@ -925,6 +929,20 @@ fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State<Win
     }
 }
 
+/// Apply the screen-capture exclusion preference to every app window. Called
+/// from any window (the setting lives in the panel) so it goes through the app
+/// handle. On macOS this sets the windows' sharing type to "none"; on Windows it
+/// sets the display affinity to exclude-from-capture.
+#[tauri::command]
+fn set_content_protected(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
+    state.content_protected.store(value, Ordering::Relaxed);
+    for label in ["main", "panel"] {
+        if let Some(window) = app.get_webview_window(label) {
+            let _ = window.set_content_protected(value);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[allow(unused_mut)]
@@ -939,6 +957,7 @@ pub fn run() {
             focused: AtomicBool::new(false),
             passthrough_active: AtomicBool::new(false),
             passthrough_polling: AtomicBool::new(false),
+            content_protected: AtomicBool::new(true),
         })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
@@ -979,6 +998,7 @@ pub fn run() {
             close_panel,
             set_always_on_top,
             set_passthrough,
+            set_content_protected,
             hide_to_tray,
             list_lists,
             read_list,
@@ -1018,6 +1038,13 @@ pub fn run() {
                 // native rounded corners + shadow.
                 #[cfg(target_os = "macos")]
                 hide_traffic_lights(&window);
+
+                // Exclude from screen capture by default (the setting defaults
+                // on). Applied before the window shows so it's never captured in
+                // the gap before the webview loads and reconciles the persisted
+                // value; the JS startup sync turns it back off if the user opted
+                // out.
+                let _ = window.set_content_protected(true);
 
                 // Window starts hidden in the config to avoid a flash of the
                 // native frame; reveal it once it's configured.
@@ -1069,6 +1096,10 @@ pub fn run() {
                 // a clean, chrome-free surface.
                 #[cfg(target_os = "macos")]
                 hide_traffic_lights(&panel);
+
+                // Match the main window's default screen-capture exclusion so the
+                // popover's contents aren't captured either.
+                let _ = panel.set_content_protected(true);
 
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {

@@ -217,9 +217,10 @@ function App() {
 
   // Apply persisted window preferences on startup.
   useEffect(() => {
-    const { alwaysOnTop, passthrough } = useSettings.getState();
+    const { alwaysOnTop, passthrough, excludeFromCapture } = useSettings.getState();
     void invoke("set_always_on_top", { value: alwaysOnTop });
     void invoke("set_passthrough", { value: passthrough });
+    void invoke("set_content_protected", { value: excludeFromCapture });
     // The OS login-item registration is the source of truth for autostart;
     // reconcile the toggle to it (without re-invoking enable/disable).
     void isAutostartEnabled()

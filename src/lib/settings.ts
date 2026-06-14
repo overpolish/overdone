@@ -14,12 +14,18 @@ export interface SettingsState {
   passthrough: boolean;
   /** Launch the app automatically on login (registered with the OS). */
   launchAtStartup: boolean;
+  /**
+   * Exclude the app's windows from screen capture / screen-sharing software
+   * (e.g. Zoom, Teams, OBS). Defaults on so contents stay private when sharing.
+   */
+  excludeFromCapture: boolean;
   /** Whether pasted/imported attachments are compressed (via ffmpeg) or kept. */
   mediaCompression: MediaCompression;
   setColorScheme: (value: MantineColorScheme) => void;
   setAlwaysOnTop: (value: boolean) => void;
   setPassthrough: (value: boolean) => void;
   setLaunchAtStartup: (value: boolean) => void;
+  setExcludeFromCapture: (value: boolean) => void;
   setMediaCompression: (value: MediaCompression) => void;
 }
 
@@ -36,6 +42,7 @@ export const useSettings = create<SettingsState>()(
       alwaysOnTop: true,
       passthrough: false,
       launchAtStartup: false,
+      excludeFromCapture: true,
       mediaCompression: "original",
       setColorScheme: (colorScheme) => set({ colorScheme }),
       setAlwaysOnTop: (alwaysOnTop) => {
@@ -57,6 +64,12 @@ export const useSettings = create<SettingsState>()(
           // toggle reflecting the request rather than reverting silently.
         });
       },
+      setExcludeFromCapture: (excludeFromCapture) => {
+        set({ excludeFromCapture });
+        // Apply to the app's windows (handled in Rust). Only the window that
+        // initiates the change calls this; remote windows just sync state.
+        void invoke("set_content_protected", { value: excludeFromCapture });
+      },
       setMediaCompression: (mediaCompression) => set({ mediaCompression }),
     }),
     {
@@ -67,6 +80,7 @@ export const useSettings = create<SettingsState>()(
         alwaysOnTop: state.alwaysOnTop,
         passthrough: state.passthrough,
         launchAtStartup: state.launchAtStartup,
+        excludeFromCapture: state.excludeFromCapture,
         mediaCompression: state.mediaCompression,
       }),
     },
@@ -103,6 +117,7 @@ if (typeof BroadcastChannel !== "undefined") {
       alwaysOnTop: state.alwaysOnTop,
       passthrough: state.passthrough,
       launchAtStartup: state.launchAtStartup,
+      excludeFromCapture: state.excludeFromCapture,
       mediaCompression: state.mediaCompression,
     });
   });
