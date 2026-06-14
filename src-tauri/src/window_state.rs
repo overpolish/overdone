@@ -33,6 +33,10 @@ pub struct WindowState {
     pub passthrough_active: AtomicBool,
     /// Whether the passthrough poll loop is running.
     pub passthrough_polling: AtomicBool,
+    /// Whether a deferred "restore main always-on-top after the title-bar drag
+    /// settles" thread is already waiting, so repeated focus events don't spawn
+    /// duplicates. Cleared once the level is restored.
+    pub restore_pending: AtomicBool,
     /// Exclude the app's windows from screen capture / screen sharing (maps to
     /// `NSWindowSharingNone` on macOS and `WDA_EXCLUDEFROMCAPTURE` on Windows).
     /// Defaults on so the contents stay private during screen shares.
@@ -51,6 +55,7 @@ impl Default for WindowState {
             focused: AtomicBool::new(false),
             passthrough_active: AtomicBool::new(false),
             passthrough_polling: AtomicBool::new(false),
+            restore_pending: AtomicBool::new(false),
             content_protected: AtomicBool::new(true),
         }
     }

@@ -104,6 +104,37 @@ pub fn passthrough_inputs(_window: &tauri::WebviewWindow) -> Option<(bool, bool)
     None
 }
 
+/// Whether the primary (left) mouse button is currently physically held, in live
+/// HID state - used to wait out a native title-bar drag before changing the
+/// window level. `false` on platforms without an implementation (the caller then
+/// restores immediately, as before).
+#[cfg(target_os = "macos")]
+pub fn primary_mouse_button_down() -> bool {
+    use objc2::{msg_send, ClassType};
+    use objc2_app_kit::NSEvent;
+
+    // Class method `+[NSEvent pressedMouseButtons]` returns a live button bitmask
+    // (bit 0 = left); safe to read off the main thread. Reached via `msg_send`
+    // like `+modifierFlags` above, to avoid the instance-method name collision.
+    let buttons: usize = unsafe { msg_send![NSEvent::class(), pressedMouseButtons] };
+    buttons & 1 != 0
+}
+
+#[cfg(target_os = "windows")]
+pub fn primary_mouse_button_down() -> bool {
+    const VK_LBUTTON: i32 = 0x01;
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetAsyncKeyState(v_key: i32) -> i16;
+    }
+    unsafe { (GetAsyncKeyState(VK_LBUTTON) as u16) & 0x8000 != 0 }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub fn primary_mouse_button_down() -> bool {
+    false
+}
+
 #[cfg(target_os = "macos")]
 pub fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
     use objc2_app_kit::NSWindow;
