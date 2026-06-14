@@ -1,7 +1,7 @@
 mod tray;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition};
 
@@ -16,6 +16,12 @@ struct WindowState {
     /// below an item) rather than centered under the main title bar. Centered
     /// panels re-center when their content resizes; anchored ones stay put.
     panel_anchored: AtomicBool,
+    /// The panel's physical top-left captured just before it expanded for the
+    /// diagram modal, so unexpanding restores the exact pre-expand position
+    /// instead of re-deriving it (which drifts when expanding had to clamp the
+    /// larger window back on-screen). `i32::MIN` means "nothing saved".
+    panel_collapsed_x: AtomicI32,
+    panel_collapsed_y: AtomicI32,
     /// Click-through ("passthrough") setting: while on, the main window hides and
     /// passes clicks through when the cursor is over it (unless it's focused or
     /// the modifier is held).
@@ -844,7 +850,13 @@ fn resize_panel(
 /// size (logical px); `expanded` doubles the width. Centered so it doesn't drift
 /// to one side or off-screen (re-clamped to the work area).
 #[tauri::command]
-fn set_panel_expanded(app: tauri::AppHandle, expanded: bool, width: f64, height: f64) {
+fn set_panel_expanded(
+    app: tauri::AppHandle,
+    expanded: bool,
+    width: f64,
+    height: f64,
+    state: tauri::State<WindowState>,
+) {
     let (Some(main), Some(panel)) = (
         app.get_webview_window("main"),
         app.get_webview_window("panel"),
@@ -860,13 +872,36 @@ fn set_panel_expanded(app: tauri::AppHandle, expanded: bool, width: f64, height:
     let target_w = if expanded { width * 2.0 } else { width };
     let _ = panel.set_size(LogicalSize::new(target_w, height));
 
-    // Keep the window's center fixed (top edge unchanged) as the width changes.
-    let center_x = old_pos.x + old_size.width as i32 / 2;
     let new_w = (target_w * scale).round() as i32;
     let new_h = (height * scale).round() as i32;
-    let x = center_x - new_w / 2;
-    let pos = clamp_to_work_area(&panel, &main, x, old_pos.y, new_w, new_h)
-        .unwrap_or_else(|| PhysicalPosition::new(x, old_pos.y));
+
+    let (x, y) = if expanded {
+        // Remember exactly where we were so unexpand can return here even if the
+        // grown window has to clamp on-screen and shift its center.
+        state
+            .panel_collapsed_x
+            .store(old_pos.x, Ordering::Relaxed);
+        state
+            .panel_collapsed_y
+            .store(old_pos.y, Ordering::Relaxed);
+        // Grow around the current center (top edge unchanged).
+        let center_x = old_pos.x + old_size.width as i32 / 2;
+        (center_x - new_w / 2, old_pos.y)
+    } else {
+        // Restore the saved pre-expand position; fall back to re-centering if we
+        // somehow have nothing saved.
+        let saved_x = state.panel_collapsed_x.swap(i32::MIN, Ordering::Relaxed);
+        let saved_y = state.panel_collapsed_y.swap(i32::MIN, Ordering::Relaxed);
+        if saved_x != i32::MIN && saved_y != i32::MIN {
+            (saved_x, saved_y)
+        } else {
+            let center_x = old_pos.x + old_size.width as i32 / 2;
+            (center_x - new_w / 2, old_pos.y)
+        }
+    };
+
+    let pos = clamp_to_work_area(&panel, &main, x, y, new_w, new_h)
+        .unwrap_or_else(|| PhysicalPosition::new(x, y));
     let _ = panel.set_position(pos);
 }
 
@@ -898,6 +933,8 @@ pub fn run() {
             always_on_top: AtomicBool::new(true),
             panel_open: AtomicBool::new(false),
             panel_anchored: AtomicBool::new(false),
+            panel_collapsed_x: AtomicI32::new(i32::MIN),
+            panel_collapsed_y: AtomicI32::new(i32::MIN),
             passthrough: AtomicBool::new(false),
             focused: AtomicBool::new(false),
             passthrough_active: AtomicBool::new(false),
