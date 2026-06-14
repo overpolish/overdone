@@ -58,7 +58,7 @@ pub async fn download_ffmpeg(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Transcode `src` into `dest`, compressing for size at good quality. Images →
-/// WebP (q82); videos → H.264/AAC MP4 — both broadly supported by the webview on
+/// WebP (q82); videos → H.264/AAC MP4 - both broadly supported by the webview on
 /// macOS (WKWebView) and Windows (WebView2). ffmpeg picks the format from the
 /// destination extension.
 fn transcode(src: &Path, dest: &Path, kind: &str) -> Result<(), String> {

@@ -9,8 +9,10 @@ import { useEffect, useRef, useState } from "react";
 import { resolveAssignees } from "../../lib/assignee";
 import { caretEdges } from "../../lib/caret";
 import { useItemMenu } from "../../lib/context-menu";
+import { resolveLabels } from "../../lib/label";
 import { useDrag } from "../../lib/reorder";
 import { type TodoData, useTodos } from "../../lib/todos";
+import { LabelBadges } from "../LabelBadge";
 import { StateCheckbox } from "../StateCheckbox";
 import { ItemControls } from "./ItemControls";
 import { INDENT, LINE_HEIGHT, rowStatus } from "./itemStatus";
@@ -42,12 +44,16 @@ export function TodoItem({ item }: TodoItemProps) {
   // ids, e.g. a just-removed person undo briefly reintroduces).
   const roster = useTodos((s) => s.assignees);
   const assignees = resolveAssignees(item.assignees ?? [], roster);
+  // Same for labels: resolve the item's ids against the list's label roster,
+  // dropping any that no longer exist.
+  const labelRoster = useTodos((s) => s.labels);
+  const labels = resolveLabels(item.labels ?? [], labelRoster);
   // Highlight this row while its editing panel (details / assignees / status)
   // is open, so it's clear which item the floating panel is editing.
   const editing = useTodos((s) => s.editingId === item.id);
 
   // When focus is directed here (type-to-create, search, arrow nav), grab it,
-  // place the caret per the hint, and scroll the row into view — the custom
+  // place the caret per the hint, and scroll the row into view - the custom
   // scroll container doesn't always follow focus on its own.
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -84,7 +90,7 @@ export function TodoItem({ item }: TodoItemProps) {
     >
       {/* Status wash backing the row (red overdue / amber notification / orange
           due-today, by priority), matching the tinted text + icon. Bleeds only
-          horizontally — rows are flush (Stack gap 0), so a vertical bleed would
+          horizontally - rows are flush (Stack gap 0), so a vertical bleed would
           overlap the neighbour's wash and double up into a dark seam. */}
       {statusColor && (
         <Box
@@ -143,74 +149,84 @@ export function TodoItem({ item }: TodoItemProps) {
       >
         <StateCheckbox value={item.state} itemId={item.id} />
       </Box>
-      <Textarea
-        ref={inputRef}
-        variant="unstyled"
-        placeholder="Untitled"
-        value={item.text}
-        onChange={(e) => setItemText(item.id, e.currentTarget.value)}
-        onKeyDown={(e) => {
-          // Tab / Shift+Tab nest / un-nest the item (one level).
-          if (e.key === "Tab") {
-            e.preventDefault();
-            if (e.shiftKey) outdentItem(item.id);
-            else indentItem(item.id);
-          } else if (e.key === "Enter" && !e.shiftKey) {
-            // Enter confirms the item — just drops focus (Shift+Enter still
-            // inserts a literal newline for a multi-line item).
-            e.preventDefault();
-            e.currentTarget.blur();
-          } else if (e.key === "Backspace" && item.text === "") {
-            // Backspace on an empty item removes it and focuses the neighbour.
-            e.preventDefault();
-            deleteItemFocusNeighbor(item.id);
-          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-            // At the first visual row, ArrowUp jumps to the previous item; at
-            // the last, ArrowDown jumps to the next — so the list reads as one
-            // continuous field. Within a multi-line item (wrapped or not) the
-            // caret walks its own rows first before crossing to a neighbour.
-            const up = e.key === "ArrowUp";
-            const { atFirstLine, atLastLine } = caretEdges(e.currentTarget);
-            if (up ? !atFirstLine : !atLastLine) return;
-            const { items, focusItem } = useTodos.getState();
-            const idx = items.findIndex((x) => x.id === item.id);
-            const neighbor = up ? items[idx - 1] : items[idx + 1];
-            if (neighbor) {
+      {/* Text column: any labels render as badges stacked above the title, like
+          GitHub. The column owns the row's flexible width so wrapped badges and
+          title share one left edge. */}
+      <Box style={{ flex: 1, minWidth: 0 }}>
+        {labels.length > 0 && (
+          <Box pt={3} pb={1}>
+            <LabelBadges labels={labels} />
+          </Box>
+        )}
+        <Textarea
+          ref={inputRef}
+          variant="unstyled"
+          placeholder="Untitled"
+          value={item.text}
+          onChange={(e) => setItemText(item.id, e.currentTarget.value)}
+          onKeyDown={(e) => {
+            // Tab / Shift+Tab nest / un-nest the item (one level).
+            if (e.key === "Tab") {
               e.preventDefault();
-              // Land where the eye is: end of the item above, start of the one
-              // below.
-              focusItem(neighbor.id, up ? "end" : "start");
+              if (e.shiftKey) outdentItem(item.id);
+              else indentItem(item.id);
+            } else if (e.key === "Enter" && !e.shiftKey) {
+              // Enter confirms the item - just drops focus (Shift+Enter still
+              // inserts a literal newline for a multi-line item).
+              e.preventDefault();
+              e.currentTarget.blur();
+            } else if (e.key === "Backspace" && item.text === "") {
+              // Backspace on an empty item removes it and focuses the neighbour.
+              e.preventDefault();
+              deleteItemFocusNeighbor(item.id);
+            } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              // At the first visual row, ArrowUp jumps to the previous item; at
+              // the last, ArrowDown jumps to the next - so the list reads as one
+              // continuous field. Within a multi-line item (wrapped or not) the
+              // caret walks its own rows first before crossing to a neighbour.
+              const up = e.key === "ArrowUp";
+              const { atFirstLine, atLastLine } = caretEdges(e.currentTarget);
+              if (up ? !atFirstLine : !atLastLine) return;
+              const { items, focusItem } = useTodos.getState();
+              const idx = items.findIndex((x) => x.id === item.id);
+              const neighbor = up ? items[idx - 1] : items[idx + 1];
+              if (neighbor) {
+                e.preventDefault();
+                // Land where the eye is: end of the item above, start of the one
+                // below.
+                focusItem(neighbor.id, up ? "end" : "start");
+              }
             }
-          }
-        }}
-        // Grow with content and wrap instead of overflowing the narrow window.
-        autosize
-        minRows={1}
-        style={{ flex: 1 }}
-        styles={{
-          input: {
-            // Match LINE_HEIGHT (and drop the default padding/min-height) so the
-            // first line lines up with the centered checkbox and every row is
-            // exactly one line tall — otherwise the input's default min-height
-            // pads single-line items but not wrapped ones, so wrapped items lose
-            // the gap after them.
-            padding: 0,
-            minHeight: 0,
-            fontSize: "13px",
-            lineHeight: `${LINE_HEIGHT}px`,
-            // The text sits a hair low in the line box; nudge it up 1px to
-            // optically center against the checkbox.
-            transform: "translateY(-1px)",
-            // Done items read as crossed-off and dimmed.
-            textDecoration: done ? "line-through" : undefined,
-            opacity: done ? 0.5 : 1,
-            // Status tints the text (red/amber/orange by priority); done items
-            // never tint, reading as resolved (status is already null then).
-            color: statusColor ?? undefined,
-            transition: "opacity 120ms ease",
-          },
-        }}
-      />
+          }}
+          // Grow with content and wrap instead of overflowing the narrow window.
+          autosize
+          minRows={1}
+          style={{ width: "100%" }}
+          styles={{
+            input: {
+              // Match LINE_HEIGHT (and drop the default padding/min-height) so the
+              // first line lines up with the centered checkbox and every row is
+              // exactly one line tall - otherwise the input's default min-height
+              // pads single-line items but not wrapped ones, so wrapped items lose
+              // the gap after them.
+              padding: 0,
+              minHeight: 0,
+              fontSize: "13px",
+              lineHeight: `${LINE_HEIGHT}px`,
+              // The text sits a hair low in the line box; nudge it up 1px to
+              // optically center against the checkbox.
+              transform: "translateY(-1px)",
+              // Done items read as crossed-off and dimmed.
+              textDecoration: done ? "line-through" : undefined,
+              opacity: done ? 0.5 : 1,
+              // Status tints the text (red/amber/orange by priority); done items
+              // never tint, reading as resolved (status is already null then).
+              color: statusColor ?? undefined,
+              transition: "opacity 120ms ease",
+            },
+          }}
+        />
+      </Box>
       <ItemControls
         item={item}
         rowRef={rowRef}

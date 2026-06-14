@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { broadcastListsChanged, setRenameWriter, useLists } from "./lists";
 import { serializeList, setMarkdownTitle } from "./markdown";
-import { emitAssigneesSync } from "./panel";
+import { emitAssigneesSync, emitLabelsSync } from "./panel";
 import { useTodos } from "./todos";
 
 /**
@@ -38,7 +38,7 @@ export function bindMainWindow() {
 
   // Autosave: persist edits to the loaded list, debounced. The pending write is
   // tracked explicitly (not just via the timer) so a list switch can flush the
-  // previous list's edit before loading the next — otherwise a quick
+  // previous list's edit before loading the next - otherwise a quick
   // edit-then-switch would cancel the timer and drop the edit.
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let pending: { id: string; content: string } | null = null;
@@ -64,25 +64,33 @@ export function bindMainWindow() {
     if (!state.activeId) return;
 
     // Keep an open assignee picker (a separate window) live with the store, so
-    // changes from any source — including undo/redo — reflect there too.
+    // changes from any source - including undo/redo - reflect there too.
     if (state.items !== prev.items || state.assignees !== prev.assignees) {
       emitAssigneesSync({
         roster: state.assignees,
         byItem: Object.fromEntries(state.items.map((i) => [i.id, i.assignees ?? []])),
       });
     }
+    // Same for an open label picker (in the details panel).
+    if (state.items !== prev.items || state.labels !== prev.labels) {
+      emitLabelsSync({
+        roster: state.labels,
+        byItem: Object.fromEntries(state.items.map((i) => [i.id, i.labels ?? []])),
+      });
+    }
 
     if (
       state.items === prev.items &&
       state.title === prev.title &&
-      state.assignees === prev.assignees
+      state.assignees === prev.assignees &&
+      state.labels === prev.labels
     ) {
       return;
     }
 
     pending = {
       id: state.activeId,
-      content: serializeList(state.title, state.items, state.assignees),
+      content: serializeList(state.title, state.items, state.assignees, state.labels),
     };
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, SAVE_DELAY_MS);

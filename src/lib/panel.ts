@@ -9,7 +9,7 @@ import { appDataDir, join } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { type TodoState } from "./todo";
-import { type Assignee, type Comment, type TodoData, useTodos } from "./todos";
+import { type Assignee, type Comment, type Label, type TodoData, useTodos } from "./todos";
 
 /** Which content the secondary panel renders. */
 export type PanelView =
@@ -47,6 +47,10 @@ export interface PanelRequest {
   roster?: Assignee[];
   /** Details-view payload: the item's current assignee ids. */
   assigneeIds?: string[];
+  /** The active list's label roster (details + settings views). */
+  labels?: Label[];
+  /** Details-view payload: the item's current label ids. */
+  labelIds?: string[];
   /** Details-view payload: the item's notification time / due date (epoch ms). */
   notifyAt?: number;
   dueDate?: number;
@@ -54,7 +58,7 @@ export interface PanelRequest {
 
 let nonce = 0;
 
-/** Views that edit a specific item — their row is highlighted while open. */
+/** Views that edit a specific item - their row is highlighted while open. */
 const ITEM_VIEWS: readonly PanelView[] = ["details", "assignee", "status"];
 
 /** Open (or switch) the secondary panel to a view. Emitted from the main window. */
@@ -110,6 +114,18 @@ export function emitAssigneeAction(action: AssigneeAction) {
   void emit("assignee:action", action);
 }
 
+/** An item's label change made in the details panel, sent to the main window.
+ * `newLabels` carries any roster entries created in the same action. */
+export interface LabelAction {
+  itemId: string;
+  labelIds: string[];
+  newLabels?: Label[];
+}
+
+export function emitLabelAction(action: LabelAction) {
+  void emit("label:action", action);
+}
+
 /** An item's notification time / due date change made in the details panel,
  * sent to the main window. Both values are sent each time (absent = cleared). */
 export interface DatesAction {
@@ -133,6 +149,17 @@ export function emitRosterAction(action: RosterAction) {
   void emit("roster:action", action);
 }
 
+/** A label-roster change made in Settings, sent to the main window. */
+export type LabelRosterAction =
+  | { type: "add"; label: Label }
+  | { type: "rename"; id: string; name: string }
+  | { type: "recolor"; id: string; color: string }
+  | { type: "remove"; id: string };
+
+export function emitLabelRosterAction(action: LabelRosterAction) {
+  void emit("labelRoster:action", action);
+}
+
 /** Undo/redo pressed while a panel window holds focus, forwarded to the main
  * window (which owns the list + its history). */
 export type EditActionType = "undo" | "redo";
@@ -153,6 +180,18 @@ export function emitAssigneesSync(sync: AssigneesSync) {
   void emit("assignees:sync", sync);
 }
 
+/** The main window's current label state, pushed to the panel so an open label
+ * picker stays live with the store (e.g. after an undo/redo). */
+export interface LabelsSync {
+  roster: Label[];
+  /** Each item's label ids, keyed by item id. */
+  byItem: Record<string, string[]>;
+}
+
+export function emitLabelsSync(sync: LabelsSync) {
+  void emit("labels:sync", sync);
+}
+
 /**
  * Open the details panel for an item, pinned just below its row (top-left
  * aligned with the row, like the status picker sits below a checkbox).
@@ -164,10 +203,11 @@ export async function openDetailsPanel(
 ) {
   const rect = rowEl.getBoundingClientRect();
   const win = getCurrentWindow();
-  const { activeId, assignees: roster, items } = useTodos.getState();
+  const { activeId, assignees: roster, labels, items } = useTodos.getState();
   const listId = activeId ?? "";
   const item = items.find((i) => i.id === itemId);
   const assigneeIds = item?.assignees ?? [];
+  const labelIds = item?.labels ?? [];
   const [scale, innerPos, base] = await Promise.all([
     win.scaleFactor(),
     win.innerPosition(),
@@ -184,6 +224,8 @@ export async function openDetailsPanel(
     mediaDir,
     roster,
     assigneeIds,
+    labels,
+    labelIds,
     notifyAt: item?.notifyAt,
     dueDate: item?.dueDate,
     anchor: { x: inner.x + rect.left, y: inner.y + rect.bottom + 6 },

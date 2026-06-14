@@ -37,7 +37,7 @@ export function Footer() {
     <Box
       px="md"
       // Content sizes the bar. A hair more bottom than top so the gaps look
-      // even — the text sits optically high within its line box.
+      // even - the text sits optically high within its line box.
       pt={3}
       pb={5}
       style={{

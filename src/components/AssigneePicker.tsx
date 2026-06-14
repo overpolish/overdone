@@ -25,7 +25,7 @@ import { ScrollArea } from "./ScrollArea";
 /**
  * Controller for editing one item's assignees. Holds the working assignee ids
  * and a working roster (so people created here show up immediately), and streams
- * each change back to the main window — the list owner — which persists it. The
+ * each change back to the main window - the list owner - which persists it. The
  * working roster lives in a ref so the change handler, which fires synchronously
  * right after a create, sees the new entry before React re-renders. Shared by the
  * details panel and the row's standalone assignee picker.
@@ -114,7 +114,7 @@ export function AssigneePicker({ roster, value, onChange, onCreate }: AssigneePi
   return (
     <Box>
       {/* Add field stays at the top; suggestions attach right under it, and the
-          current chips sit below — mirroring the Settings layout. */}
+          current chips sit below - mirroring the Settings layout. */}
       <TextInput
         size="xs"
         value={search}

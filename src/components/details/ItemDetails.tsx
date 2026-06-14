@@ -18,8 +18,9 @@ import {
   toStoredHtml,
 } from "../../lib/media";
 import { closePanel, emitDetailsAction } from "../../lib/panel";
-import { type Assignee, type Comment } from "../../lib/todos";
+import { type Assignee, type Comment, type Label } from "../../lib/todos";
 import { AssigneePicker, useAssigneeEditor } from "../AssigneePicker";
+import { LabelPicker, useLabelEditor } from "../LabelPicker";
 import {
   CommentInput,
   FormatBar,
@@ -43,6 +44,10 @@ interface ItemDetailsProps {
   roster: Assignee[];
   /** The item's current assignee ids. */
   assigneeIds: string[];
+  /** The list's label roster, to seed the picker's suggestions. */
+  labels: Label[];
+  /** The item's current label ids. */
+  labelIds: string[];
   /** The item's notification time (epoch ms, date + time), if set. */
   notifyAt?: number;
   /** The item's due date (epoch ms at UTC midnight, date only), if set. */
@@ -51,7 +56,7 @@ interface ItemDetailsProps {
 
 /**
  * Item details, shown in the floating panel pinned below the row. For now this
- * is the comment log — post (⌘/Ctrl+Enter or the Post button), edit, and delete
+ * is the comment log - post (⌘/Ctrl+Enter or the Post button), edit, and delete
  * entries, each timestamped. Comments are rich text (bold / italic / underline /
  * lists) and can embed images & videos (toolbar button, drag-drop, or paste).
  * The panel owns the editing session and streams the whole updated log back to
@@ -64,12 +69,15 @@ export function ItemDetails({
   mediaDir,
   roster: initialRoster,
   assigneeIds: initialAssigneeIds,
+  labels: initialLabels,
+  labelIds: initialLabelIds,
   notifyAt: initialNotifyAt,
   dueDate: initialDueDate,
 }: ItemDetailsProps) {
   const [comments, setComments] = useState<Comment[]>(initial);
   const [draft, setDraft] = useState("");
   const assignees = useAssigneeEditor(itemId, initialRoster, initialAssigneeIds);
+  const labels = useLabelEditor(itemId, initialLabels, initialLabelIds);
   const dates = useDatesEditor(itemId, initialNotifyAt, initialDueDate);
   // Which comment is being edited (single source of truth across rows).
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -212,10 +220,22 @@ export function ItemDetails({
           )}
         </Stack>
 
-        {/* Right column: due date, notification, and assignees. A min height
+        {/* Right column: labels, notification, due date, and assignees. A min height
             gives the panel a consistent floor so it isn't cramped on items with
             few/no comments (the left column drives height once it's taller). */}
         <Stack gap="md" w={220} mih={250}>
+          <Stack gap="xs">
+            <Text size="xs" fw={600} c="dimmed">
+              LABELS
+            </Text>
+            <LabelPicker
+              roster={labels.roster}
+              value={labels.labelIds}
+              onChange={labels.onChange}
+              onCreate={labels.onCreate}
+            />
+          </Stack>
+
           <DatesSection dates={dates} />
 
           <Stack gap="xs">

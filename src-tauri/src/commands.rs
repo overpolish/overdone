@@ -48,7 +48,7 @@ pub fn background_app(app: tauri::AppHandle) {
 
 /// Hide the app to the tray: hide the main window (and the panel with it) so the
 /// app keeps running in the background, reachable from the tray icon. Backs the
-/// custom title bar's close *and* minimize buttons — neither quits the app and
+/// custom title bar's close *and* minimize buttons - neither quits the app and
 /// neither leaves a minimized window in the dock (quit is via the tray menu).
 #[tauri::command]
 pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {

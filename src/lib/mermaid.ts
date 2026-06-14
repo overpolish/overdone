@@ -7,7 +7,7 @@ import type { MermaidConfig } from "mermaid";
 
 /**
  * Mermaid diagram rendering for comments. Mermaid is heavy (bundles d3), so it's
- * lazy-imported the first time a diagram is rendered — comments without diagrams
+ * lazy-imported the first time a diagram is rendered - comments without diagrams
  * never pull it in. A single module-level instance is shared and re-initialized
  * when the color scheme flips (so diagrams match light/dark).
  */
@@ -52,7 +52,7 @@ async function getMermaid(): Promise<Mermaid> {
  * Replace every stored `<pre data-mermaid>` in a comment-HTML string with its
  * rendered SVG (or an inline error), returning the new HTML. Pure string→string
  * so the caller can feed the result straight to React (`dangerouslySetInnerHTML`)
- * and let React own the DOM — no imperative post-mount mutation to be clobbered
+ * and let React own the DOM - no imperative post-mount mutation to be clobbered
  * on the next render. Returns the input unchanged if it has no diagrams.
  */
 let displaySeq = 0;
@@ -87,7 +87,7 @@ export type MermaidResult = { ok: true; svg: string } | { ok: false; error: stri
 
 /**
  * Render mermaid source to an SVG string. `id` must be unique per call site
- * (mermaid uses it for internal element ids). Never throws — a syntax error
+ * (mermaid uses it for internal element ids). Never throws - a syntax error
  * comes back as `{ ok: false, error }` so callers can show the message inline.
  */
 export async function renderMermaid(id: string, code: string): Promise<MermaidResult> {

@@ -40,7 +40,7 @@ export const todoStateMeta = (state: TodoState): TodoStateMeta =>
   TODO_STATES.find((s) => s.value === state) ?? TODO_STATES[0];
 
 /**
- * Terminal states that read as "no longer active" — rendered struck-through
+ * Terminal states that read as "no longer active" - rendered struck-through
  * and dimmed in lists. Both completing and abandoning an item retire it.
  */
 export const isStruck = (state: TodoState): boolean =>

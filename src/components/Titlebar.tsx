@@ -42,7 +42,11 @@ export function Titlebar() {
         <UnstyledButton
           aria-label="Open settings"
           onClick={() =>
-            openPanel({ view: "settings", roster: useTodos.getState().assignees })
+            openPanel({
+              view: "settings",
+              roster: useTodos.getState().assignees,
+              labels: useTodos.getState().labels,
+            })
           }
           style={{
             pointerEvents: "auto",
@@ -64,7 +68,7 @@ export function Titlebar() {
       </Center>
 
       <Group h="100%" gap={2} pl={8} pos="absolute" top={0} left={0} wrap="nowrap">
-        {/* Both hide the app to the tray (never quit — quit is via the tray
+        {/* Both hide the app to the tray (never quit - quit is via the tray
             menu), so neither sends the window to the dock. */}
         <IconButton
           label="Close"
@@ -91,7 +95,12 @@ export function Titlebar() {
           label="Search"
           icon={IconSearch}
           onClick={() =>
-            openPanel({ view: "search", items: useTodos.getState().items })
+            openPanel({
+              view: "search",
+              items: useTodos.getState().items,
+              labels: useTodos.getState().labels,
+              roster: useTodos.getState().assignees,
+            })
           }
         />
         <IconButton

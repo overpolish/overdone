@@ -61,7 +61,7 @@ export function ItemControls({
         </Box>
       )}
       {/* Due indicator: orange when due today, red when overdue (nothing for a
-          future/no due date). A non-interactive status cue — not dismissable;
+          future/no due date). A non-interactive status cue - not dismissable;
           it only clears when the due date changes or the item is done/cancelled. */}
       {dueState && (
         <Box

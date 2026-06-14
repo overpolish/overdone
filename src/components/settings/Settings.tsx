@@ -7,14 +7,21 @@ import { Group, SegmentedControl, Stack, Title } from "@mantine/core";
 import { IconSettings } from "@tabler/icons-react";
 import { useState } from "react";
 
-import { type Assignee } from "../../lib/todos";
+import { type Assignee, type Label } from "../../lib/todos";
 import { AssigneeSettings } from "./AssigneeSettings";
 import { GlobalSettings } from "./GlobalSettings";
+import { LabelSettings } from "./LabelSettings";
 
 /** Which settings category the pill nav is showing. */
 type SettingsTab = "global" | "list";
 
-export function Settings({ roster = [] }: { roster?: Assignee[] }) {
+export function Settings({
+  roster = [],
+  labels = [],
+}: {
+  roster?: Assignee[];
+  labels?: Label[];
+}) {
   const [tab, setTab] = useState<SettingsTab>("global");
 
   return (
@@ -35,7 +42,14 @@ export function Settings({ roster = [] }: { roster?: Assignee[] }) {
         />
       </Group>
 
-      {tab === "list" ? <AssigneeSettings initial={roster} /> : <GlobalSettings />}
+      {tab === "list" ? (
+        <Stack gap="lg">
+          <LabelSettings initial={labels} />
+          <AssigneeSettings initial={roster} />
+        </Stack>
+      ) : (
+        <GlobalSettings />
+      )}
     </Stack>
   );
 }

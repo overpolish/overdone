@@ -25,8 +25,8 @@ import { ScrollArea } from "../ScrollArea";
 /**
  * Per-list assignee roster management. Rename, recolor, or remove people, or add
  * a new one. Holds a local copy (seeded from the list's roster) and edits
- * optimistically, emitting each change to the main window — the sole owner of
- * the list — which applies it to the store and autosaves.
+ * optimistically, emitting each change to the main window - the sole owner of
+ * the list - which applies it to the store and autosaves.
  */
 export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
   const [roster, setRoster] = useState<Assignee[]>(initial);
@@ -95,7 +95,7 @@ export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
       </Group>
 
       {sorted.length > 0 && (
-        <ScrollArea maxHeight={220}>
+        <ScrollArea maxHeight={76} hideScrollbar>
           {/* Padding keeps the rows' focus rings and hover surfaces clear of the
               container's rounded (clipped) edges and corners. */}
           <Stack gap={4} px={4} py={8}>

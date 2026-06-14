@@ -24,13 +24,15 @@ interface ScrollAreaProps {
    * radius; pass `0` to opt out (e.g. a full-bleed, window-filling scroll).
    */
   radius?: number | string;
+  /** Hide the native scrollbar (the fade shadows still cue that there's more). */
+  hideScrollbar?: boolean;
   /** Applied to the outer (positioned) container. */
   style?: CSSProperties;
 }
 
 /**
  * A vertical scroll container with soft top/bottom shadows that fade in only
- * when there's more content to scroll to in that direction — a cue that the
+ * when there's more content to scroll to in that direction - a cue that the
  * list continues past the edge. The container is rounded and clips its content,
  * so the shadows round with it instead of squaring off at the corners.
  */
@@ -38,6 +40,7 @@ export function ScrollArea({
   children,
   maxHeight,
   radius = "var(--mantine-radius-md)",
+  hideScrollbar,
   style,
 }: ScrollAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -91,6 +94,7 @@ export function ScrollArea({
     >
       <div
         ref={scrollRef}
+        className={hideScrollbar ? "hide-scrollbar" : undefined}
         style={{
           overflowY: "auto",
           maxHeight: maxHeight ?? "100%",

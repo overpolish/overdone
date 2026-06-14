@@ -23,8 +23,8 @@
 }
 
 /*
- * @mantine/dates hardcodes white text on its *filled* picker surfaces — the
- * focused time-field segment and the active month/year controls — instead of
+ * @mantine/dates hardcodes white text on its *filled* picker surfaces - the
+ * focused time-field segment and the active month/year controls - instead of
  * using the contrast var (the selected day already gets it right). Our neutral
  * primary fill is near-*white* in dark mode, so those read white-on-white. Route
  * them through the same scheme-aware contrast var, like the fix above. Scoped to
@@ -41,7 +41,7 @@
 /*
  * Mantine paints weekend days red (--mantine-color-red-6) in the calendar. The
  * alarm-red reads like an error here, so neutralize it to the normal day text
- * color — weekends still stand apart by column position. Matched on the
+ * color - weekends still stand apart by column position. Matched on the
  * [data-weekend] attribute (not the hashed/per-component day class) so it covers
  * every picker; the two classes give it more specificity than Mantine's
  * `:where()` rule, and theme.css loads after, so it wins. Selected/disabled/
@@ -197,7 +197,7 @@ body,
 }
 
 /* Diagram modal: chrome-free, filling most of the panel window (which itself
- * grows ~2x wide while the modal is open — see set_panel_expanded). View is one
+ * grows ~2x wide while the modal is open - see set_panel_expanded). View is one
  * zoom/pan canvas; edit is a split source | live-preview. */
 .diagram-modal-body {
   display: flex;
@@ -301,3 +301,13 @@ body,
   word-break: break-word;
 }
 
+
+/* Hide native scrollbars while keeping the element scrollable (the container
+   provides its own affordance, e.g. ScrollArea's fade shadows, or it's a small
+   inline overflow like a settings badge). */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* WebKit / WKWebView */
+}

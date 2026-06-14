@@ -31,7 +31,14 @@ function renderView(request: PanelRequest | null) {
       return <Lists />;
     case "search":
       // Keyed by nonce so each open starts with a fresh query + autofocus.
-      return <Search key={request.nonce} items={request.items ?? []} />;
+      return (
+        <Search
+          key={request.nonce}
+          items={request.items ?? []}
+          labels={request.labels ?? []}
+          assignees={request.roster ?? []}
+        />
+      );
     case "status":
       return request.itemId && request.state ? (
         <StatusPicker itemId={request.itemId} state={request.state} />
@@ -47,6 +54,8 @@ function renderView(request: PanelRequest | null) {
           mediaDir={request.mediaDir ?? ""}
           roster={request.roster ?? []}
           assigneeIds={request.assigneeIds ?? []}
+          labels={request.labels ?? []}
+          labelIds={request.labelIds ?? []}
           notifyAt={request.notifyAt}
           dueDate={request.dueDate}
         />
@@ -62,7 +71,13 @@ function renderView(request: PanelRequest | null) {
       ) : null;
     case "settings":
     default:
-      return <Settings key={request.nonce} roster={request.roster ?? []} />;
+      return (
+        <Settings
+          key={request.nonce}
+          roster={request.roster ?? []}
+          labels={request.labels ?? []}
+        />
+      );
   }
 }
 

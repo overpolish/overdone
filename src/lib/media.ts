@@ -243,7 +243,7 @@ export function toStoredHtml(html: string): string {
 }
 
 /** Visible plain text of comment HTML (markup and media stripped), collapsed to
- * single spaces — for fuzzy-searching and result snippets. */
+ * single spaces - for fuzzy-searching and result snippets. */
 export function htmlToText(html: string): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(html, "text/html");

@@ -55,7 +55,7 @@ fn center_panel_under_main(
 }
 
 /// Clamp an anchored panel's physical top-left so the whole window (physical
-/// `w`×`h`) stays within the work area of the monitor it sits on — otherwise a
+/// `w`×`h`) stays within the work area of the monitor it sits on - otherwise a
 /// row near the right or bottom edge would push the panel off-screen. Falls back
 /// to the main window's monitor, then the primary, if the point isn't on any.
 fn clamp_to_work_area(

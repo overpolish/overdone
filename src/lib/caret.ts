@@ -7,7 +7,7 @@
  * Caret line-boundary detection for a textarea that accounts for *soft-wrapped*
  * lines, not just explicit newlines. Arrow-key navigation between items uses
  * this so it only leaves an item once the caret is truly on the item's first or
- * last visual row — a long item that wraps over several rows is walked through
+ * last visual row - a long item that wraps over several rows is walked through
  * line by line first.
  *
  * The browser exposes no caret geometry for a textarea, so we mirror its text

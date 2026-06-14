@@ -4,7 +4,7 @@
  */
 
 import { type TodoState } from "../todo";
-import { type Assignee, type TodoData } from "../todos";
+import { type Assignee, type Label, type TodoData } from "../todos";
 
 /**
  * Compact, human timestamp for export (e.g. "Jun 13, 2:05 PM"). Mirrors the
@@ -27,7 +27,7 @@ const STATE_LABEL: Partial<Record<TodoState, string>> = {
 };
 
 /**
- * Render a list as clean, human-readable markdown for export — no round-trip
+ * Render a list as clean, human-readable markdown for export - no round-trip
  * metadata comments. Unlike `serializeList` (the storage format, which tucks
  * timestamps/assignees/comments into trailing HTML comments so it parses back
  * losslessly), this produces markdown meant to be *read*:
@@ -47,8 +47,10 @@ export function renderMarkdown(
   title: string,
   items: TodoData[],
   assignees: Assignee[] = [],
+  labels: Label[] = [],
 ): string {
   const nameById = new Map(assignees.map((a) => [a.id, a.name]));
+  const labelById = new Map(labels.map((l) => [l.id, l.name]));
   const lines: string[] = [`# ${title || "Untitled"}`, ""];
 
   for (const item of items) {
@@ -60,13 +62,18 @@ export function renderMarkdown(
     let text = first;
     if (item.state === "cancelled" && text.trim()) text = `~~${text}~~`;
 
-    // Trailing annotations: assignees, a state tag, and a done date.
+    // Trailing annotations: labels, assignees, a state tag, and a done date.
     const tail: string[] = [];
+    const tags = (item.labels ?? [])
+      .map((id) => labelById.get(id))
+      .filter((n): n is string => !!n)
+      .map((n) => `\`#${n}\``);
+    if (tags.length) tail.push(tags.join(" "));
     const names = (item.assignees ?? [])
       .map((id) => nameById.get(id))
       .filter((n): n is string => !!n)
       .map((n) => `@${n}`);
-    if (names.length) tail.push(`— ${names.join(", ")}`);
+    if (names.length) tail.push(`- ${names.join(", ")}`);
     const label = STATE_LABEL[item.state];
     if (label) tail.push(`_(${label})_`);
     if (item.state === "done" && item.doneAt != null) {

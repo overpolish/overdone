@@ -23,11 +23,11 @@ export function StateBox({ state, size = BOX_SIZE, optical = false }: StateBoxPr
   const { color, icon: Icon, iconNudgeY } = todoStateMeta(state);
   const filled = color != null;
   // Snap to an even integer (~0.7 of the box) so the glyph sits on whole pixels
-  // and stays centered — a fractional size leaves it visibly off (e.g. the
+  // and stays centered - a fractional size leaves it visibly off (e.g. the
   // clock's round face) at the 16px dropdown size.
   const iconSize = Math.round((size * 0.7) / 2) * 2;
   // Optical correction, scaled to the box. Only for the small dropdown swatches
-  // — at the larger main-checkbox size the glyph already reads centered.
+  // - at the larger main-checkbox size the glyph already reads centered.
   const nudgeY = optical && iconNudgeY ? size * iconNudgeY : 0;
 
   return (

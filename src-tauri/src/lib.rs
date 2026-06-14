@@ -31,7 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         // Remember the main window's size and position across launches (restored
-        // before it's shown, so there's no flash). The panel is excluded — it's
+        // before it's shown, so there's no flash). The panel is excluded - it's
         // sized and positioned dynamically.
         .plugin(
             tauri_plugin_window_state::Builder::default()
@@ -119,7 +119,7 @@ pub fn run() {
 
                 // Hide to the tray instead of quitting when the window is closed
                 // (reopened via tray/dock). The tray badge is NOT cleared on
-                // focus — it tracks unacknowledged notifications (set_tray_alert)
+                // focus - it tracks unacknowledged notifications (set_tray_alert)
                 // and stays lit until they're all dismissed.
                 let handle = app.handle().clone();
                 let win = window.clone();
@@ -152,7 +152,7 @@ pub fn run() {
             if let Some(panel) = app.get_webview_window("panel") {
                 // Windows has no native overlay title bar style, so drop the
                 // native frame here too (matching the main window) and let the
-                // custom React title bar take over — otherwise the panel shows a
+                // custom React title bar take over - otherwise the panel shows a
                 // native title bar the main window doesn't have.
                 #[cfg(target_os = "windows")]
                 let _ = panel.set_decorations(false);

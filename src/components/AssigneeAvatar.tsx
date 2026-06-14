@@ -6,7 +6,7 @@
 import { Tooltip, UnstyledButton } from "@mantine/core";
 import { IconCirclePlus } from "@tabler/icons-react";
 
-import { initials } from "../lib/assignee";
+import { initials, readableText } from "../lib/assignee";
 import { type Assignee } from "../lib/todos";
 
 /** A circular, initialed, colored badge for one assignee, with a name tooltip. */
@@ -32,7 +32,7 @@ export function AssigneeAvatar({
         fontSize: Math.round(size * 0.42),
         fontWeight: 600,
         lineHeight: 1,
-        color: "#fff",
+        color: readableText(assignee.color),
         userSelect: "none",
         // Avoid sitting on the text baseline when used in an inline context.
         verticalAlign: "middle",

@@ -38,7 +38,7 @@ interface UseCommentEditorOptions {
 }
 
 /**
- * Create a comment rich-text editor — bold, underline, and bullet/ordered lists
+ * Create a comment rich-text editor - bold, underline, and bullet/ordered lists
  * (StarterKit bundles the marks/nodes). Content is HTML. ⌘/Ctrl+Enter submits
  * (plain Enter inserts a line / list item). Pair the returned editor with
  * `<FormatBar>` and `<CommentInput>`, placed wherever the layout wants them.

@@ -32,7 +32,7 @@ pub fn hide_traffic_lights(window: &tauri::WebviewWindow) {
 
 /// Whether our app is still the active (frontmost) application. Used to tell a
 /// real focus loss (switching apps) from focus moving to a same-app system
-/// input panel — the emoji & symbols viewer keeps the app active, so it must not
+/// input panel - the emoji & symbols viewer keeps the app active, so it must not
 /// dismiss the popover panel. Clicking the main window is handled separately by
 /// the main window's focus handler.
 #[cfg(target_os = "macos")]
@@ -86,7 +86,7 @@ pub fn passthrough_inputs(window: &tauri::WebviewWindow) -> Option<(bool, bool)>
         && cursor.y >= pos.y as f64
         && cursor.y <= (pos.y + size.height as i32) as f64;
 
-    // Live modifier state (Ctrl, matching macOS's Cmd) — a click-through window
+    // Live modifier state (Ctrl, matching macOS's Cmd) - a click-through window
     // gets no key events, so query it directly. Raw FFI to user32 avoids pinning a
     // `windows` crate version against Tauri's.
     const VK_CONTROL: i32 = 0x11;

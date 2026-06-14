@@ -16,7 +16,7 @@ export function applyState(item: TodoData, state: TodoState, t: number): TodoDat
     state,
     updatedAt: t,
     doneAt: state === "done" ? (item.doneAt ?? t) : undefined,
-    // Resolving an item (done/cancelled) dismisses any fired notification — it no
+    // Resolving an item (done/cancelled) dismisses any fired notification - it no
     // longer needs action. A still-scheduled `notifyAt` is kept (the scheduler
     // skips struck items), so reopening the item restores its reminder.
     notifiedAt: isStruck(state) ? undefined : item.notifiedAt,
@@ -24,7 +24,7 @@ export function applyState(item: TodoData, state: TodoState, t: number): TodoDat
 }
 
 /**
- * Promote any sub-item that has no top-level item above it to a top item — the
+ * Promote any sub-item that has no top-level item above it to a top item - the
  * only structurally-invalid case in the one-level model (a child belongs to the
  * nearest preceding depth-0 item).
  */

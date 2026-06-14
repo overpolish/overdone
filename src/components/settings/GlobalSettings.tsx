@@ -99,7 +99,7 @@ export function GlobalSettings() {
         active: false,
         pct: null,
         label: "",
-        error: "ffmpeg download failed — it'll retry on first use.",
+        error: "ffmpeg download failed - it'll retry on first use.",
       });
     } finally {
       unlisten();

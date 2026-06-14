@@ -14,8 +14,8 @@ export interface OpenDiagram {
   onSave?: (code: string) => void;
 }
 
-// A global store (not React context) so TipTap node views — which render in a
-// separate portal — can open the modal without relying on context propagation.
+// A global store (not React context) so TipTap node views - which render in a
+// separate portal - can open the modal without relying on context propagation.
 interface DiagramStore {
   req: OpenDiagram | null;
   openId: number;

@@ -22,7 +22,7 @@ const toDateTimeStr = (ms: number | undefined) =>
   ms == null ? null : dayjs(ms).format(DATETIME_FMT);
 const fromStr = (s: string | null) => (s ? dayjs(s).valueOf() : undefined);
 
-/** Today at 00:00 as a date string — the floor for both fields (no past dates). */
+/** Today at 00:00 as a date string - the floor for both fields (no past dates). */
 const todayStr = () => dayjs().startOf("day").format(DATE_FMT);
 
 /**
@@ -30,7 +30,7 @@ const todayStr = () => dayjs().startOf("day").format(DATE_FMT);
  * working pair locally and streams each change back to the main window (the
  * list owner) which persists it. Both values are sent together so clearing one
  * is unambiguous. Mirrors the comment editor's fire-and-forget flow (no
- * back-sync), so it stays simple — the panel re-seeds from the store on reopen.
+ * back-sync), so it stays simple - the panel re-seeds from the store on reopen.
  */
 export function useDatesEditor(
   itemId: string,
@@ -94,11 +94,11 @@ export function DatesSection({ dates }: { dates: ReturnType<typeof useDatesEdito
           valueFormat="MMM D, h:mm A"
           placeholder="Set…"
           leftSection={icon(IconBell)}
-          // Open to the left of the field — it lives in the panel's right
+          // Open to the left of the field - it lives in the panel's right
           // column, so dropping down/right would clip against the window edge.
           popoverProps={{ position: "left-start" }}
           // Plain spin fields, no nested time dropdown (it would clip / stack a
-          // second popover); commit is live, so hide the submit ✓ — the popover
+          // second popover); commit is live, so hide the submit ✓ - the popover
           // closes on outside-click.
           timePickerProps={{ withDropdown: false, format: "12h" }}
           submitButtonProps={{ style: { display: "none" } }}

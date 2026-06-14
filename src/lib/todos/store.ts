@@ -11,7 +11,7 @@ import { referencedMedia } from "../media";
 import { applyState, normalizeDepths, removeItem } from "./operations";
 import { type Comment, type TodoData, type TodosState } from "./types";
 
-/** Wall-clock now, in epoch ms — the single clock the store stamps from. */
+/** Wall-clock now, in epoch ms - the single clock the store stamps from. */
 const now = () => Date.now();
 
 export const useTodos = create<TodosState>((set, get) => {
@@ -37,6 +37,7 @@ export const useTodos = create<TodosState>((set, get) => {
     activeId: null,
     title: "",
     assignees: [],
+    labels: [],
     items: [],
     past: [],
     future: [],
@@ -52,7 +53,7 @@ export const useTodos = create<TodosState>((set, get) => {
         if (i === -1) return items;
         const t = now();
         const next = items.map((it, idx) => (idx === i ? applyState(it, state, t) : it));
-        // Cancelling a parent cancels its sub-items too — except any already
+        // Cancelling a parent cancels its sub-items too - except any already
         // done (a finished sub-task stays done). No other state cascades, and
         // nothing rolls up: completion is per-item and explicit, since a parent's
         // sub-items may be a partial list rather than the whole picture.
@@ -93,6 +94,16 @@ export const useTodos = create<TodosState>((set, get) => {
         `assignees:${id}`,
       ),
 
+    setItemLabels: (id, labels) =>
+      commit(
+        (items) =>
+          items.map((i) =>
+            i.id === id ? { ...i, labels, updatedAt: now() } : i,
+          ),
+        // Coalesce a session's add/remove bursts into one undo step.
+        `labels:${id}`,
+      ),
+
     setItemDates: (id, dates) =>
       commit(
         (items) =>
@@ -105,7 +116,7 @@ export const useTodos = create<TodosState>((set, get) => {
       ),
 
     // Notification state changes go through `set` (not `commit`): firing is an
-    // automatic, time-driven event, so it shouldn't land on the undo stack — but
+    // automatic, time-driven event, so it shouldn't land on the undo stack - but
     // a new `items` array still triggers autosave so the flag persists.
     markNotified: (id) =>
       set((s) => ({
@@ -150,6 +161,39 @@ export const useTodos = create<TodosState>((set, get) => {
           items.map((i) =>
             i.assignees?.includes(id)
               ? { ...i, assignees: i.assignees.filter((x) => x !== id), updatedAt: now() }
+              : i,
+          ),
+        null,
+      );
+    },
+
+    // Label roster ops mirror the assignee ones: list-level state outside the
+    // items undo history, autosaved with the rest of the list.
+    addLabel: (label) =>
+      set((s) =>
+        s.labels.some((l) => l.id === label.id)
+          ? s
+          : { labels: [...s.labels, label] },
+      ),
+
+    renameLabel: (id, name) =>
+      set((s) => ({
+        labels: s.labels.map((l) => (l.id === id ? { ...l, name } : l)),
+      })),
+
+    setLabelColor: (id, color) =>
+      set((s) => ({
+        labels: s.labels.map((l) => (l.id === id ? { ...l, color } : l)),
+      })),
+
+    removeLabel: (id) => {
+      set((s) => ({ labels: s.labels.filter((l) => l.id !== id) }));
+      // Strip the id from every item that referenced it (one undo step).
+      commit(
+        (items) =>
+          items.map((i) =>
+            i.labels?.includes(id)
+              ? { ...i, labels: i.labels.filter((x) => x !== id), updatedAt: now() }
               : i,
           ),
         null,
@@ -273,12 +317,13 @@ export const useTodos = create<TodosState>((set, get) => {
       } catch {
         // Missing/unreadable file: start from an empty list.
       }
-      const { title, items, assignees } = parseList(content);
+      const { title, items, assignees, labels } = parseList(content);
       set({
         activeId: id,
         title,
         assignees,
-        // Fix any structural quirks (item states are taken as-is — no rollup).
+        labels,
+        // Fix any structural quirks (item states are taken as-is - no rollup).
         items: normalizeDepths(items),
         past: [],
         future: [],

@@ -152,7 +152,12 @@ export async function exportList(
   if (!dir || Array.isArray(dir)) return null;
   const stored = await invoke<string>("read_list", { id });
   const parsed = parseList(stored);
-  const content = renderMarkdown(parsed.title || title, parsed.items, parsed.assignees);
+  const content = renderMarkdown(
+    parsed.title || title,
+    parsed.items,
+    parsed.assignees,
+    parsed.labels,
+  );
   await invoke("export_list_to_dir", { id, dir, fileName: `${name}.md`, content });
   return dir;
 }

@@ -53,7 +53,7 @@ pub fn read_file(path: String) -> Result<Vec<u8>, String> {
 }
 
 /// Delete specific attachment files from a list's media folder (e.g. when a
-/// comment or its image is removed). Targeted — won't touch other files.
+/// comment or its image is removed). Targeted - won't touch other files.
 #[tauri::command]
 pub fn delete_attachments(
     app: tauri::AppHandle,
@@ -72,7 +72,11 @@ pub fn delete_attachments(
 /// Delete any files in a list's media folder not in `keep` (the attachments its
 /// markdown still references). Called on list open to clear orphaned files.
 #[tauri::command]
-pub fn prune_media(app: tauri::AppHandle, list_id: String, keep: Vec<String>) -> Result<(), String> {
+pub fn prune_media(
+    app: tauri::AppHandle,
+    list_id: String,
+    keep: Vec<String>,
+) -> Result<(), String> {
     let dir = media_dir(&app, &list_id)?;
     let entries = match std::fs::read_dir(&dir) {
         Ok(entries) => entries,

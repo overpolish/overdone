@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { type Assignee, type TodoData } from "../todos";
+import { type Assignee, type Label, type TodoData } from "../todos";
 import {
   ITEM_RE,
+  LABEL_ROSTER_RE,
   MARKER_TO_STATE,
   META_FIELDS,
   META_RE,
@@ -18,6 +19,8 @@ export interface ParsedList {
   items: TodoData[];
   /** The list's assignee roster (empty if the file carries none). */
   assignees: Assignee[];
+  /** The list's label roster (empty if the file carries none). */
+  labels: Label[];
 }
 
 /** Build the trailing ` <!-- ... -->` comment for an item's metadata. */
@@ -31,6 +34,10 @@ function serializeMeta(item: TodoData): string {
   // safe within the space-separated key=value metadata.
   if (item.assignees?.length) {
     parts.push(`assignees=${item.assignees.join(",")}`);
+  }
+  // Label ids are UUIDs too, so a plain comma-joined list is safe here as well.
+  if (item.labels?.length) {
+    parts.push(`labels=${item.labels.join(",")}`);
   }
   // Comments are JSON, then URL-encoded so their spaces/newlines can't break
   // the space-separated key=value list (and they stay on the item's one line).
@@ -68,6 +75,11 @@ function parseMeta(text: string): { text: string; meta: Partial<TodoData> } {
       if (ids.length) meta.assignees = ids;
       continue;
     }
+    if (key === "labels") {
+      const ids = raw.split(",").filter(Boolean);
+      if (ids.length) meta.labels = ids;
+      continue;
+    }
     if (key === "comment") {
       // Legacy single free-form comment → one entry in the new log.
       const text = decodeURIComponent(raw);
@@ -87,12 +99,16 @@ export function serializeList(
   title: string,
   items: TodoData[],
   assignees: Assignee[] = [],
+  labels: Label[] = [],
 ): string {
   const lines: string[] = [`# ${title}`];
-  // List-level roster, on its own line under the title (URL-encoded JSON so it
-  // can't break the line). Invisible in any rendered markdown view.
+  // List-level rosters, each on its own line under the title (URL-encoded JSON
+  // so they can't break the line). Invisible in any rendered markdown view.
   if (assignees.length) {
     lines.push(`<!-- overdone:assignees=${encodeURIComponent(JSON.stringify(assignees))} -->`);
+  }
+  if (labels.length) {
+    lines.push(`<!-- overdone:labels=${encodeURIComponent(JSON.stringify(labels))} -->`);
   }
   lines.push("");
   for (const item of items) {
@@ -127,6 +143,7 @@ export function parseList(content: string): ParsedList {
   const lines = content.split(/\r?\n/);
   let title = "";
   let assignees: Assignee[] = [];
+  let labels: Label[] = [];
   const items: TodoData[] = [];
 
   for (const line of lines) {
@@ -144,6 +161,18 @@ export function parseList(content: string): ParsedList {
       try {
         const parsed = JSON.parse(decodeURIComponent(roster[1]));
         if (Array.isArray(parsed)) assignees = parsed;
+      } catch {
+        // Malformed roster: drop it rather than failing the whole parse.
+      }
+      continue;
+    }
+
+    // List-level label roster line (appears before any item, under the title).
+    const labelRoster = line.match(LABEL_ROSTER_RE);
+    if (labelRoster) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(labelRoster[1]));
+        if (Array.isArray(parsed)) labels = parsed;
       } catch {
         // Malformed roster: drop it rather than failing the whole parse.
       }
@@ -169,5 +198,5 @@ export function parseList(content: string): ParsedList {
     }
   }
 
-  return { title, items, assignees };
+  return { title, items, assignees, labels };
 }

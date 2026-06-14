@@ -10,7 +10,20 @@ export interface Assignee {
   id: string;
   /** Display name, free-form. Drives the avatar's initials. */
   name: string;
-  /** Mantine color-family name (e.g. "blue"), registered in the theme. */
+  /** `#rrggbb` hex for the avatar background (see lib/assignee). Older lists may
+   * still carry a `var(--mantine-color-…)` value, handled on render. */
+  color: string;
+}
+
+/** A colored, named tag that can be applied to items, scoped to a list's roster.
+ * Renders as a GitHub-style badge; its color is assigned randomly on creation. */
+export interface Label {
+  id: string;
+  /** Display name, free-form. Shown on the badge. */
+  name: string;
+  /** `#rrggbb` hex; tinted into a translucent badge per scheme (see lib/label).
+   * Older lists may carry a family name or `var(--mantine-color-…)`, handled on
+   * render. */
   color: string;
 }
 
@@ -41,12 +54,14 @@ export interface TodoData {
   comments?: Comment[];
   /** Ids of the list-roster assignees on this item (see `Assignee`). */
   assignees?: string[];
+  /** Ids of the list-roster labels on this item (see `Label`). */
+  labels?: string[];
   /** Epoch ms for a scheduled notification (date AND time), set in details. */
   notifyAt?: number;
-  /** Epoch ms when a scheduled notification fired — the item "needs action"
+  /** Epoch ms when a scheduled notification fired - the item "needs action"
    * (shown amber, with a bell) until the user dismisses it. */
   notifiedAt?: number;
-  /** Epoch ms (UTC midnight) of the item's due date — date only, no time. */
+  /** Epoch ms (UTC midnight) of the item's due date - date only, no time. */
   dueDate?: number;
 }
 
@@ -60,6 +75,11 @@ export interface TodosState {
    * outside the items undo history; items reference entries here by id.
    */
   assignees: Assignee[];
+  /**
+   * The active list's label roster. List-level state (like `assignees`), kept
+   * outside the items undo history; items reference entries here by id.
+   */
+  labels: Label[];
   items: TodoData[];
   /** Past/future snapshots of `items` for undo/redo. */
   past: TodoData[][];
@@ -72,7 +92,7 @@ export interface TodosState {
   lastKey: string | null;
   /**
    * Id of an item whose text field should grab focus on its next render
-   * (set when a new item is created). Transient — not part of undo history.
+   * (set when a new item is created). Transient - not part of undo history.
    */
   focusId: string | null;
   /**
@@ -89,7 +109,7 @@ export interface TodosState {
   /**
    * Id of the item whose editing panel (details / assignees / status) is
    * currently open, so its row can be highlighted as "being edited". Null when
-   * no item-scoped panel is open. Transient — not part of undo history.
+   * no item-scoped panel is open. Transient - not part of undo history.
    */
   editingId: string | null;
 
@@ -103,6 +123,8 @@ export interface TodosState {
   setItemComments: (id: string, comments: Comment[]) => void;
   /** Replace an item's assignee list (ids into the roster). */
   setItemAssignees: (id: string, assignees: string[]) => void;
+  /** Replace an item's label list (ids into the label roster). */
+  setItemLabels: (id: string, labels: string[]) => void;
   /**
    * Set an item's notification time and/or due date. Both are passed each call
    * (the details panel owns the editing session and sends the current pair), so
@@ -126,6 +148,14 @@ export interface TodosState {
   setAssigneeColor: (id: string, color: string) => void;
   /** Remove a roster member and unassign it from every item. */
   removeAssignee: (id: string) => void;
+  /** Add a new label to the label roster. */
+  addLabel: (label: Label) => void;
+  /** Rename a label (propagates everywhere, since items hold ids). */
+  renameLabel: (id: string, name: string) => void;
+  /** Recolor a label. */
+  setLabelColor: (id: string, color: string) => void;
+  /** Remove a label and strip it from every item. */
+  removeLabel: (id: string) => void;
   setTitle: (title: string) => void;
   deleteItem: (id: string) => void;
   /** Delete an item and move focus to its neighbour (previous, else next). */

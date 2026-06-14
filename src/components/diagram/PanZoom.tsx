@@ -90,7 +90,7 @@ export function PanZoom({ svg, topLeft }: { svg: string; topLeft?: ReactNode }) 
   }, [zoomToward]);
 
   // Trackpad pinch. WebKit (the Tauri/macOS webview) reports pinch via its own
-  // `gesture*` events with a cumulative `scale` — NOT as ctrl+wheel like Chromium.
+  // `gesture*` events with a cumulative `scale` - NOT as ctrl+wheel like Chromium.
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;

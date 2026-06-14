@@ -16,6 +16,8 @@ import {
   type DatesAction,
   type DetailsAction,
   type EditActionType,
+  type LabelAction,
+  type LabelRosterAction,
   type RosterAction,
   type StatusAction,
 } from "./panel";
@@ -31,7 +33,7 @@ function useTauriEvent<T>(event: string, handler: (payload: T) => void) {
       void unlisten.then((off) => off());
     };
     // The handler is recreated each render but the listeners are register-once,
-    // pure store dispatch — capturing the first is fine (matches the original).
+    // pure store dispatch - capturing the first is fine (matches the original).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
@@ -68,6 +70,14 @@ export function usePanelActionListeners() {
     todos.setItemAssignees(itemId, assigneeIds);
   });
 
+  // Apply label changes made in the details panel: register any newly created
+  // roster members first, then set the item's label list.
+  useTauriEvent<LabelAction>("label:action", ({ itemId, labelIds, newLabels }) => {
+    const todos = useTodos.getState();
+    newLabels?.forEach((l) => todos.addLabel(l));
+    todos.setItemLabels(itemId, labelIds);
+  });
+
   // Apply notification-time / due-date changes made in the details panel.
   useTauriEvent<DatesAction>("dates:action", ({ itemId, notifyAt, dueDate }) => {
     useTodos.getState().setItemDates(itemId, { notifyAt, dueDate });
@@ -95,19 +105,28 @@ export function usePanelActionListeners() {
     else if (a.type === "recolor") todos.setAssigneeColor(a.id, a.color);
     else if (a.type === "remove") todos.removeAssignee(a.id);
   });
+
+  // Apply label-roster management changes made in Settings back to the store.
+  useTauriEvent<LabelRosterAction>("labelRoster:action", (a) => {
+    const todos = useTodos.getState();
+    if (a.type === "add") todos.addLabel(a.label);
+    else if (a.type === "rename") todos.renameLabel(a.id, a.name);
+    else if (a.type === "recolor") todos.setLabelColor(a.id, a.color);
+    else if (a.type === "remove") todos.removeLabel(a.id);
+  });
 }
 
 /**
  * Fire a desktop reminder when an item's notification time arrives. We re-arm a
  * timer per item whenever the item set changes; a past-due time fires at once.
  * Firing flags the item as "needs action" (markNotified clears notifyAt and sets
- * notifiedAt), so it's one-shot — it won't re-fire on the next change or a
+ * notifiedAt), so it's one-shot - it won't re-fire on the next change or a
  * restart, and stays amber + belled in the list until dismissed.
  */
 export function useNotificationScheduler(items: TodoData[]) {
   useEffect(() => {
     // setTimeout overflows past the 32-bit ms range and would fire instantly;
-    // skip far-future reminders here — they re-arm once the time is in range
+    // skip far-future reminders here - they re-arm once the time is in range
     // (on the next item change or app restart).
     const MAX_DELAY = 2 ** 31 - 1;
     const fire = (item: TodoData) => {

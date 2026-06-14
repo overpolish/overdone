@@ -12,7 +12,7 @@ import {
 
 /**
  * Fire a desktop notification, requesting permission first if needed. Also
- * flags the tray/dock for attention, but leaves the window as-is — the banner
+ * flags the tray/dock for attention, but leaves the window as-is - the banner
  * shows whether or not the app is foreground.
  */
 export async function notify(title: string, body: string) {

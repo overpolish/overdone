@@ -59,6 +59,9 @@ export const META_RE = /\s*<!--\s*(.*?)\s*-->\s*$/;
 /** List-level metadata line (the assignee roster), placed under the title. */
 export const ROSTER_RE = /^<!--\s*overdone:assignees=(.*?)\s*-->\s*$/;
 
+/** List-level metadata line (the label roster), placed under the title. */
+export const LABEL_ROSTER_RE = /^<!--\s*overdone:labels=(.*?)\s*-->\s*$/;
+
 /** The metadata keys carried in the comment, in serialization order. */
 export const META_FIELDS = [
   ["created", "createdAt"],
