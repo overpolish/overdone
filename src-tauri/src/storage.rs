@@ -126,6 +126,15 @@ pub fn read_list(app: tauri::AppHandle, id: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+/// Read a UTF-8 text file the user explicitly picked (e.g. via the import
+/// dialog). Unlike `read_list`, the path is an absolute one outside the app's
+/// lists directory, so there's no id/component guard - the native file picker is
+/// the gate on what can be read.
+#[tauri::command]
+pub fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
 /// Write a list's markdown, creating the lists directory as needed. Written to a
 /// temp file then renamed so a save can't leave a half-written file behind.
 #[tauri::command]

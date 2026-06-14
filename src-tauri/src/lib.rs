@@ -69,6 +69,7 @@ pub fn run() {
             commands::hide_to_tray,
             storage::list_lists,
             storage::read_list,
+            storage::read_text_file,
             storage::write_list,
             storage::delete_list,
             storage::export_list_to_dir,

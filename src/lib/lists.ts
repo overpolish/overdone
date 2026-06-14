@@ -4,10 +4,10 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 
-import { parseList, renderMarkdown } from "./markdown";
+import { importMarkdown, parseList, renderMarkdown, serializeList } from "./markdown";
 
 /** One stored list as surfaced in the lists picker. */
 export interface ListMeta {
@@ -136,20 +136,24 @@ export function broadcastListsChanged() {
 }
 
 /**
- * Export a list to a user-chosen folder as clean, human-readable markdown
- * (named from the title) plus a `media/` subfolder of attachments, so the
- * markdown's relative references resolve. The stored file uses a metadata-laden
- * round-trip format; here we re-render it through {@link renderMarkdown} so the
- * exported file reads like real markdown. Returns the chosen folder, or null if
- * cancelled.
+ * Export a list as clean, human-readable markdown via a Save dialog (pre-filled
+ * with the title as the filename), alongside a `media/` subfolder of attachments
+ * so the markdown's relative references resolve. The stored file uses a
+ * metadata-laden round-trip format; here we re-render it through
+ * {@link renderMarkdown} so the exported file reads like real markdown. Returns
+ * the chosen folder, or null if cancelled.
  */
 export async function exportList(
   id: string,
   title: string,
 ): Promise<string | null> {
   const name = (title.trim() || "Untitled").replace(/[/\\:]/g, "-");
-  const dir = await openDialog({ directory: true, title: "Export list to folder" });
-  if (!dir || Array.isArray(dir)) return null;
+  const path = await saveDialog({
+    title: "Export list",
+    defaultPath: `${name}.md`,
+    filters: [{ name: "Markdown", extensions: ["md"] }],
+  });
+  if (!path) return null;
   const stored = await invoke<string>("read_list", { id });
   const parsed = parseList(stored);
   const content = renderMarkdown(
@@ -158,8 +162,41 @@ export async function exportList(
     parsed.assignees,
     parsed.labels,
   );
-  await invoke("export_list_to_dir", { id, dir, fileName: `${name}.md`, content });
+  // Split the chosen path into the destination folder + filename the backend
+  // expects (it drops the `media/` subfolder beside the file).
+  const m = path.match(/^(.*)[/\\]([^/\\]+)$/);
+  const dir = m ? m[1] : ".";
+  const fileName = m ? m[2] : path;
+  await invoke("export_list_to_dir", { id, dir, fileName, content });
   return dir;
+}
+
+/**
+ * Import a user-picked markdown file into a new list, made active. The file is
+ * parsed with the best-effort {@link importMarkdown} (the inverse of export: it
+ * reads clean markdown / GitHub task lists, not our metadata-laden storage
+ * format), then written out in the round-trip storage format. The list's title
+ * comes from the file's `# ` heading, falling back to its filename. Returns the
+ * new list's id, or null if cancelled.
+ */
+export async function importList(): Promise<string | null> {
+  const file = await openDialog({
+    multiple: false,
+    title: "Import a markdown list",
+    filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
+  });
+  if (!file || Array.isArray(file)) return null;
+  const content = await invoke<string>("read_text_file", { path: file });
+  const parsed = importMarkdown(content);
+  const base = file.split(/[/\\]/).pop() ?? "";
+  const title = parsed.title || base.replace(/\.(md|markdown|txt)$/i, "");
+  const id = crypto.randomUUID();
+  const markdown = serializeList(title, parsed.items, parsed.assignees, parsed.labels);
+  await invoke("write_list", { id, content: markdown });
+  await useLists.getState().refresh();
+  broadcast({ type: "refresh" });
+  useLists.getState().setActive(id);
+  return id;
 }
 
 if (channel) {

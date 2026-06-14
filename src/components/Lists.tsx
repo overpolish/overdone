@@ -4,10 +4,10 @@
  */
 
 import { ActionIcon, Group, Stack, Text, TextInput, Title } from "@mantine/core";
-import { IconDownload, IconListCheck, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconDownload, IconListCheck, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
-import { exportList, type ListMeta, useLists } from "../lib/lists";
+import { exportList, importList, type ListMeta, useLists } from "../lib/lists";
 import { IconButton } from "./IconButton";
 import { ScrollArea } from "./ScrollArea";
 
@@ -47,14 +47,24 @@ export function Lists() {
           <IconListCheck size={18} stroke={1.8} />
           <Title order={5}>Lists</Title>
         </Group>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          aria-label="New list"
-          onClick={() => void create()}
-        >
-          <IconPlus size={16} />
-        </ActionIcon>
+        <Group gap={2} wrap="nowrap">
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            aria-label="Import list"
+            onClick={() => void importList()}
+          >
+            <IconUpload size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            aria-label="New list"
+            onClick={() => void create()}
+          >
+            <IconPlus size={16} />
+          </ActionIcon>
+        </Group>
       </Group>
 
       {lists.length === 0 ? (
