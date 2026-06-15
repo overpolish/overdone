@@ -60,6 +60,7 @@ export const useTodos = create<TodosState>((set, get) => {
     focusCaret: "end",
     focusTitle: false,
     editingId: null,
+    revealedId: null,
 
     setItemState: (id, state) =>
       commit((items) => {
@@ -370,6 +371,8 @@ export const useTodos = create<TodosState>((set, get) => {
 
     focusItem: (id, caret = "end") => set({ focusId: id, focusCaret: caret }),
 
+    revealItem: (id) => set({ revealedId: id }),
+
     open: async (id) => {
       let content = "";
       try {
@@ -389,6 +392,8 @@ export const useTodos = create<TodosState>((set, get) => {
         future: [],
         lastKey: null,
         focusId: null,
+        // A search-pinned item doesn't carry across lists.
+        revealedId: null,
         // A fresh, untitled list opens with its title field focused for naming.
         focusTitle: title === "",
       });

@@ -14,7 +14,7 @@ import {
 } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 
-import { isViewAltered, useFilters } from "../lib/filters";
+import { isViewAltered, useFilters, useRevealActive } from "../lib/filters";
 import {
   openFilterPanel,
   openListsPanel,
@@ -51,6 +51,9 @@ export function Titlebar() {
     const c = activeId ? s.active[activeId] : null;
     return c ? isViewAltered(c) : false;
   });
+  // Amber the search button while a search pin keeps an otherwise-filtered item
+  // visible, so it's clear the view is showing something past the filter.
+  const revealActive = useRevealActive();
 
   return (
     <Box
@@ -111,7 +114,12 @@ export function Titlebar() {
           icon={IconPlus}
           onClick={() => useTodos.getState().addItem()}
         />
-        <IconButton label="Search" icon={IconSearch} onClick={openSearchPanel} />
+        <IconButton
+          label="Search"
+          icon={IconSearch}
+          onClick={openSearchPanel}
+          warning={revealActive}
+        />
         <IconButton
           label="Filter"
           icon={IconFilter}

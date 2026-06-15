@@ -8,6 +8,7 @@ import { emit } from "@tauri-apps/api/event";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+import { emptyCriteria, isRevealEffective, useFilters } from "./filters";
 import { type TodoState } from "./todo";
 import { type Assignee, type Comment, type Label, type TodoData, useTodos } from "./todos";
 
@@ -39,6 +40,9 @@ export interface PanelRequest {
   state?: TodoState;
   /** Search-view payload: a snapshot of the active list's items to search. */
   items?: TodoData[];
+  /** Search-view: the item pinned past the active filter (if any), so the panel
+   * can name it and offer to clear the pin. */
+  revealedId?: string;
   /** Details-view payload: the item's current comment log to seed the editor. */
   comments?: Comment[];
   /** Details-view context: the active list's id and its media folder (abs path). */
@@ -75,10 +79,16 @@ export function openPanel(request: Omit<PanelRequest, "nonce">) {
   void emit("panel:open", { ...request, nonce: ++nonce } satisfies PanelRequest);
 }
 
-/** Open the search panel over a snapshot of the active list. */
+/** Open the search panel over a snapshot of the active list. Carries the search
+ * pin only when it's actually holding an item past the filter, so the panel
+ * shows its "Clear" affordance just when there's something to clear. */
 export function openSearchPanel() {
-  const { items, labels, assignees } = useTodos.getState();
-  openPanel({ view: "search", items, labels, roster: assignees });
+  const { items, labels, assignees, activeId, revealedId } = useTodos.getState();
+  const criteria = activeId ? useFilters.getState().active[activeId] : undefined;
+  const pinned = isRevealEffective(items, criteria ?? emptyCriteria(), revealedId)
+    ? (revealedId ?? undefined)
+    : undefined;
+  openPanel({ view: "search", items, labels, roster: assignees, revealedId: pinned });
 }
 
 /** Open the filter panel for the active list (rosters seed the filter options;
@@ -118,6 +128,12 @@ export function emitStatusAction(action: StatusAction) {
 /** Jump to an item (picked from search) in the main window. */
 export function emitFocusItem(id: string) {
   void emit("search:focus", id);
+}
+
+/** Drop the search pin (the item kept visible past the active filter), from the
+ * search panel's "Clear" control. */
+export function emitClearReveal() {
+  void emit("search:reveal-clear");
 }
 
 /** A comment-log change made in the details panel, sent to the main window. */

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
+import { Button, Group, Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
 import { IconLink, IconMessage, IconSearch } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -12,7 +12,7 @@ import { fuzzyScore } from "../lib/fuzzy";
 import { resolveLabels } from "../lib/label";
 import { linkLabel, scanCommentLinks, type ScannedLink } from "../lib/links";
 import { htmlToText } from "../lib/media";
-import { closePanel, emitFocusItem } from "../lib/panel";
+import { closePanel, emitClearReveal, emitFocusItem } from "../lib/panel";
 import { isStruck } from "../lib/todo";
 import { type Assignee, type Comment, type Label, type TodoData } from "../lib/todos";
 import { AssigneeAvatar } from "./AssigneeAvatar";
@@ -58,13 +58,26 @@ export function Search({
   items,
   labels: labelRoster,
   assignees: assigneeRoster,
+  revealedId,
 }: {
   items: TodoData[];
   labels: Label[];
   assignees: Assignee[];
+  /** An item pinned past the active filter; shown as a clearable banner. */
+  revealedId?: string;
 }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // The pinned item (resolved from the snapshot), kept in local state so the
+  // banner disappears the instant Clear is pressed, before the panel reopens.
+  const [pinned, setPinned] = useState(() =>
+    revealedId ? (items.find((i) => i.id === revealedId) ?? null) : null,
+  );
+  const clearPin = () => {
+    emitClearReveal();
+    setPinned(null);
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -165,6 +178,17 @@ export function Search({
 
   return (
     <Stack gap="xs" w={300}>
+      {pinned && (
+        <Group gap={6} justify="space-between" wrap="nowrap" align="center">
+          <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
+            Showing “{pinned.text || "Untitled"}” past the filter
+          </Text>
+          <Button variant="subtle" color="gray" size="compact-xs" onClick={clearPin}>
+            Clear
+          </Button>
+        </Group>
+      )}
+
       <TextInput
         ref={inputRef}
         placeholder="Search items…"

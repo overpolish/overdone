@@ -113,6 +113,12 @@ export interface TodosState {
    * no item-scoped panel is open. Transient - not part of undo history.
    */
   editingId: string | null;
+  /**
+   * Id of an item to keep visible even when the active filter would hide it,
+   * set when jumping to a search hit so the row renders and can take focus.
+   * Stays pinned until the list is switched. Transient - not undo history.
+   */
+  revealedId: string | null;
 
   setItemState: (id: string, state: TodoState) => void;
   setItemText: (id: string, text: string) => void;
@@ -189,6 +195,10 @@ export interface TodosState {
   setEditingId: (id: string | null) => void;
   /** Focus an item's text field (e.g. when picked from search). */
   focusItem: (id: string, caret?: "start" | "end") => void;
+  /** Pin an item (picked from search) so an active filter can't hide it, until
+   * the list is switched. Pair with {@link focusItem} to jump to it; pass null
+   * to drop the pin (the "Clear" control in the search panel). */
+  revealItem: (id: string | null) => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
   open: (id: string) => Promise<void>;
   undo: () => void;

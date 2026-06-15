@@ -38,6 +38,7 @@ function renderView(request: PanelRequest | null) {
           items={request.items ?? []}
           labels={request.labels ?? []}
           assignees={request.roster ?? []}
+          revealedId={request.revealedId}
         />
       );
     case "filter":

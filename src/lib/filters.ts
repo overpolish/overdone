@@ -146,12 +146,22 @@ export function matchesCriteria(
  * - When sorting, only top blocks are reordered (by the parent's field);
  *   children stay attached, in their stored order. Missing values sort last.
  *
+ * `revealId` pins one item past the filter: it (and, for a child, its parent for
+ * context) is kept visible even when it doesn't match, so jumping to a search
+ * hit doesn't land on a hidden row. It rides along the normal block flow, so a
+ * sub-item lands under its parent and the whole block view-sorts as usual.
+ *
  * Returns the original array untouched when nothing is filtered or sorted.
  */
-export function applyFilter(items: TodoData[], c: FilterCriteria): TodoData[] {
+export function applyFilter(
+  items: TodoData[],
+  c: FilterCriteria,
+  revealId?: string | null,
+): TodoData[] {
   if (!hasActiveCriteria(c) && c.sort === "manual") return items;
   const bounds = dueBounds();
-  const match = (it: TodoData) => matchesCriteria(it, c, bounds);
+  // A filtered-out item still shows when it's the one pinned from search.
+  const match = (it: TodoData) => it.id === revealId || matchesCriteria(it, c, bounds);
 
   interface Block {
     parent: TodoData;
@@ -266,10 +276,38 @@ export function criteriaOf(listId: string | null): FilterCriteria {
 export function useVisibleItems(): TodoData[] {
   const items = useTodos((s) => s.items);
   const activeId = useTodos((s) => s.activeId);
+  const revealedId = useTodos((s) => s.revealedId);
   const criteria = useFilters((s) => (activeId ? s.active[activeId] : undefined));
   return useMemo(
-    () => applyFilter(items, criteria ?? emptyCriteria()),
-    [items, criteria],
+    () => applyFilter(items, criteria ?? emptyCriteria(), revealedId),
+    [items, criteria, revealedId],
+  );
+}
+
+/** Whether a search pin is actually forcing an otherwise-hidden item into view:
+ * something is filtered *and* the pinned item wouldn't show without the pin.
+ * A pin set while unfiltered (no visible effect) doesn't count - so it neither
+ * ambers the search button nor offers a clear control. */
+export function isRevealEffective(
+  items: TodoData[],
+  c: FilterCriteria,
+  revealedId: string | null,
+): boolean {
+  if (!revealedId || !hasActiveCriteria(c)) return false;
+  if (!items.some((i) => i.id === revealedId)) return false;
+  return !applyFilter(items, c).some((i) => i.id === revealedId);
+}
+
+/** Whether the active list has an effective search pin (see {@link
+ * isRevealEffective}), for the amber search button. */
+export function useRevealActive(): boolean {
+  const items = useTodos((s) => s.items);
+  const activeId = useTodos((s) => s.activeId);
+  const revealedId = useTodos((s) => s.revealedId);
+  const criteria = useFilters((s) => (activeId ? s.active[activeId] : undefined));
+  return useMemo(
+    () => isRevealEffective(items, criteria ?? emptyCriteria(), revealedId),
+    [items, criteria, revealedId],
   );
 }
 

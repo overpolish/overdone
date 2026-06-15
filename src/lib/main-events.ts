@@ -62,10 +62,19 @@ export function usePanelActionListeners() {
     else if (state) todos.setItemState(itemId, state);
   });
 
-  // Jump to an item picked from search: focus it and bring the window forward.
+  // Jump to an item picked from search: pin it past any active filter (so it
+  // renders even when hidden), focus it, and bring the window forward.
   useTauriEvent<string>("search:focus", (id) => {
-    useTodos.getState().focusItem(id);
+    const todos = useTodos.getState();
+    todos.revealItem(id);
+    todos.focusItem(id);
     void getCurrentWindow().setFocus();
+  });
+
+  // Clear the search pin from the panel's "Clear" control: the item drops back
+  // under the active filter (hidden again if it doesn't match).
+  useTauriEvent("search:reveal-clear", () => {
+    useTodos.getState().revealItem(null);
   });
 
   // Apply comment-log changes made in the details panel back to the store. A
