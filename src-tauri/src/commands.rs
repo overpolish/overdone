@@ -66,11 +66,16 @@ pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
 #[tauri::command]
 pub fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
     state.always_on_top.store(value, Ordering::Relaxed);
-    // Don't re-enable always-on-top while the panel is open; the preference is
-    // re-applied when the panel closes.
-    if !state.panel_open.load(Ordering::Relaxed) {
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.set_always_on_top(value);
+    // Applied directly even with the panel open. Raising the main window's level
+    // could leave the open panel (set just above the main window's *previous*
+    // level) behind it, so re-raise the panel above the new level - the setting
+    // lives in the panel, so it can be toggled while the panel is showing.
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_always_on_top(value);
+        if state.panel_open.load(Ordering::Relaxed) {
+            if let Some(panel) = app.get_webview_window("panel") {
+                crate::platform::raise_panel_above(&panel, &window);
+            }
         }
     }
 }

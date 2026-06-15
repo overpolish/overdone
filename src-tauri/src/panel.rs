@@ -14,8 +14,11 @@ use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition};
 use crate::passthrough::apply_passthrough;
 use crate::window_state::WindowState;
 
-/// Hide the secondary panel and restore the main window's always-on-top
-/// preference (suspended while the panel is open).
+/// Hide the secondary panel. The main window's always-on-top level is never
+/// touched here: the panel sits one window level *above* the main window (see
+/// `open_panel`), so the two never z-fight and there's no level to restore. That
+/// keeps this dismissal off the main window's title bar - changing the main
+/// window's level mid-click used to re-seat its native drag and snap it sideways.
 pub fn hide_panel(app: &tauri::AppHandle) {
     let state = app.state::<WindowState>();
     if let Some(panel) = app.get_webview_window("panel") {
@@ -24,41 +27,8 @@ pub fn hide_panel(app: &tauri::AppHandle) {
     state.panel_open.store(false, Ordering::Relaxed);
     // Tell the main window to drop its "item being edited" row highlight.
     let _ = app.emit("panel:closed", ());
-    // Restore the main window's always-on-top level - but only once the mouse
-    // button is released. When the panel is dismissed by pressing the main title
-    // bar, that same press starts the title bar's native window drag, which on
-    // macOS runs a *modal* event-tracking loop until the button comes up.
-    // Changing the window level mid-gesture makes macOS re-seat the drag and snap
-    // the window sideways; because the drag's loop also pumps queued main-thread
-    // work, a one-tick defer still fires inside it. So we wait out the press on a
-    // background thread, then restore on the main thread once the drag has ended.
-    // The guard keeps repeated focus events from piling up restore threads.
-    if state.restore_pending.swap(true, Ordering::Relaxed) {
-        return;
-    }
-    let app = app.clone();
-    std::thread::spawn(move || {
-        // Poll until the button is up, capped (~2s) so a missed release can't
-        // strand the restore.
-        for _ in 0..120 {
-            if !crate::platform::primary_mouse_button_down() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(16));
-        }
-        let _ = app.clone().run_on_main_thread(move || {
-            let state = app.state::<WindowState>();
-            if let Some(main) = app.get_webview_window("main") {
-                // Keep it suspended if a panel reopened while we were waiting;
-                // otherwise honor the user's preference.
-                let on_top = !state.panel_open.load(Ordering::Relaxed)
-                    && state.always_on_top.load(Ordering::Relaxed);
-                let _ = main.set_always_on_top(on_top);
-            }
-            apply_passthrough(&app);
-            state.restore_pending.store(false, Ordering::Relaxed);
-        });
-    });
+    // The panel no longer counts as "interacting", so re-evaluate passthrough.
+    apply_passthrough(app);
 }
 
 /// Center the panel horizontally under the main window's title bar, given the
@@ -168,10 +138,13 @@ pub fn open_panel(
         }
     }
 
-    // Suspend the main window's always-on-top while the panel is open so the
-    // two always-on-top windows don't fight over z-order / focus.
+    // Keep the panel one window level above the main window so it reliably sits
+    // on top without either window's always-on-top level being changed. The main
+    // window stays put: we no longer suspend and restore its always-on-top, which
+    // is what used to snap it sideways when the panel was dismissed by clicking
+    // the title bar (changing the level mid-click re-seats the native drag).
     state.panel_open.store(true, Ordering::Relaxed);
-    let _ = main.set_always_on_top(false);
+    crate::platform::raise_panel_above(&panel, &main);
 
     let _ = panel.show();
     let _ = panel.set_focus();
