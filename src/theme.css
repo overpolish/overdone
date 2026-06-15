@@ -119,6 +119,19 @@ video {
   pointer-events: none;
 }
 
+/* Edit/delete actions on a comment tile, revealed on hover or keyboard focus.
+ * Done in CSS (not React hover state) on purpose: re-rendering the row on
+ * mouse-out re-applies the body's innerHTML and collapses an in-progress text
+ * selection. Opacity (not display) keeps the buttons focusable for tabbing. */
+.comment-actions {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.comment-row:hover .comment-actions,
+.comment-row:focus-within .comment-actions {
+  opacity: 1;
+}
+
 /* Rendered comment HTML (bold / underline / bullet + ordered lists from the
  * editor), kept tight so entries read as compact log lines. */
 .comment-body > :first-child {

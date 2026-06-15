@@ -23,6 +23,44 @@ import { useDiagramEditor } from "../diagram";
 import { IconButton } from "../IconButton";
 import { useMediaBusy } from "./useMediaBusy";
 
+/** The tag of the nearest list enclosing the selection's anchor, so a re-wrapped
+ * fragment matches the source (numbered vs bulleted). Defaults to a bullet list. */
+function selectionListTag(sel: Selection): "ul" | "ol" {
+  for (let node = sel.anchorNode; node && node !== document.body; node = node.parentNode) {
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const tag = (node as HTMLElement).tagName.toLowerCase();
+    if (tag === "ol" || tag === "ul") return tag;
+  }
+  return "ul";
+}
+
+/**
+ * A selection confined to one list has that `<ul>`/`<ol>` as its range's common
+ * ancestor, which `Range.cloneContents()` excludes - leaving bare `<li>`s with no
+ * wrapper, so both clipboard flavours drop the bullets. Wrap each run of
+ * top-level `<li>`s back into a list of the source's type to restore them.
+ */
+function rewrapListItems(container: HTMLElement, sel: Selection): void {
+  if (!container.querySelector(":scope > li")) return;
+  const tag = selectionListTag(sel);
+  let list: HTMLElement | null = null;
+  for (const node of Array.from(container.childNodes)) {
+    const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+    if (el?.tagName.toLowerCase() === "li") {
+      if (!list) {
+        list = document.createElement(tag);
+        container.insertBefore(list, node);
+      }
+      list.appendChild(node);
+    } else if (list && node.nodeType === Node.TEXT_NODE && !node.textContent?.trim()) {
+      // Keep insignificant whitespace between items inside the run.
+      list.appendChild(node);
+    } else {
+      list = null;
+    }
+  }
+}
+
 /** Compact, human timestamp for a comment (e.g. "Jun 13, 2:05 PM"). */
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleString(undefined, {
@@ -55,11 +93,6 @@ export function CommentRow({
   onCancel,
   onDelete,
 }: CommentRowProps) {
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  // Reveal the actions on hover or keyboard focus, so tabbing through the log
-  // lands on visible buttons instead of invisible (opacity: 0) tab stops.
-  const revealed = hovered || focused;
   const openDiagram = useDiagramEditor();
 
   // Write an edited diagram back into the comment: replace the nth stored
@@ -104,11 +137,13 @@ export function CommentRow({
   }
 
   return (
+    // The hover/focus reveal of the actions is pure CSS (see `.comment-row` in
+    // theme.css), not React state: a re-render here re-applies the body's
+    // `dangerouslySetInnerHTML`, replacing its child nodes and collapsing any
+    // in-progress text selection. Keeping mouse-out off the render path lets a
+    // selection survive the pointer leaving the tile.
     <Box
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={() => setFocused(false)}
+      className="comment-row"
       style={{
         padding: "6px 8px",
         borderRadius: "var(--mantine-radius-md)",
@@ -134,6 +169,9 @@ export function CommentRow({
           for (let i = 0; i < sel.rangeCount; i++) {
             frag.appendChild(sel.getRangeAt(i).cloneContents());
           }
+          // Restore the list wrapper that cloneContents drops for a list-only
+          // selection, so copied bullets survive into both flavours.
+          rewrapListItems(frag, sel);
           const html = frag.innerHTML;
           if (!html) return;
           e.clipboardData.setData("text/html", html);
@@ -171,8 +209,10 @@ export function CommentRow({
           {formatTime(comment.createdAt)}
           {comment.editedAt ? " · edited" : ""}
         </Text>
-        {/* Edit/delete reveal on hover or focus to keep the log uncluttered. */}
-        <Group gap={2} wrap="nowrap" style={{ opacity: revealed ? 1 : 0 }}>
+        {/* Edit/delete reveal on hover or keyboard focus (CSS) to keep the log
+            uncluttered. They stay focusable (opacity, not display) so tabbing
+            through the log reveals them via :focus-within. */}
+        <Group className="comment-actions" gap={2} wrap="nowrap">
           <IconButton label="Edit comment" icon={IconPencil} onClick={onStartEdit} />
           <IconButton label="Delete comment" icon={IconTrash} danger onClick={onDelete} />
         </Group>
