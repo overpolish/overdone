@@ -58,6 +58,11 @@ export function ItemControls({
           style={{
             display: "flex",
             alignItems: "center",
+            // 20px-wide centered slot so the 14px glyph lands in the same column
+            // as the dismiss bell / details, which center their icon in a 20px
+            // ActionIcon. Same width and centering, just not a button.
+            justifyContent: "center",
+            width: 20,
             height: LINE_HEIGHT,
             flexShrink: 0,
             color: "var(--mantine-color-dimmed)",
@@ -93,6 +98,10 @@ export function ItemControls({
           style={{
             display: "flex",
             alignItems: "center",
+            // Match the dismiss bell / details column: 14px glyph centered in a
+            // 20px slot, so the due indicator lines up with the other controls.
+            justifyContent: "center",
+            width: 20,
             height: LINE_HEIGHT,
             flexShrink: 0,
             color: STATUS_COLOR[dueState],
