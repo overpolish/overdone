@@ -9,6 +9,7 @@ import { type Editor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 
 import { openExternal } from "../../lib/links";
+import { fragmentToMarkdown } from "../../lib/markdown";
 import {
   insertPastedFiles,
   openFullSize,
@@ -121,6 +122,24 @@ export function CommentRow({
         className="comment-body"
         fz="xs"
         style={{ wordBreak: "break-word" }}
+        // Native copy in the webview only writes plain text for non-editable
+        // content, dropping all formatting. Put both flavours on the clipboard
+        // ourselves: HTML for rich targets (Notes, Mail), and Markdown as the
+        // text/plain fallback so lists/bold survive paste into plain-text boxes
+        // (GitHub, chat) that ignore the HTML flavour.
+        onCopy={(e) => {
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+          const frag = document.createElement("div");
+          for (let i = 0; i < sel.rangeCount; i++) {
+            frag.appendChild(sel.getRangeAt(i).cloneContents());
+          }
+          const html = frag.innerHTML;
+          if (!html) return;
+          e.clipboardData.setData("text/html", html);
+          e.clipboardData.setData("text/plain", fragmentToMarkdown(frag));
+          e.preventDefault();
+        }}
         onClick={(e) => {
           const el = e.target as HTMLElement;
           // A link opens in the default browser - never navigate the app webview.

@@ -5,4 +5,5 @@
 
 export { type ParsedList, parseList, serializeList, setMarkdownTitle } from "./storage";
 export { renderMarkdown } from "./export";
+export { fragmentToMarkdown } from "./from-html";
 export { importMarkdown } from "./import";
