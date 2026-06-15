@@ -22,6 +22,7 @@ import {
   openSettingsPanel,
 } from "../lib/panel";
 import { useTodos } from "../lib/todos";
+import { startTitlebarDrag } from "../lib/window-drag";
 import { IconButton } from "./IconButton";
 
 const TITLEBAR_HEIGHT = 38;
@@ -29,7 +30,10 @@ const TITLEBAR_HEIGHT = 38;
 /**
  * Custom transparent title bar, shared by macOS and Windows.
  *
- * - The whole bar is a Tauri drag region (`data-tauri-drag-region`).
+ * - The whole bar is a window drag region (see `startTitlebarDrag`): dragging
+ *   it moves the window, but only when the window is already focused, so the
+ *   click that activates a background window (dismissing the panel) doesn't
+ *   start a native drag and snap the window sideways.
  * - Native window controls are hidden on both platforms (traffic lights on
  *   macOS, the frame on Windows), so we render our own subtle
  *   minimize / maximize / close buttons.
@@ -50,7 +54,7 @@ export function Titlebar() {
 
   return (
     <Box
-      data-tauri-drag-region
+      onMouseDown={startTitlebarDrag}
       h={TITLEBAR_HEIGHT}
       pos="relative"
       style={{ flexShrink: 0, userSelect: "none" }}

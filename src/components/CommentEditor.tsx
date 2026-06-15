@@ -331,7 +331,7 @@ function LinkBubble({ editor }: { editor: Editor }) {
       // its overflow and would hide the bubble. Floating UI still positions it
       // against the selection, and it stays within the window.
       appendTo={() => document.body}
-      // Float above the composer's controls (e.g. the Post button), which would
+      // Float above the composer's controls (e.g. the Save button), which would
       // otherwise paint over the bubble since they come later in the DOM.
       style={{ zIndex: "var(--mantine-z-index-max)" }}
       // Re-evaluated on every transaction; stay up while a link is active even
@@ -433,7 +433,7 @@ export function CommentInput({
   );
 }
 
-/** Whether editor HTML carries no content (so Post/Save should no-op). */
+/** Whether editor HTML carries no content (so Save should no-op). */
 export function htmlIsEmpty(html: string): boolean {
   // An embedded attachment or diagram counts as content on its own.
   if (/<(?:img|video)\b/i.test(html)) return false;
