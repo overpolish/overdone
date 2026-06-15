@@ -26,12 +26,16 @@ export interface SettingsState {
   excludeFromCapture: boolean;
   /** Whether pasted/imported attachments are compressed (via ffmpeg) or kept. */
   mediaCompression: MediaCompression;
+  /** Whether the daily catch-up review is offered at all. Off hides the banner
+   * entirely (no review entry point). */
+  dailyReview: boolean;
   setColorScheme: (value: MantineColorScheme) => void;
   setAlwaysOnTop: (value: boolean) => void;
   setPassthrough: (value: boolean) => void;
   setLaunchAtStartup: (value: boolean) => void;
   setExcludeFromCapture: (value: boolean) => void;
   setMediaCompression: (value: MediaCompression) => void;
+  setDailyReview: (value: boolean) => void;
 }
 
 const STORAGE_NAME = "overdone-settings";
@@ -49,6 +53,7 @@ export const useSettings = create<SettingsState>()(
       launchAtStartup: false,
       excludeFromCapture: true,
       mediaCompression: "original",
+      dailyReview: true,
       setColorScheme: (colorScheme) => set({ colorScheme }),
       setAlwaysOnTop: (alwaysOnTop) => {
         set({ alwaysOnTop });
@@ -76,6 +81,7 @@ export const useSettings = create<SettingsState>()(
         void invoke("set_content_protected", { value: excludeFromCapture });
       },
       setMediaCompression: (mediaCompression) => set({ mediaCompression }),
+      setDailyReview: (dailyReview) => set({ dailyReview }),
     }),
     {
       name: STORAGE_NAME,
@@ -87,6 +93,7 @@ export const useSettings = create<SettingsState>()(
         launchAtStartup: state.launchAtStartup,
         excludeFromCapture: state.excludeFromCapture,
         mediaCompression: state.mediaCompression,
+        dailyReview: state.dailyReview,
       }),
     },
   ),
@@ -124,6 +131,7 @@ if (typeof BroadcastChannel !== "undefined") {
       launchAtStartup: state.launchAtStartup,
       excludeFromCapture: state.excludeFromCapture,
       mediaCompression: state.mediaCompression,
+      dailyReview: state.dailyReview,
     });
   });
 

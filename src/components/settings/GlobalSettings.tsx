@@ -6,6 +6,7 @@
 import {
   ActionIcon,
   Box,
+  Button,
   Checkbox,
   Group,
   Kbd,
@@ -25,6 +26,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useRef, useState } from "react";
 
+import { emitOpenReview } from "../../lib/panel";
 import { type MediaCompression, useSettings } from "../../lib/settings";
 import { ScrollArea } from "../ScrollArea";
 
@@ -102,6 +104,8 @@ export function GlobalSettings() {
   const setExcludeFromCapture = useSettings((state) => state.setExcludeFromCapture);
   const mediaCompression = useSettings((state) => state.mediaCompression);
   const setMediaCompression = useSettings((state) => state.setMediaCompression);
+  const dailyReview = useSettings((state) => state.dailyReview);
+  const setDailyReview = useSettings((state) => state.setDailyReview);
   const [download, setDownload] = useState<DownloadState | null>(null);
   const downloadingRef = useRef(false);
 
@@ -221,6 +225,27 @@ export function GlobalSettings() {
             onChange={(event) => setLaunchAtStartup(event.currentTarget.checked)}
           />
         </Group>
+
+        <Stack gap={4}>
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm" fw={500}>
+              Daily review
+            </Text>
+            <Group gap={8} wrap="nowrap">
+              <Button size="compact-xs" variant="default" onClick={() => emitOpenReview()}>
+                Start now
+              </Button>
+              <Checkbox
+                aria-label="Daily review banner"
+                checked={dailyReview}
+                onChange={(event) => setDailyReview(event.currentTarget.checked)}
+              />
+            </Group>
+          </Group>
+          <Text size="xs" c="dimmed">
+            Shows a banner to catch up on overdue, due, and stale items.
+          </Text>
+        </Stack>
 
         <Stack gap={4}>
           <Group

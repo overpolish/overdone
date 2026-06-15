@@ -4,8 +4,9 @@
  */
 
 import { Box, Button, Group, Stack, Text, Title } from "@mantine/core";
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconListDetails } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { type Editor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
@@ -17,7 +18,7 @@ import {
   referencedMedia,
   toStoredHtml,
 } from "../../lib/media";
-import { closePanel, emitDetailsAction } from "../../lib/panel";
+import { type CommentsSync, closePanel, emitDetailsAction } from "../../lib/panel";
 import { type Assignee, type Comment, type Label } from "../../lib/todos";
 import { AssigneePicker, useAssigneeEditor } from "../AssigneePicker";
 import { LabelPicker, useLabelEditor } from "../LabelPicker";
@@ -57,6 +58,12 @@ interface ItemDetailsProps {
   createdAt?: number;
   /** Epoch ms of the last edit to the item itself (text/state/nesting). */
   updatedAt?: number;
+}
+
+/** A cheap fingerprint of a comment log - changes on any add, delete, or edit -
+ * so an inbound sync can be compared to the local log without a deep diff. */
+function commentsSig(comments: Comment[]): string {
+  return comments.map((c) => `${c.id}:${c.editedAt ?? c.createdAt}`).join("|");
 }
 
 /** Compact date + time stamp for the details header (e.g. "Jun 13, 2026, 2:05 PM"). */
@@ -121,7 +128,7 @@ export function ItemDetails({
     if (htmlIsEmpty(stored)) return;
     apply([...comments, { id: crypto.randomUUID(), text: stored, createdAt: Date.now() }]);
     composerRef.current?.commands.clearContent();
-    composerRef.current?.commands.focus();
+    composerRef.current?.commands.blur();
     setDraft("");
   };
 
@@ -138,6 +145,24 @@ export function ItemDetails({
     },
   });
   composerRef.current = composer;
+
+  // Adopt comment-log changes the main window broadcasts for this item (undo/redo,
+  // or a delete made elsewhere). A ref holds the latest local log so the
+  // register-once listener compares against current state, not its mount-time
+  // capture; the signature guard skips echoes of our own edits (same content,
+  // fresh array across the process boundary) so it doesn't loop or churn.
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
+  useEffect(() => {
+    const un = listen<CommentsSync>("comments:sync", (e) => {
+      const next = e.payload.byItem[itemId];
+      if (!next || commentsSig(next) === commentsSig(commentsRef.current)) return;
+      setComments(next);
+    });
+    return () => {
+      void un.then((off) => off());
+    };
+  }, [itemId]);
 
   // OS file drops land as paths (Tauri intercepts them) → insert in the composer.
   useEffect(() => {
@@ -194,12 +219,7 @@ export function ItemDetails({
       <DiagramModalHost />
       <Group justify="space-between" wrap="nowrap" align="center">
         <Group gap={8} wrap="nowrap" align="center">
-          <Box
-            w={3}
-            h={14}
-            bg="var(--mantine-color-default-border)"
-            style={{ borderRadius: "var(--mantine-radius-sm)" }}
-          />
+          <IconListDetails size={18} stroke={1.8} style={{ display: "block" }} />
           <Title order={5}>Details</Title>
         </Group>
         {(lastUpdated > 0 || createdAt) && (

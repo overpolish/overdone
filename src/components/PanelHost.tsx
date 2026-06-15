@@ -11,6 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { emitEditAction, type PanelRequest } from "../lib/panel";
 import { AssigneePanel } from "./AssigneePanel";
+import { DailyReview } from "./DailyReview";
 import { closeDiagramModal, useDiagramModalOpen } from "./diagram";
 import { ItemDetails } from "./details";
 import { Filter } from "./Filter";
@@ -83,6 +84,17 @@ function renderView(request: PanelRequest | null) {
           assigneeIds={request.assigneeIds ?? []}
         />
       ) : null;
+    case "dailyReview":
+      // Keyed by nonce so each open restarts the stack from a fresh snapshot.
+      return (
+        <DailyReview
+          key={request.nonce}
+          queue={request.reviewQueue ?? []}
+          listId={request.listId ?? ""}
+          mediaDir={request.mediaDir ?? ""}
+          roster={request.roster ?? []}
+        />
+      );
     case "settings":
     default:
       return (

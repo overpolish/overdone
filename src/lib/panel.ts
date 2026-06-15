@@ -8,6 +8,7 @@ import { emit } from "@tauri-apps/api/event";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+import { getReviewQueue, type ReviewEntry } from "./daily-review";
 import { emptyCriteria, isRevealEffective, useFilters } from "./filters";
 import { type TodoState } from "./todo";
 import { type Assignee, type Comment, type Label, type TodoData, useTodos } from "./todos";
@@ -20,7 +21,8 @@ export type PanelView =
   | "search"
   | "filter"
   | "details"
-  | "assignee";
+  | "assignee"
+  | "dailyReview";
 
 export interface PanelAnchor {
   /** Logical-pixel screen coordinates for the panel's top-left corner. */
@@ -62,6 +64,9 @@ export interface PanelRequest {
   /** Details-view payload: the item's created / last-updated times (epoch ms). */
   createdAt?: number;
   updatedAt?: number;
+  /** Daily-review payload: a snapshot of the items to step through, each tagged
+   * with why it surfaced (most-urgent reason first). */
+  reviewQueue?: ReviewEntry[];
 }
 
 let nonce = 0;
@@ -107,6 +112,30 @@ export function openListsPanel() {
 export function openSettingsPanel() {
   const { assignees, labels } = useTodos.getState();
   openPanel({ view: "settings", roster: assignees, labels });
+}
+
+/**
+ * Open the daily review over a snapshot of the active list's queue (items that
+ * need attention today). Centered under the titlebar like settings; carries the
+ * roster + media folder so each card can edit status and add a comment. The
+ * queue is computed here so the banner and the panel agree on its contents.
+ */
+export async function openReviewPanel(options?: { force?: boolean }) {
+  const { items, assignees: roster, activeId } = useTodos.getState();
+  const reviewQueue = getReviewQueue(items, Date.now());
+  // The daily banner only fires with a non-empty queue; a manual "Start now"
+  // forces it open even when nothing's pending (lands on the "all caught up" card).
+  if (reviewQueue.length === 0 && !options?.force) return;
+  const listId = activeId ?? "";
+  const mediaDir = listId ? await join(await appDataDir(), "media", listId) : "";
+  openPanel({ view: "dailyReview", reviewQueue, roster, listId, mediaDir });
+}
+
+/** Request the main window open the daily review. Emitted from the Settings
+ * "Start now" button, which runs in the panel webview and so can't reach the
+ * list store to build the queue itself. */
+export function emitOpenReview() {
+  void emit("review:open");
 }
 
 /** Hide the panel (after a status pick, etc.). */
@@ -182,6 +211,18 @@ export function emitDatesAction(action: DatesAction) {
   void emit("dates:action", action);
 }
 
+/** A "snooze" picked in the daily review: push the item's due date and/or
+ * reminder out by `days` and acknowledge any fired reminder, so it drops off
+ * today's queue and resurfaces later. Applied in the main window. */
+export interface ReviewAction {
+  itemId: string;
+  days: number;
+}
+
+export function emitReviewAction(action: ReviewAction) {
+  void emit("review:action", action);
+}
+
 /** A roster-management change made in Settings, sent to the main window. */
 export type RosterAction =
   | { type: "add"; assignee: Assignee }
@@ -246,6 +287,18 @@ export interface DatesSync {
 
 export function emitDatesSync(sync: DatesSync) {
   void emit("dates:sync", sync);
+}
+
+/** The main window's current per-item comment logs, pushed to an open details
+ * panel so its log reflects changes from elsewhere (undo/redo, a delete made
+ * after it opened) without a reopen. */
+export interface CommentsSync {
+  /** Each item's comment log, keyed by item id. */
+  byItem: Record<string, Comment[]>;
+}
+
+export function emitCommentsSync(sync: CommentsSync) {
+  void emit("comments:sync", sync);
 }
 
 /**

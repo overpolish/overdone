@@ -7,8 +7,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import dayjs from "dayjs";
 import { useEffect, useRef } from "react";
 
+import { dayKey } from "./daily-review";
+import { useDailyReviewState } from "./daily-review-state";
 import { bindMainWindow } from "./main-sync";
 import { notify } from "./notifications";
 import {
@@ -20,8 +23,10 @@ import {
   type LabelRosterAction,
   openFilterPanel,
   openListsPanel,
+  openReviewPanel,
   openSearchPanel,
   openSettingsPanel,
+  type ReviewAction,
   type RosterAction,
   type StatusAction,
 } from "./panel";
@@ -116,6 +121,39 @@ export function usePanelActionListeners() {
   // Apply notification-time / due-date changes made in the details panel.
   useTauriEvent<DatesAction>("dates:action", ({ itemId, notifyAt, dueDate }) => {
     useTodos.getState().setItemDates(itemId, { notifyAt, dueDate });
+  });
+
+  // Snooze from the daily review: defer the item by `days`, so it drops off
+  // today's queue and resurfaces later. "Defer", not "+days": an item overdue by
+  // a week snoozes to tomorrow, not to one day past its (already-past) date - we
+  // anchor to the later of its date and now, so the move is always forward. Due
+  // dates are local-midnight date-only (kept that way); a fired reminder re-arms
+  // (keeping its time of day) and its fired flag is cleared.
+  useTauriEvent<ReviewAction>("review:action", ({ itemId, days }) => {
+    const todos = useTodos.getState();
+    const it = todos.items.find((i) => i.id === itemId);
+    if (!it) return;
+    const now = dayjs();
+    const deferDay = (ms: number) => {
+      const base = Math.max(dayjs(ms).startOf("day").valueOf(), now.startOf("day").valueOf());
+      return dayjs(base).add(days, "day").startOf("day").valueOf();
+    };
+    const deferTime = (ms: number) =>
+      dayjs(Math.max(ms, now.valueOf())).add(days, "day").valueOf();
+    const reminder = it.notifyAt ?? it.notifiedAt;
+    todos.setItemDates(itemId, {
+      dueDate: it.dueDate != null ? deferDay(it.dueDate) : undefined,
+      notifyAt: reminder != null ? deferTime(reminder) : undefined,
+    });
+    if (it.notifiedAt != null) todos.dismissNotification(itemId);
+  });
+
+  // Manual "Start now" from Settings (which runs in the panel webview and can't
+  // reach the list store): open the review here, forced so it opens even with
+  // nothing pending. Counts as engaging today, so the daily banner won't also nag.
+  useTauriEvent("review:open", () => {
+    useDailyReviewState.getState().markSeen(dayKey(Date.now()));
+    void openReviewPanel({ force: true });
   });
 
   // Clear the "item being edited" row highlight when the panel hides (blur,

@@ -6,6 +6,7 @@
 import { Stack, Text } from "@mantine/core";
 import { IconFilter, IconKeyboard } from "@tabler/icons-react";
 
+import { DailyReviewBanner } from "./components/DailyReviewBanner";
 import { Footer } from "./components/Footer";
 import { ItemContextMenu } from "./components/ItemContextMenu";
 import { ScrollArea } from "./components/ScrollArea";
@@ -67,6 +68,8 @@ function App() {
       }}
     >
       <Titlebar />
+
+      <DailyReviewBanner />
 
       <ScrollArea radius={0} style={{ flex: 1 }}>
         <Stack gap={0} p="sm" pos="relative">

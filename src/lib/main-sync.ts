@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { broadcastListsChanged, setRenameWriter, useLists } from "./lists";
 import { serializeList, setMarkdownTitle } from "./markdown";
-import { emitAssigneesSync, emitDatesSync, emitLabelsSync } from "./panel";
+import { emitAssigneesSync, emitCommentsSync, emitDatesSync, emitLabelsSync } from "./panel";
 import { useTodos } from "./todos";
 
 /**
@@ -86,6 +86,18 @@ export function bindMainWindow() {
           state.items.map((i) => [i.id, { notifyAt: i.notifyAt, dueDate: i.dueDate }]),
         ),
       });
+    }
+    // Same for an open details panel's comment log (undo/redo of a comment, or a
+    // delete from elsewhere). Only when some item's comments reference actually
+    // changed - a text edit keeps the same comments array, so this stays quiet.
+    if (state.items !== prev.items) {
+      const before = new Map(prev.items.map((i) => [i.id, i.comments]));
+      const changed = state.items.some((i) => before.get(i.id) !== i.comments);
+      if (changed) {
+        emitCommentsSync({
+          byItem: Object.fromEntries(state.items.map((i) => [i.id, i.comments ?? []])),
+        });
+      }
     }
 
     if (
