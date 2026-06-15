@@ -5,6 +5,7 @@
 
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
+import "overlayscrollbars/styles/overlayscrollbars.css";
 import "./theme.css";
 
 import { ColorSchemeScript, MantineProvider } from "@mantine/core";

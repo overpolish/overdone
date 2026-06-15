@@ -39,6 +39,8 @@
     "chrono-node": "^2.9.1",
     "dayjs": "^1.11.21",
     "mermaid": "^11.15.0",
+    "overlayscrollbars": "^2.16.0",
+    "overlayscrollbars-react": "^0.5.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zustand": "^5.0.14"

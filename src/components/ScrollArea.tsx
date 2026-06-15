@@ -5,9 +5,13 @@
 
 import { useComputedColorScheme } from "@mantine/core";
 import {
+  OverlayScrollbarsComponent,
+  type OverlayScrollbarsComponentRef,
+} from "overlayscrollbars-react";
+import {
   type CSSProperties,
   type ReactNode,
-  useEffect,
+  useCallback,
   useRef,
   useState,
 } from "react";
@@ -24,7 +28,7 @@ interface ScrollAreaProps {
    * radius; pass `0` to opt out (e.g. a full-bleed, window-filling scroll).
    */
   radius?: number | string;
-  /** Hide the native scrollbar (the fade shadows still cue that there's more). */
+  /** Hide the scrollbar (the fade shadows still cue that there's more). */
   hideScrollbar?: boolean;
   /** Applied to the outer (positioned) container. */
   style?: CSSProperties;
@@ -35,6 +39,10 @@ interface ScrollAreaProps {
  * when there's more content to scroll to in that direction - a cue that the
  * list continues past the edge. The container is rounded and clips its content,
  * so the shadows round with it instead of squaring off at the corners.
+ *
+ * Scrolling is handled by OverlayScrollbars rather than the platform: we render
+ * our own slim, floating scrollbar (see `.os-theme-overdone`) so the look is
+ * identical on macOS and Windows instead of inheriting each OS's native bar.
  */
 export function ScrollArea({
   children,
@@ -43,39 +51,30 @@ export function ScrollArea({
   hideScrollbar,
   style,
 }: ScrollAreaProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const osRef = useRef<OverlayScrollbarsComponentRef>(null);
   // 0..1 strength of each shadow, scaled by how far there is to scroll.
   const [top, setTop] = useState(0);
   const [bottom, setBottom] = useState(0);
   const dark = useComputedColorScheme("light") === "dark";
 
-  useEffect(() => {
-    const el = scrollRef.current;
+  // Recompute shadow strengths from the OverlayScrollbars viewport (its internal
+  // scroll element, not the host). Driven by the instance's `scroll` and
+  // `updated` events, the latter covering viewport resize and content changes.
+  const update = useCallback(() => {
+    const el = osRef.current?.osInstance()?.elements().viewport;
     if (!el) return;
-    const update = () => {
-      const maxScroll = el.scrollHeight - el.clientHeight;
-      if (maxScroll <= 0) {
-        setTop(0);
-        setBottom(0);
-        return;
-      }
-      // Strength tracks scroll position across the whole range: the top shadow
-      // grows from 0 (at the top) to full (at the bottom), the bottom shadow the
-      // reverse.
-      const frac = el.scrollTop / maxScroll;
-      setTop(frac);
-      setBottom(1 - frac);
-    };
-    update();
-    el.addEventListener("scroll", update, { passive: true });
-    // Track both the viewport size and the content height (items added/removed).
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    if (el.firstElementChild) ro.observe(el.firstElementChild);
-    return () => {
-      el.removeEventListener("scroll", update);
-      ro.disconnect();
-    };
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll <= 0) {
+      setTop(0);
+      setBottom(0);
+      return;
+    }
+    // Strength tracks scroll position across the whole range: the top shadow
+    // grows from 0 (at the top) to full (at the bottom), the bottom shadow the
+    // reverse.
+    const frac = el.scrollTop / maxScroll;
+    setTop(frac);
+    setBottom(1 - frac);
   }, []);
 
   const alpha = dark ? 0.4 : 0.14;
@@ -92,17 +91,25 @@ export function ScrollArea({
         ...style,
       }}
     >
-      <div
-        ref={scrollRef}
-        className={hideScrollbar ? "hide-scrollbar" : undefined}
-        style={{
-          overflowY: "auto",
-          maxHeight: maxHeight ?? "100%",
-          overscrollBehavior: "none",
+      <OverlayScrollbarsComponent
+        ref={osRef}
+        defer
+        options={{
+          overflow: { x: "hidden", y: "scroll" },
+          scrollbars: {
+            theme: "os-theme-overdone",
+            // Show while the pointer is over the area, then fade; matches the
+            // unobtrusive feel of a native overlay scrollbar.
+            autoHide: "leave",
+            autoHideDelay: 500,
+            visibility: hideScrollbar ? "hidden" : "visible",
+          },
         }}
+        events={{ scroll: update, updated: update }}
+        style={{ maxHeight: maxHeight ?? "100%" }}
       >
         {children}
-      </div>
+      </OverlayScrollbarsComponent>
       <Shadow side="top" strength={top} alpha={alpha} />
       <Shadow side="bottom" strength={bottom} alpha={alpha} />
     </div>
@@ -131,6 +138,8 @@ function Shadow({
         pointerEvents: "none",
         background: `linear-gradient(${dir}, rgba(0,0,0,${alpha}), rgba(0,0,0,0))`,
         opacity: strength,
+        // Sit above the OverlayScrollbars viewport so the fade isn't scrolled away.
+        zIndex: 1,
       }}
     />
   );

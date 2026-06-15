@@ -443,3 +443,26 @@ video {
 .hide-scrollbar::-webkit-scrollbar {
   display: none; /* WebKit / WKWebView */
 }
+
+/* Overlay-scrollbar theme (OverlayScrollbars). We render our own scrollbars
+   rather than the platform's so the look is identical on macOS and Windows: a
+   slim, rounded handle that floats over content and only shows while scrolling.
+   Colours are pulled from Mantine vars so they track the active color scheme. */
+.os-theme-overdone {
+  --os-size: 10px;
+  --os-padding-perpendicular: 2px;
+  --os-padding-axis: 2px;
+  --os-track-border-radius: 10px;
+  --os-handle-border-radius: 10px;
+  /* Pad the handle's hit area so it's easy to grab without widening the track. */
+  --os-handle-interactive-area-offset: 4px;
+  --os-handle-bg: color-mix(in srgb, var(--mantine-color-text) 22%, transparent);
+  --os-handle-bg-hover: color-mix(in srgb, var(--mantine-color-text) 38%, transparent);
+  --os-handle-bg-active: color-mix(in srgb, var(--mantine-color-text) 50%, transparent);
+}
+
+/* Don't let a scroll that bottoms out chain to the window (rubber-banding the
+   whole panel). Applies to every OverlayScrollbars viewport in the app. */
+[data-overlayscrollbars-viewport] {
+  overscroll-behavior: none;
+}
