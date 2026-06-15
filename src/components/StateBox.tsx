@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
+import { useLayoutEffect, useRef } from "react";
+
 import { todoStateMeta, type TodoState } from "../lib/todo";
 
 export const BOX_SIZE = 16;
@@ -22,6 +24,23 @@ interface StateBoxProps {
 export function StateBox({ state, size = BOX_SIZE, optical = false }: StateBoxProps) {
   const { color, icon: Icon, iconNudgeY } = todoStateMeta(state);
   const filled = color != null;
+  // The box follows variable-width content (chip labels, the wrapping status row)
+  // so its left edge lands at a different fractional device-pixel offset on every
+  // instance. The icon is exactly centered in the box, but when the box straddles
+  // a physical pixel the thin glyph strokes (e.g. the in-progress circle) smear
+  // asymmetrically and read as shoved left/right - WKWebView doesn't snap
+  // composited layers, so translateZ can't fix it. Measure the sub-pixel
+  // remainder and nudge the box onto the device grid so the glyph stays crisp.
+  const boxRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.transform = "none";
+    const { left } = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const snapped = Math.round(left * dpr) / dpr;
+    el.style.transform = `translateX(${snapped - left}px)`;
+  });
   // Snap to an even integer (~0.7 of the box) so the glyph sits on whole pixels
   // and stays centered - a fractional size leaves it visibly off (e.g. the
   // clock's round face) at the 16px dropdown size.
@@ -32,6 +51,7 @@ export function StateBox({ state, size = BOX_SIZE, optical = false }: StateBoxPr
 
   return (
     <div
+      ref={boxRef}
       style={{
         width: size,
         height: size,
