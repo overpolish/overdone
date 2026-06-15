@@ -37,9 +37,6 @@ export function AssigneeAvatar({
         // Avoid sitting on the text baseline when used in an inline context.
         verticalAlign: "middle",
         background: assignee.color,
-        // A subtle ring so overlapping avatars stay visually separated against
-        // any background.
-        boxShadow: "0 0 0 1.5px var(--mantine-color-body)",
       }}
     >
       {initials(assignee.name)}
@@ -53,9 +50,13 @@ export function AssigneeAvatar({
   );
 }
 
-/** Empty-state control: a dashed circle with a plus, to add a first assignee. */
+/** Empty-state control: an add-circle to add a first assignee. `size` is the
+ * avatar-disc footprint to match (not the raw icon size): IconCirclePlus insets
+ * its ring to ~75% of the icon box, so we draw the icon larger and center it in
+ * a `size`-wide box (the overflow is transparent). That makes its visible ring
+ * the same diameter and center as a filled avatar disc in adjacent rows. */
 export function AddAssigneeButton({
-  size = 18,
+  size = 14,
   onClick,
 }: {
   size?: number;
@@ -67,19 +68,27 @@ export function AddAssigneeButton({
         aria-label="Assign someone"
         onClick={onClick}
         style={{
+          width: size,
+          height: size,
+          flexShrink: 0,
           display: "flex",
-          color: "var(--mantine-color-dimmed)",
-          // Circular focus ring to match the round add-circle icon.
+          alignItems: "center",
+          justifyContent: "center",
           borderRadius: "50%",
+          // Match the row's details/comment icon (subtle gray ActionIcon); no
+          // hover state of its own - the row's hover already reveals it.
+          color: "var(--mantine-color-gray-light-color)",
         }}
       >
-        <IconCirclePlus size={size} stroke={1.8} />
+        <IconCirclePlus size={Math.round(size / 0.75)} stroke={1.8} />
       </UnstyledButton>
     </Tooltip>
   );
 }
 
-/** An overlapping stack of avatars; collapses the overflow into a "+k" chip. */
+/** A row of avatars; collapses the overflow into a "+k" chip. Now that avatars
+ * are ringless, they sit side by side with a small gap rather than overlapping
+ * (which relied on the ring to stay separated). */
 export function AssigneeAvatars({
   assignees,
   size = 20,
@@ -93,14 +102,9 @@ export function AssigneeAvatars({
   const shown = assignees.slice(0, max);
   const extra = assignees.length - shown.length;
   return (
-    <div style={{ display: "flex", alignItems: "center", paddingInline: 2 }}>
-      {shown.map((a, i) => (
-        <div
-          key={a.id}
-          style={{ display: "flex", marginLeft: i === 0 ? 0 : -size * 0.35 }}
-        >
-          <AssigneeAvatar assignee={a} size={size} />
-        </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      {shown.map((a) => (
+        <AssigneeAvatar key={a.id} assignee={a} size={size} />
       ))}
       {extra > 0 && (
         <Tooltip
@@ -112,7 +116,6 @@ export function AssigneeAvatars({
             style={{
               width: size,
               height: size,
-              marginLeft: -size * 0.35,
               borderRadius: "50%",
               flexShrink: 0,
               display: "inline-flex",
@@ -122,7 +125,6 @@ export function AssigneeAvatars({
               fontWeight: 600,
               color: "var(--mantine-color-dimmed)",
               background: "var(--mantine-color-default)",
-              boxShadow: "0 0 0 1.5px var(--mantine-color-body)",
             }}
           >
             +{extra}

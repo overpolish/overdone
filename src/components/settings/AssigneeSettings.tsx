@@ -111,7 +111,7 @@ export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
                     onClick={() => recolor(a.id, randomColor())}
                     style={{ display: "flex", borderRadius: "50%" }}
                   >
-                    <AssigneeAvatar assignee={a} size={24} withTooltip={false} />
+                    <AssigneeAvatar assignee={a} size={14} withTooltip={false} />
                   </UnstyledButton>
                 </Tooltip>
                 <TextInput

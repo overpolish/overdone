@@ -132,13 +132,11 @@ export function ItemControls({
             // for a stack) rather than a sharp rectangle.
             style={{ display: "flex", alignItems: "center", borderRadius: 999 }}
           >
-            {/* 14px disc matches the IconCirclePlus's drawn ring at size 18
-                (Tabler insets the circle to ~75% of the icon box). */}
             <AssigneeAvatars assignees={assignees} size={14} />
           </UnstyledButton>
         ) : (
           <AddAssigneeButton
-            size={18}
+            size={14}
             onClick={() => {
               if (assigneeRef.current) void openAssigneePanel(assigneeRef.current, item.id);
             }}
