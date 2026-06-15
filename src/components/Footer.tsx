@@ -72,15 +72,16 @@ export function Footer() {
               padding: 0,
               minHeight: 0,
               height: "auto",
+              borderRadius: 0,
               fontSize: "11px",
               fontWeight: 600,
               lineHeight: 1.3,
             },
           }}
         />
-        {/* Per-state counts (colored by state) then the total, e.g. "3 1 2 (6)
-            items". While filtered, counts cover the visible subset and the total
-            reads "X of Y". */}
+        {/* Per-state counts (colored by state) then the total, e.g. "3 1 2 (6)".
+            While filtered, counts cover the visible subset and the total reads
+            "X of Y". */}
         <Text c="dimmed" style={{ flexShrink: 0, fontSize: "10px" }}>
           {TODO_STATES.map((meta) => (
             <Text
@@ -94,7 +95,7 @@ export function Footer() {
               {visible.filter((i) => i.state === meta.value).length}
             </Text>
           ))}
-          {filtered ? `(${visible.length} of ${items.length})` : `(${items.length})`} items
+          {filtered ? `(${visible.length} of ${items.length})` : `(${items.length})`}
         </Text>
       </Group>
     </Box>

@@ -22,6 +22,7 @@ import {
 } from "./lib/main-events";
 import { useDrag } from "./lib/reorder";
 import { useTodos } from "./lib/todos";
+import { useUpdateCheck } from "./lib/update";
 
 /** Line showing where a dragged item will land (positioned via the drag store). */
 function DropIndicator() {
@@ -56,6 +57,7 @@ function App() {
   useNotificationScheduler(items);
   useTrayAlert(items);
   useGlobalKeyboard();
+  useUpdateCheck();
 
   return (
     <div

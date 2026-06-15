@@ -194,6 +194,83 @@ video {
   cursor: text;
 }
 
+/* GitHub-rendered release notes (`body_html`), tuned compact for the update
+ * panel. GitHub's HTML uses headings / code / blockquotes that the comment body
+ * never produces, so they're styled here rather than reusing `.comment-body`. */
+.release-notes > :first-child {
+  margin-top: 0;
+}
+.release-notes > :last-child {
+  margin-bottom: 0;
+}
+.release-notes p {
+  margin: 0.4em 0;
+}
+.release-notes h1,
+.release-notes h2,
+.release-notes h3,
+.release-notes h4,
+.release-notes h5,
+.release-notes h6 {
+  margin: 0.8em 0 0.3em;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.release-notes ul,
+.release-notes ol {
+  margin: 0.3em 0;
+  padding-left: 1.4em;
+}
+.release-notes li {
+  margin: 0.15em 0;
+}
+.release-notes a {
+  color: var(--mantine-color-anchor);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.release-notes img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.4em 0;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--mantine-color-default-border);
+}
+.release-notes code {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.9em;
+  padding: 0.05em 0.3em;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+.release-notes pre {
+  margin: 0.4em 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+.release-notes pre code {
+  padding: 0;
+  background: none;
+  border: none;
+}
+.release-notes blockquote {
+  margin: 0.4em 0;
+  padding-left: 0.8em;
+  border-left: 2px solid var(--mantine-color-default-border);
+  color: var(--mantine-color-dimmed);
+}
+.release-notes hr {
+  margin: 0.6em 0;
+  border: none;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
 /* Mermaid diagram node in the composer: a compact render with a hover toolbar;
  * editing opens the full-screen modal. */
 .mermaid-node {

@@ -19,6 +19,7 @@ import { Lists } from "./Lists";
 import { Search } from "./Search";
 import { Settings } from "./settings";
 import { StatusPicker } from "./StatusPicker";
+import { UpdatePanel } from "./UpdatePanel";
 
 /** Round up the content's rendered size to whole logical pixels. */
 function measure(el: HTMLElement): { width: number; height: number } {
@@ -101,6 +102,8 @@ function renderView(
           roster={request.roster ?? []}
         />
       );
+    case "update":
+      return <UpdatePanel version={request.updateVersion ?? ""} notes={request.updateNotes} />;
     case "settings":
     default:
       return (

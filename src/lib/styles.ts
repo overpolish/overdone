@@ -34,3 +34,9 @@ export const warningBg = (dark: boolean): string =>
 /** Foreground (icon/text) color for a warning control. */
 export const warningFg = (dark: boolean): string =>
   dark ? "var(--mantine-color-amber-4)" : "var(--mantine-color-amber-6)";
+
+/** Foreground (icon/text) color for an informational "update available" accent,
+ * in the blue family. Brighter blue on dark surfaces, deeper on light, mirroring
+ * the danger/warning helpers. */
+export const updateFg = (dark: boolean): string =>
+  dark ? "var(--mantine-color-blue-4)" : "var(--mantine-color-blue-6)";

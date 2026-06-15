@@ -22,7 +22,8 @@ export type PanelView =
   | "filter"
   | "details"
   | "assignee"
-  | "dailyReview";
+  | "dailyReview"
+  | "update";
 
 export interface PanelAnchor {
   /** Logical-pixel screen coordinates for the panel's top-left corner. */
@@ -67,6 +68,9 @@ export interface PanelRequest {
   /** Daily-review payload: a snapshot of the items to step through, each tagged
    * with why it surfaced (most-urgent reason first). */
   reviewQueue?: ReviewEntry[];
+  /** Update-view payload: the newly-available version and its changelog. */
+  updateVersion?: string;
+  updateNotes?: string;
 }
 
 let nonce = 0;
@@ -112,6 +116,13 @@ export function openListsPanel() {
 export function openSettingsPanel() {
   const { assignees, labels } = useTodos.getState();
   openPanel({ view: "settings", roster: assignees, labels });
+}
+
+/** Open the update panel: the new version and its changelog, with a link out to
+ * the store. The values are passed in because the panel runs in its own webview
+ * and can't reach the main window's update store. */
+export function openUpdatePanel(version: string, notes: string | null) {
+  openPanel({ view: "update", updateVersion: version, updateNotes: notes ?? undefined });
 }
 
 /**

@@ -24,6 +24,7 @@ import {
 import { useTodos } from "../lib/todos";
 import { startTitlebarDrag } from "../lib/window-drag";
 import { IconButton } from "./IconButton";
+import { UpdateButton } from "./UpdateButton";
 
 const TITLEBAR_HEIGHT = 38;
 
@@ -104,6 +105,7 @@ export function Titlebar() {
           icon={IconMinus}
           onClick={() => void invoke("hide_to_tray")}
         />
+        <UpdateButton />
       </Group>
 
       {/* Add + lists on the right, mirroring the window controls on the left. */}
