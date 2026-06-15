@@ -1,0 +1,31 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main", "panel"],
+  "permissions": [
+    "core:default",
+    "os:default",
+    "notification:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-inner-position",
+    "core:window:allow-scale-factor",
+    "core:window:allow-set-focus",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "dialog:allow-save",
+    "dialog:allow-open",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$APPDATA/media/**" }]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }]
+    },
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
+  ]
+}

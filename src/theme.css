@@ -1,0 +1,468 @@
+/*
+ * SPDX-FileCopyrightText: 2026 overpolish
+ * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+ */
+
+/*
+ * shadcn-style neutral primary needs an explicit foreground per color scheme.
+ * The primary *background* flips between schemes (near-black in light,
+ * near-white in dark via primaryShade), but Mantine's core styles pin
+ * `--mantine-primary-color-contrast` to white inside the high-specificity
+ * `:root[data-mantine-color-scheme='dark']` rule - so filled controls end up
+ * white-on-white in dark mode. We must match that selector (and source order
+ * after Mantine's styles) to win, like shadcn's `--primary-foreground`.
+ */
+:root[data-mantine-color-scheme="light"],
+:host([data-mantine-color-scheme="light"]) {
+  --mantine-primary-color-contrast: var(--mantine-color-white);
+}
+
+:root[data-mantine-color-scheme="dark"],
+:host([data-mantine-color-scheme="dark"]) {
+  --mantine-primary-color-contrast: var(--mantine-color-black);
+}
+
+/*
+ * @mantine/dates hardcodes white text on its *filled* picker surfaces - the
+ * focused time-field segment and the active month/year controls - instead of
+ * using the contrast var (the selected day already gets it right). Our neutral
+ * primary fill is near-*white* in dark mode, so those read white-on-white. Route
+ * them through the same scheme-aware contrast var, like the fix above. Scoped to
+ * the picker dropdown and ordered after Mantine's styles to win.
+ */
+.mantine-Popover-dropdown [data-active],
+.mantine-Popover-dropdown .mantine-TimePicker-field:focus {
+  color: var(--mantine-primary-color-contrast);
+}
+.mantine-Popover-dropdown .mantine-TimePicker-field:focus::placeholder {
+  color: var(--mantine-primary-color-contrast);
+}
+
+/*
+ * Mantine paints weekend days red (--mantine-color-red-6) in the calendar. The
+ * alarm-red reads like an error here, so neutralize it to the normal day text
+ * color - weekends still stand apart by column position. Matched on the
+ * [data-weekend] attribute (not the hashed/per-component day class) so it covers
+ * every picker; the two classes give it more specificity than Mantine's
+ * `:where()` rule, and theme.css loads after, so it wins. Selected/disabled/
+ * outside days are excluded, keeping their own colors.
+ */
+.mantine-Popover-dropdown [data-weekend]:not([data-selected]):not([data-disabled]):not([data-outside]) {
+  color: var(--mantine-color-text);
+}
+
+/*
+ * No rubber-band overscroll anywhere: the window is a fixed-size app surface,
+ * not a scrollable page. Inner scroll regions opt back in as needed.
+ */
+html,
+body,
+#root {
+  overscroll-behavior: none;
+  height: 100%;
+}
+
+/*
+ * The window is an app surface, not a document: text selection is off by
+ * default everywhere (headings, labels, thumbnails, chrome), so dragging never
+ * leaves stray highlights. Selection opts back in only where text is meant to
+ * be read or edited - form inputs, the comment editor, and rendered comments.
+ */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"],
+.comment-body {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* Images/video are never selectable, even inside an opted-in comment body. */
+img,
+video {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Comment rich-text editor, styled to read like a plain text input: a bordered
+ * box that shows a focus ring, with a comfortable minimum typing area. */
+.comment-input {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  transition: border-color 120ms ease;
+}
+.comment-input:focus-within {
+  border-color: var(--mantine-primary-color-filled);
+}
+.comment-input .ProseMirror {
+  min-height: 2.4em;
+  padding: 5px 8px;
+  font-size: var(--mantine-font-size-xs);
+  outline: none;
+}
+.comment-input .ProseMirror p {
+  margin: 0;
+}
+.comment-input .ProseMirror ul,
+.comment-input .ProseMirror ol {
+  margin: 0.2em 0;
+  padding-left: 1.4em;
+}
+.comment-input .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--mantine-color-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Edit/delete actions on a comment tile, revealed on hover or keyboard focus.
+ * Done in CSS (not React hover state) on purpose: re-rendering the row on
+ * mouse-out re-applies the body's innerHTML and collapses an in-progress text
+ * selection. Opacity (not display) keeps the buttons focusable for tabbing. */
+.comment-actions {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.comment-row:hover .comment-actions,
+.comment-row:focus-within .comment-actions {
+  opacity: 1;
+}
+
+/* Rendered comment HTML (bold / underline / bullet + ordered lists from the
+ * editor), kept tight so entries read as compact log lines. */
+.comment-body > :first-child {
+  margin-top: 0;
+}
+.comment-body > :last-child {
+  margin-bottom: 0;
+}
+.comment-body p {
+  margin: 0;
+}
+.comment-body p + p {
+  margin-top: 0.4em;
+}
+.comment-body ul,
+.comment-body ol {
+  margin: 0.2em 0;
+  padding-left: 1.4em;
+}
+
+/* Embedded attachments (in both the editor and rendered comments): constrained
+ * thumbnails, centered, rather than filling the panel width. */
+.comment-body img,
+.comment-body video,
+.comment-input .ProseMirror img,
+.comment-input .ProseMirror video {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  width: auto;
+  height: auto;
+  border-radius: var(--mantine-radius-sm);
+  margin: 0.3em auto;
+}
+/* Rendered comment images expand to full size on click. */
+.comment-body img {
+  cursor: zoom-in;
+}
+/* Selected attachment in the editor (atom node). */
+.comment-input .ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+/* Links in comments (rendered and in the editor) are plain <a> tags, so match
+ * them to Mantine's Anchor - which the Links section uses - rather than the
+ * browser-default blue: same color, always underlined. */
+.comment-body a,
+.comment-input .ProseMirror a {
+  color: var(--mantine-color-anchor);
+  text-decoration: underline;
+}
+/* Rendered comments: a link is clickable (opens in the browser). */
+.comment-body a {
+  cursor: pointer;
+}
+/* In the editor a link is editable text: clicking places the caret, so keep the
+ * text cursor (the floating bubble offers open / edit / unlink). */
+.comment-input .ProseMirror a {
+  cursor: text;
+}
+
+/* GitHub-rendered release notes (`body_html`), tuned compact for the update
+ * panel. GitHub's HTML uses headings / code / blockquotes that the comment body
+ * never produces, so they're styled here rather than reusing `.comment-body`. */
+.release-notes > :first-child {
+  margin-top: 0;
+}
+.release-notes > :last-child {
+  margin-bottom: 0;
+}
+.release-notes p {
+  margin: 0.4em 0;
+}
+.release-notes h1,
+.release-notes h2,
+.release-notes h3,
+.release-notes h4,
+.release-notes h5,
+.release-notes h6 {
+  margin: 0.8em 0 0.3em;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.release-notes ul,
+.release-notes ol {
+  margin: 0.3em 0;
+  padding-left: 1.4em;
+}
+.release-notes li {
+  margin: 0.15em 0;
+}
+.release-notes a {
+  color: var(--mantine-color-anchor);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.release-notes img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.4em 0;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--mantine-color-default-border);
+}
+.release-notes code {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.9em;
+  padding: 0.05em 0.3em;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+.release-notes pre {
+  margin: 0.4em 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+.release-notes pre code {
+  padding: 0;
+  background: none;
+  border: none;
+}
+.release-notes blockquote {
+  margin: 0.4em 0;
+  padding-left: 0.8em;
+  border-left: 2px solid var(--mantine-color-default-border);
+  color: var(--mantine-color-dimmed);
+}
+.release-notes hr {
+  margin: 0.6em 0;
+  border: none;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+/* Mermaid diagram node in the composer: a compact render with a hover toolbar;
+ * editing opens the full-screen modal. */
+.mermaid-node {
+  position: relative;
+  margin: 0.4em 0;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+}
+.mermaid-node[data-selected] {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+.mermaid-node-render {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  background: var(--mantine-color-default);
+}
+.mermaid-node-render svg {
+  max-width: 100%;
+  max-height: 160px;
+  height: auto;
+}
+.mermaid-node-toolbar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.mermaid-node:hover .mermaid-node-toolbar {
+  opacity: 1;
+}
+.mermaid-empty {
+  color: var(--mantine-color-placeholder);
+  font-size: var(--mantine-font-size-xs);
+}
+
+/* Rendered diagram in a read-only comment. Clicking opens the modal. */
+.comment-body .mermaid-rendered {
+  display: flex;
+  justify-content: center;
+  margin: 0.4em 0;
+  cursor: zoom-in;
+}
+.comment-body .mermaid-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Diagram modal: chrome-free, filling most of the panel window (which itself
+ * grows ~2x wide while the modal is open - see set_panel_expanded). View is one
+ * zoom/pan canvas; edit is a split source | live-preview. */
+.diagram-modal-body {
+  display: flex;
+  flex-direction: column;
+  width: 85vw;
+  height: 82vh;
+}
+
+/* Split source/preview editor. */
+.diagram-editor {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.diagram-editor-source {
+  width: 50%;
+  border: 0;
+  padding: 12px;
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+.diagram-editor-preview {
+  position: relative;
+  width: 50%;
+  display: flex;
+  border-left: 1px solid var(--mantine-color-default-border);
+}
+/* Syntax-error banner over the preview (the last good render stays visible). */
+.diagram-editor-error {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+}
+
+/* Diagram zoom/pan canvas, shared by view and edit-preview. */
+.diagram-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: var(--mantine-color-body);
+}
+.diagram-viewport--message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.diagram-viewport:active {
+  cursor: grabbing;
+}
+.diagram-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+  /* Static diagram: let every pointer/wheel/gesture event hit-test through to
+     the viewport, so pinch/drag work even when the cursor is over the graphics
+     (WebKit dispatches gesture events to the element under the cursor, and they
+     don't reach the viewport from inside the SVG otherwise). */
+  pointer-events: none;
+}
+.diagram-content svg {
+  display: block;
+}
+.diagram-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+}
+/* Mode actions (edit/close, or save/cancel) mirror the zoom controls, top-left. */
+.diagram-controls--left {
+  right: auto;
+  left: 8px;
+}
+/* Diagram syntax error (editor preview + rendered comment). */
+.mermaid-error {
+  display: block;
+  color: var(--mantine-color-red-6);
+  font-size: var(--mantine-font-size-xs);
+  font-family: var(--mantine-font-family-monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+/* Hide native scrollbars while keeping the element scrollable (the container
+   provides its own affordance, e.g. ScrollArea's fade shadows, or it's a small
+   inline overflow like a settings badge). */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* WebKit / WKWebView */
+}
+
+/* Overlay-scrollbar theme (OverlayScrollbars). We render our own scrollbars
+   rather than the platform's so the look is identical on macOS and Windows: a
+   slim, rounded handle that floats over content and only shows while scrolling.
+   Colours are pulled from Mantine vars so they track the active color scheme. */
+.os-theme-overdone {
+  --os-size: 10px;
+  --os-padding-perpendicular: 2px;
+  --os-padding-axis: 2px;
+  --os-track-border-radius: 10px;
+  --os-handle-border-radius: 10px;
+  /* Pad the handle's hit area so it's easy to grab without widening the track. */
+  --os-handle-interactive-area-offset: 4px;
+  --os-handle-bg: color-mix(in srgb, var(--mantine-color-text) 22%, transparent);
+  --os-handle-bg-hover: color-mix(in srgb, var(--mantine-color-text) 38%, transparent);
+  --os-handle-bg-active: color-mix(in srgb, var(--mantine-color-text) 50%, transparent);
+}
+
+/* Don't let a scroll that bottoms out chain to the window (rubber-banding the
+   whole panel). Applies to every OverlayScrollbars viewport in the app. */
+[data-overlayscrollbars-viewport] {
+  overscroll-behavior: none;
+}
