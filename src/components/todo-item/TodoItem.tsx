@@ -116,8 +116,8 @@ export function TodoItem({ item }: TodoItemProps) {
         />
       )}
       {/* Highlight backing the row while its editing panel is open. Behind the
-          content (zIndex -1) and bled out a touch so it reads as a padded
-          surface rather than a tight box. */}
+          content (zIndex -1). Bleeds only horizontally (like the status wash
+          above) - a vertical bleed would overlap the neighbouring rows. */}
       {editing && (
         <Box
           aria-hidden
@@ -125,7 +125,6 @@ export function TodoItem({ item }: TodoItemProps) {
             position: "absolute",
             inset: 0,
             marginInline: -8,
-            marginBlock: -2,
             borderRadius: "var(--mantine-radius-sm)",
             background: "var(--mantine-color-default-hover)",
             boxShadow: "inset 0 0 0 1px var(--mantine-color-default-border)",
