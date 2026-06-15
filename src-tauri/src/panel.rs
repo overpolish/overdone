@@ -155,10 +155,13 @@ pub fn open_panel(
     // is what used to snap it sideways when the panel was dismissed by clicking
     // the title bar (changing the level mid-click re-seats the native drag).
     state.panel_open.store(true, Ordering::Relaxed);
-    crate::platform::raise_panel_above(&panel, &main);
 
     let _ = panel.show();
     let _ = panel.set_focus();
+    // Seat the panel above main last: on Windows the z-order set by
+    // `raise_panel_above` is re-evaluated on activation, so it must run after
+    // `set_focus` to stick (on macOS the window level persists regardless).
+    crate::platform::raise_panel_above(&panel, &main);
 
     // Make sure the main window isn't left hidden by passthrough behind the panel.
     apply_passthrough(&app);

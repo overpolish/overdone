@@ -75,6 +75,8 @@ pub fn passthrough_inputs(window: &tauri::WebviewWindow) -> Option<(bool, bool)>
 
 #[cfg(target_os = "windows")]
 pub fn passthrough_inputs(window: &tauri::WebviewWindow) -> Option<(bool, bool)> {
+    use tauri::Manager;
+
     // The cursor position and window rect come from Tauri's cross-platform APIs
     // (both physical pixels in screen space), so they compare directly without any
     // Win32 coordinate math.
@@ -124,7 +126,55 @@ pub fn raise_panel_above(panel: &tauri::WebviewWindow, main: &tauri::WebviewWind
     panel_ns.setLevel(main_ns.level() + 1);
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows analog: both windows are always-on-top, so they share the topmost
+/// z-band and order only by activation - showing the panel doesn't reliably seat
+/// it above the main window, so it can appear behind it. `set_focus` is an
+/// unreliable way to raise a window on Windows, so force the order explicitly:
+/// `SetWindowPos` with `HWND_TOPMOST` moves the panel to the top of the topmost
+/// band (above main) regardless of activation, giving the same always-above-main
+/// ordering as macOS. `SWP_NOACTIVATE` leaves focus handling to `set_focus`.
+///
+/// Note the insert-after semantics: a window is placed *below* its
+/// `hwnd_insert_after` target, so passing `main`'s handle would seat the panel
+/// behind it - hence `HWND_TOPMOST`, not `main`.
+#[cfg(target_os = "windows")]
+pub fn raise_panel_above(panel: &tauri::WebviewWindow, _main: &tauri::WebviewWindow) {
+    use std::ffi::c_void;
+    type Hwnd = *mut c_void;
+    const HWND_TOPMOST: isize = -1;
+    const SWP_NOSIZE: u32 = 0x0001;
+    const SWP_NOMOVE: u32 = 0x0002;
+    const SWP_NOACTIVATE: u32 = 0x0010;
+    #[link(name = "user32")]
+    extern "system" {
+        fn SetWindowPos(
+            hwnd: Hwnd,
+            hwnd_insert_after: Hwnd,
+            x: i32,
+            y: i32,
+            cx: i32,
+            cy: i32,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let Ok(panel_hwnd) = panel.hwnd() else {
+        return;
+    };
+    unsafe {
+        SetWindowPos(
+            panel_hwnd.0 as Hwnd,
+            HWND_TOPMOST as Hwnd,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn raise_panel_above(_panel: &tauri::WebviewWindow, _main: &tauri::WebviewWindow) {}
 
 #[cfg(target_os = "macos")]
