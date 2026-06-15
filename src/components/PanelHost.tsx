@@ -9,7 +9,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { emitEditAction, type PanelRequest } from "../lib/panel";
+import { emitEditAction, type PanelRequest, setPanelPinned } from "../lib/panel";
 import { AssigneePanel } from "./AssigneePanel";
 import { DailyReview } from "./DailyReview";
 import { closeDiagramModal, useDiagramModalOpen } from "./diagram";
@@ -26,7 +26,11 @@ function measure(el: HTMLElement): { width: number; height: number } {
   return { width: Math.ceil(r.width), height: Math.ceil(r.height) };
 }
 
-function renderView(request: PanelRequest | null) {
+function renderView(
+  request: PanelRequest | null,
+  pinned: boolean,
+  onTogglePin: () => void,
+) {
   if (!request) return null;
   switch (request.view) {
     case "lists":
@@ -73,6 +77,8 @@ function renderView(request: PanelRequest | null) {
           dueDate={request.dueDate}
           createdAt={request.createdAt}
           updatedAt={request.updatedAt}
+          pinned={pinned}
+          onTogglePin={onTogglePin}
         />
       ) : null;
     case "assignee":
@@ -117,16 +123,45 @@ function renderView(request: PanelRequest | null) {
 export function PanelHost() {
   const [request, setRequest] = useState<PanelRequest | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  // Pin lives here (not in ItemDetails) so it survives the per-nonce remount when
+  // a pinned panel re-targets to another item - that swap must keep the pin lit
+  // and the panel in place. A ref mirrors it for the once-registered listeners.
+  const [pinned, setPinned] = useState(false);
+  const pinnedRef = useRef(pinned);
+  pinnedRef.current = pinned;
+  const togglePin = () => {
+    setPinned((p) => {
+      const next = !p;
+      setPanelPinned(next);
+      return next;
+    });
+  };
   // The in-panel diagram modal needs more room than the ~340px details panel; while
   // it's open, grow the panel window ~2x (centered) and restore it on close.
   const diagramOpen = useDiagramModalOpen();
   const wasExpanded = useRef(false);
 
-  // Receive open requests from the main window.
+  // Receive open requests from the main window. Pin is a details-only notion, so
+  // opening any other view drops it (and tells the backend), leaving that view to
+  // behave normally.
   useEffect(() => {
-    const unlisten = listen<PanelRequest>("panel:open", (e) =>
-      setRequest(e.payload),
-    );
+    const unlisten = listen<PanelRequest>("panel:open", (e) => {
+      setRequest(e.payload);
+      if (e.payload.view !== "details" && pinnedRef.current) {
+        setPinned(false);
+        setPanelPinned(false);
+      }
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  // When the panel actually closes (blur-dismiss, Escape, clicking the main
+  // window while unpinned) the backend clears its pin flag; mirror that here so a
+  // later open starts unpinned.
+  useEffect(() => {
+    const unlisten = listen("panel:closed", () => setPinned(false));
     return () => {
       void unlisten.then((off) => off());
     };
@@ -215,7 +250,7 @@ export function PanelHost() {
         overflowY: "auto",
       }}
     >
-      {renderView(request)}
+      {renderView(request, pinned, togglePin)}
     </Box>
   );
 }

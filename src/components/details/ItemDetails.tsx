@@ -4,7 +4,13 @@
  */
 
 import { Box, Button, Group, Stack, Text, Title } from "@mantine/core";
-import { IconCheck, IconListDetails } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconGripHorizontal,
+  IconListDetails,
+  IconPin,
+  IconPinFilled,
+} from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -21,6 +27,7 @@ import {
 import { type CommentsSync, closePanel, emitDetailsAction } from "../../lib/panel";
 import { type Assignee, type Comment, type Label } from "../../lib/todos";
 import { AssigneePicker, useAssigneeEditor } from "../AssigneePicker";
+import { IconButton } from "../IconButton";
 import { LabelPicker, useLabelEditor } from "../LabelPicker";
 import {
   CommentInput,
@@ -58,6 +65,11 @@ interface ItemDetailsProps {
   createdAt?: number;
   /** Epoch ms of the last edit to the item itself (text/state/nesting). */
   updatedAt?: number;
+  /** Whether the panel is pinned (owned by PanelHost so it survives re-targeting
+   * to another item). */
+  pinned: boolean;
+  /** Toggle the pin (keeps the panel up across app switches; floats it on top). */
+  onTogglePin: () => void;
 }
 
 /** A cheap fingerprint of a comment log - changes on any add, delete, or edit -
@@ -98,6 +110,8 @@ export function ItemDetails({
   dueDate: initialDueDate,
   createdAt,
   updatedAt,
+  pinned,
+  onTogglePin,
 }: ItemDetailsProps) {
   const [comments, setComments] = useState<Comment[]>(initial);
   const [draft, setDraft] = useState("");
@@ -221,6 +235,35 @@ export function ItemDetails({
         <Group gap={8} wrap="nowrap" align="center">
           <IconListDetails size={18} stroke={1.8} style={{ display: "block" }} />
           <Title order={5}>Details</Title>
+          <IconButton
+            label={pinned ? "Unpin panel" : "Pin panel (stays open while you copy from elsewhere)"}
+            icon={pinned ? IconPinFilled : IconPin}
+            active={pinned}
+            onClick={onTogglePin}
+          />
+          {/* While pinned, a small grab handle lets you slide the floating panel
+              out of the way of whatever you're copying from. A leaf drag region
+              (the grip is click-through) so the press always lands on it. */}
+          {pinned && (
+            <Box
+              data-tauri-drag-region
+              style={{
+                width: 22,
+                height: 22,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "grab",
+                opacity: 0.4,
+              }}
+            >
+              <IconGripHorizontal
+                size={16}
+                stroke={1.8}
+                style={{ display: "block", pointerEvents: "none" }}
+              />
+            </Box>
+          )}
         </Group>
         {(lastUpdated > 0 || createdAt) && (
           <Group gap={8} wrap="nowrap" align="center">

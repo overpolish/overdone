@@ -63,6 +63,7 @@ pub fn run() {
             panel::resize_panel,
             panel::set_panel_expanded,
             panel::close_panel,
+            panel::set_panel_pinned,
             commands::set_always_on_top,
             passthrough::set_passthrough,
             commands::set_content_protected,
@@ -132,8 +133,15 @@ pub fn run() {
                             .store(*focused, Ordering::Relaxed);
                         // Focus makes the window interactive even in passthrough.
                         apply_passthrough(&handle);
-                        if *focused {
-                            // Clicking the main window dismisses the popover panel.
+                        if *focused
+                            && !handle
+                                .state::<WindowState>()
+                                .panel_pinned
+                                .load(Ordering::Relaxed)
+                        {
+                            // Clicking the main window dismisses the popover panel
+                            // - unless it's pinned, which keeps it up so clicking
+                            // another item just swaps its content in place.
                             hide_panel(&handle);
                         }
                     }
@@ -172,6 +180,17 @@ pub fn run() {
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {
+                        // A pinned panel stays put when focus leaves to another
+                        // app, so you can copy something into a comment without it
+                        // vanishing. Clicking the main window still dismisses it
+                        // (the main window's focus handler clears the pin too).
+                        if app_handle
+                            .state::<WindowState>()
+                            .panel_pinned
+                            .load(Ordering::Relaxed)
+                        {
+                            return;
+                        }
                         // On macOS, ignore focus moving to a same-app system panel
                         // (the emoji & symbols viewer keeps the app active) so it
                         // doesn't dismiss us mid-edit. Switching apps deactivates

@@ -17,6 +17,11 @@ pub struct WindowState {
     /// below an item) rather than centered under the main title bar. Centered
     /// panels re-center when their content resizes; anchored ones stay put.
     pub panel_anchored: AtomicBool,
+    /// Whether the details panel is "pinned" by the user. A pinned panel doesn't
+    /// dismiss when focus leaves to another app (so you can copy something into a
+    /// comment) and floats on top of other apps while pinned. Clicking the main
+    /// window still dismisses it (and clears this); see `hide_panel`.
+    pub panel_pinned: AtomicBool,
     /// The panel's physical top-left captured just before it expanded for the
     /// diagram modal, so unexpanding restores the exact pre-expand position
     /// instead of re-deriving it (which drifts when expanding had to clamp the
@@ -46,6 +51,7 @@ impl Default for WindowState {
             always_on_top: AtomicBool::new(true),
             panel_open: AtomicBool::new(false),
             panel_anchored: AtomicBool::new(false),
+            panel_pinned: AtomicBool::new(false),
             panel_collapsed_x: AtomicI32::new(i32::MIN),
             panel_collapsed_y: AtomicI32::new(i32::MIN),
             passthrough: AtomicBool::new(false),

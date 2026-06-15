@@ -143,6 +143,13 @@ export function closePanel() {
   void invoke("close_panel");
 }
 
+/** Pin/unpin the open details panel. While pinned it survives focus loss to
+ * another app and floats on top, so you can copy something into a comment;
+ * clicking the main window still dismisses it (and clears the pin). */
+export function setPanelPinned(value: boolean) {
+  void invoke("set_panel_pinned", { value });
+}
+
 /** A status change picked in the panel, sent back to the main window. */
 export interface StatusAction {
   itemId: string;
