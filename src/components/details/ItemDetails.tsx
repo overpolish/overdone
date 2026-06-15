@@ -262,9 +262,14 @@ export function ItemDetails({
           </Group>
 
           {comments.length > 0 && (
-            <ScrollArea maxHeight={300}>
-              {/* Newest first; storage stays chronological (new posts append). */}
-              <Stack gap={8} pt={4} pb={2}>
+            <ScrollArea
+              maxHeight={300}
+              style={{ border: "1px solid var(--mantine-color-default-border)" }}
+            >
+              {/* Newest first; storage stays chronological (new posts append).
+                  Padding keeps the comment tiles clear of the bordered, clipped
+                  container edges and rounded corners. */}
+              <Stack gap={8} p={4}>
                 {comments
                   .slice()
                   .reverse()

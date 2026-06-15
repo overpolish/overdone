@@ -95,10 +95,14 @@ export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
       </Group>
 
       {sorted.length > 0 && (
-        <ScrollArea maxHeight={76} hideScrollbar>
+        <ScrollArea
+          maxHeight={76}
+          hideScrollbar
+          style={{ border: "1px solid var(--mantine-color-default-border)" }}
+        >
           {/* Padding keeps the rows' focus rings and hover surfaces clear of the
               container's rounded (clipped) edges and corners. */}
-          <Stack gap={4} px={4} py={8}>
+          <Stack gap={4} p={8}>
             {sorted.map((a) => (
               <Group key={a.id} gap={6} wrap="nowrap">
                 <Tooltip label="Change color" withArrow openDelay={400}>
