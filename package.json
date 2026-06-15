@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "tauri": "tauri",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "generate-tray-icons": "tsx scripts/generate-tray-icons.ts",
@@ -35,6 +36,7 @@
     "@tiptap/pm": "^3.26.1",
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
+    "chrono-node": "^2.9.1",
     "dayjs": "^1.11.21",
     "mermaid": "^11.15.0",
     "react": "^19.1.0",
@@ -55,6 +57,7 @@
     "sharp": "^0.35.1",
     "tsx": "^4.22.4",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^4.1.8"
   }
 }

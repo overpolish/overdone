@@ -10,6 +10,7 @@ import { resolveAssignees } from "../../lib/assignee";
 import { caretEdges } from "../../lib/caret";
 import { useItemMenu } from "../../lib/context-menu";
 import { resolveLabels } from "../../lib/label";
+import { parseQuickAdd } from "../../lib/quick-add";
 import { useDrag } from "../../lib/reorder";
 import { type TodoData, useTodos } from "../../lib/todos";
 import { LabelBadges } from "../LabelBadge";
@@ -36,7 +37,7 @@ export function TodoItem({ item }: TodoItemProps) {
   const clearFocus = useTodos((s) => s.clearFocus);
   const dragging = useDrag((s) => s.id === item.id);
   const child = item.depth === 1;
-  const { done, needsAction, dueState, statusColor } = rowStatus(item);
+  const { done, needsAction, pendingNotify, dueState, statusColor } = rowStatus(item);
   const rowRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   // Keyboard focus anywhere in the row also reveals the controls, so tabbing
@@ -172,6 +173,19 @@ export function TodoItem({ item }: TodoItemProps) {
           placeholder="Untitled"
           value={item.text}
           onChange={(e) => setItemText(item.id, e.currentTarget.value)}
+          onBlur={() => {
+            // Confirming a row (Enter blurs it, or click-away) runs the quick-add
+            // parser over the current text: pull out #labels, @people, and dates
+            // into structured fields, leaving just the title. Reads fresh state so
+            // the latest text/rosters are used, and only mutates when something was
+            // actually extracted (a plain edit stays literal, costs one undo step
+            // for the whole quick-add).
+            const { items, assignees, labels, applyQuickAdd } = useTodos.getState();
+            const current = items.find((i) => i.id === item.id);
+            if (!current) return;
+            const parsed = parseQuickAdd(current.text, assignees, labels);
+            if (parsed.changed) applyQuickAdd(item.id, parsed);
+          }}
           onKeyDown={(e) => {
             // Cmd/Ctrl + ] / [ nest / un-nest the item (one level). Tab is left
             // to the browser for normal keyboard navigation between fields.
@@ -243,6 +257,7 @@ export function TodoItem({ item }: TodoItemProps) {
         assignees={assignees}
         dueState={dueState}
         needsAction={needsAction}
+        pendingNotify={pendingNotify}
         hasComments={hasComments}
         onDismiss={() => dismissNotification(item.id)}
       />

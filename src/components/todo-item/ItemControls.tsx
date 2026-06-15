@@ -5,6 +5,7 @@
 
 import { ActionIcon, Box, Group, UnstyledButton } from "@mantine/core";
 import { IconBell, IconCalendar, IconMessage } from "@tabler/icons-react";
+import dayjs from "dayjs";
 import { useRef } from "react";
 
 import { openAssigneePanel, openDetailsPanel } from "../../lib/panel";
@@ -20,6 +21,8 @@ interface ItemControlsProps {
   assignees: Assignee[];
   dueState: DueState;
   needsAction: boolean;
+  /** A reminder is scheduled but hasn't fired yet (quiet pending bell). */
+  pendingNotify: boolean;
   hasComments: boolean;
   onDismiss: () => void;
 }
@@ -36,6 +39,7 @@ export function ItemControls({
   assignees,
   dueState,
   needsAction,
+  pendingNotify,
   hasComments,
   onDismiss,
 }: ItemControlsProps) {
@@ -43,6 +47,25 @@ export function ItemControls({
 
   return (
     <Group gap={2} wrap="nowrap" align="flex-start">
+      {/* Pending reminder: a quiet, dimmed bell while a reminder is scheduled but
+          hasn't fired (distinct from the amber fired bell below, and not
+          dismissable). Gives setting a reminder - including from a comment -
+          immediate, visible confirmation, with the time in its tooltip. */}
+      {pendingNotify && !needsAction && (
+        <Box
+          aria-label={`Reminder ${dayjs(item.notifyAt).format("MMM D, h:mm A")}`}
+          title={`Reminder ${dayjs(item.notifyAt).format("MMM D, h:mm A")}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            height: LINE_HEIGHT,
+            flexShrink: 0,
+            color: "var(--mantine-color-dimmed)",
+          }}
+        >
+          <IconBell size={14} stroke={1.8} />
+        </Box>
+      )}
       {/* Dismiss bell: only present once a notification has fired. Always visible
           (not hover-gated) and amber so it reads as the cue for the amber text;
           clicking acknowledges and clears the needs-action state. */}

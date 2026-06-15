@@ -53,6 +53,19 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ["↑", "↓"], label: "Move between items" },
 ];
 
+/** Quick-add syntax shown in settings: an example on the left, what it does on
+ * the right. Typed into an item's title (and dates also work inside comments). */
+const QUICK_ADD: { ex: string; label: string }[] = [
+  { ex: "#bug", label: "Add a label (fuzzy-matched)" },
+  { ex: "@john", label: "Assign a person" },
+  { ex: "assign to sara", label: "Assign, creating if new" },
+  { ex: "ask john to ship", label: "Assign; rest becomes the title" },
+  { ex: "owner: dana", label: "Assign as the owner" },
+  { ex: "due friday", label: "Set a due date" },
+  { ex: "remind me tomorrow 3pm", label: "Set a reminder" },
+  { ex: "eod, eow, end of month", label: "Due-date shorthands" },
+];
+
 /** Progress phase for the one-time ffmpeg download (enabling compression). */
 interface FfmpegProgress {
   phase: "starting" | "downloading" | "unpacking" | "done";
@@ -135,141 +148,50 @@ export function GlobalSettings() {
   };
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between" wrap="nowrap">
-        <Text size="sm" fw={500}>
-          Appearance
-        </Text>
-        <Box
-          style={{
-            display: "flex",
-            gap: 2,
-            padding: 4,
-            // Outer radius = inner chip radius (md, matching the buttons) + the
-            // padding, so the corners stay concentric.
-            borderRadius: "calc(var(--mantine-radius-md) + 4px)",
-            // Matches the unchecked Checkbox surface + border (both resolve to
-            // white / gray-4 in light, dark-6 / dark-4 in dark).
-            background: "var(--mantine-color-default)",
-            border: "1px solid var(--mantine-color-default-border)",
-          }}
-        >
-          {COLOR_SCHEMES.map(({ value, label, icon: Icon }) => {
-            const active = colorScheme === value;
-            return (
-              <Tooltip key={value} label={label} withArrow openDelay={300}>
-                <ActionIcon
-                  size="md"
-                  radius="md"
-                  // Selected = filled primary, matching the app's buttons; the
-                  // others stay ghosted.
-                  variant={active ? "filled" : "subtle"}
-                  color={active ? undefined : "gray"}
-                  aria-label={label}
-                  aria-pressed={active}
-                  onClick={() => setColorScheme(value)}
-                >
-                  <Icon size={16} />
-                </ActionIcon>
-              </Tooltip>
-            );
-          })}
-        </Box>
-      </Group>
-
-      <Group
-        component="label"
-        justify="space-between"
-        wrap="nowrap"
-        style={{ cursor: "pointer" }}
-      >
-        <Text size="sm" fw={500}>
-          Always on top
-        </Text>
-        <Checkbox
-          checked={alwaysOnTop}
-          onChange={(event) => setAlwaysOnTop(event.currentTarget.checked)}
-        />
-      </Group>
-
-      <Group
-        component="label"
-        justify="space-between"
-        wrap="nowrap"
-        style={{ cursor: "pointer" }}
-      >
-        <Text size="sm" fw={500}>
-          Launch at startup
-        </Text>
-        <Checkbox
-          checked={launchAtStartup}
-          onChange={(event) => setLaunchAtStartup(event.currentTarget.checked)}
-        />
-      </Group>
-
-      <Stack gap={4}>
-        <Group
-          component="label"
-          justify="space-between"
-          wrap="nowrap"
-          style={{ cursor: "pointer" }}
-        >
-          <Text size="sm" fw={500}>
-            Hide from screen sharing
-          </Text>
-          <Checkbox
-            checked={excludeFromCapture}
-            onChange={(event) => setExcludeFromCapture(event.currentTarget.checked)}
-          />
-        </Group>
-        <Text size="xs" c="dimmed">
-          Excludes the window from screen recordings and sharing apps (Zoom,
-          Teams, OBS…).
-        </Text>
-      </Stack>
-
-      <Stack gap={4}>
+    <Group align="flex-start" gap="lg" wrap="nowrap">
+      {/* Left column: the preference controls. */}
+      <Stack gap="md" style={{ flex: 1, minWidth: 0 }}>
         <Group justify="space-between" wrap="nowrap">
           <Text size="sm" fw={500}>
-            Attachments
+            Appearance
           </Text>
-          <SegmentedControl
-            size="xs"
-            value={mediaCompression}
-            onChange={(value) => onMediaChange(value as MediaCompression)}
-            data={[
-              { label: "Lossless", value: "original" },
-              { label: "Compressed", value: "compressed" },
-            ]}
-          />
+          <Box
+            style={{
+              display: "flex",
+              gap: 2,
+              padding: 4,
+              // Outer radius = inner chip radius (md, matching the buttons) + the
+              // padding, so the corners stay concentric.
+              borderRadius: "calc(var(--mantine-radius-md) + 4px)",
+              // Matches the unchecked Checkbox surface + border (both resolve to
+              // white / gray-4 in light, dark-6 / dark-4 in dark).
+              background: "var(--mantine-color-default)",
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
+          >
+            {COLOR_SCHEMES.map(({ value, label, icon: Icon }) => {
+              const active = colorScheme === value;
+              return (
+                <Tooltip key={value} label={label} withArrow openDelay={300}>
+                  <ActionIcon
+                    size="md"
+                    radius="md"
+                    // Selected = filled primary, matching the app's buttons; the
+                    // others stay ghosted.
+                    variant={active ? "filled" : "subtle"}
+                    color={active ? undefined : "gray"}
+                    aria-label={label}
+                    aria-pressed={active}
+                    onClick={() => setColorScheme(value)}
+                  >
+                    <Icon size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              );
+            })}
+          </Box>
         </Group>
-        <Text size="xs" c="dimmed">
-          Compressed re-encodes pasted/added images & videos to save space.
-          Lossless keeps originals.
-        </Text>
 
-        {download?.active && (
-          <Stack gap={2} mt={2}>
-            <Progress value={download.pct ?? 100} size="sm" animated />
-            <Text size="xs" c="dimmed">
-              {download.label}
-              {download.pct != null ? ` ${download.pct}%` : ""}
-            </Text>
-          </Stack>
-        )}
-        {download && !download.active && download.error && (
-          <Text size="xs" c="red">
-            {download.error}
-          </Text>
-        )}
-        {download && !download.active && !download.error && (
-          <Text size="xs" c="dimmed">
-            {download.label}
-          </Text>
-        )}
-      </Stack>
-
-      <Stack gap={4}>
         <Group
           component="label"
           justify="space-between"
@@ -277,42 +199,177 @@ export function GlobalSettings() {
           style={{ cursor: "pointer" }}
         >
           <Text size="sm" fw={500}>
-            Click-through on hover
+            Always on top
           </Text>
           <Checkbox
-            checked={passthrough}
-            onChange={(event) => setPassthrough(event.currentTarget.checked)}
+            checked={alwaysOnTop}
+            onChange={(event) => setAlwaysOnTop(event.currentTarget.checked)}
           />
         </Group>
-        <Text size="xs" c="dimmed">
-          The window hides and passes clicks through while the cursor is over it.
-          Hold ⌘ (Ctrl on Windows) to click it; once focused it stays put.
-        </Text>
+
+        <Group
+          component="label"
+          justify="space-between"
+          wrap="nowrap"
+          style={{ cursor: "pointer" }}
+        >
+          <Text size="sm" fw={500}>
+            Launch at startup
+          </Text>
+          <Checkbox
+            checked={launchAtStartup}
+            onChange={(event) => setLaunchAtStartup(event.currentTarget.checked)}
+          />
+        </Group>
+
+        <Stack gap={4}>
+          <Group
+            component="label"
+            justify="space-between"
+            wrap="nowrap"
+            style={{ cursor: "pointer" }}
+          >
+            <Text size="sm" fw={500}>
+              Hide from screen sharing
+            </Text>
+            <Checkbox
+              checked={excludeFromCapture}
+              onChange={(event) => setExcludeFromCapture(event.currentTarget.checked)}
+            />
+          </Group>
+          <Text size="xs" c="dimmed">
+            Excludes the window from screen recordings and sharing apps (Zoom,
+            Teams, OBS…).
+          </Text>
+        </Stack>
+
+        <Stack gap={4}>
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm" fw={500}>
+              Attachments
+            </Text>
+            <SegmentedControl
+              size="xs"
+              value={mediaCompression}
+              onChange={(value) => onMediaChange(value as MediaCompression)}
+              data={[
+                { label: "Lossless", value: "original" },
+                { label: "Compressed", value: "compressed" },
+              ]}
+            />
+          </Group>
+          <Text size="xs" c="dimmed">
+            Compressed re-encodes pasted/added images & videos to save space.
+            Lossless keeps originals.
+          </Text>
+
+          {download?.active && (
+            <Stack gap={2} mt={2}>
+              <Progress value={download.pct ?? 100} size="sm" animated />
+              <Text size="xs" c="dimmed">
+                {download.label}
+                {download.pct != null ? ` ${download.pct}%` : ""}
+              </Text>
+            </Stack>
+          )}
+          {download && !download.active && download.error && (
+            <Text size="xs" c="red">
+              {download.error}
+            </Text>
+          )}
+          {download && !download.active && !download.error && (
+            <Text size="xs" c="dimmed">
+              {download.label}
+            </Text>
+          )}
+        </Stack>
+
+        <Stack gap={4}>
+          <Group
+            component="label"
+            justify="space-between"
+            wrap="nowrap"
+            style={{ cursor: "pointer" }}
+          >
+            <Text size="sm" fw={500}>
+              Click-through on hover
+            </Text>
+            <Checkbox
+              checked={passthrough}
+              onChange={(event) => setPassthrough(event.currentTarget.checked)}
+            />
+          </Group>
+          <Text size="xs" c="dimmed">
+            The window hides and passes clicks through while the cursor is over it.
+            Hold ⌘ (Ctrl on Windows) to click it; once focused it stays put.
+          </Text>
+        </Stack>
       </Stack>
 
-      <Stack gap={4}>
-        <Text size="sm" fw={500}>
-          Keyboard shortcuts
-        </Text>
-        <ScrollArea maxHeight={150} style={{ border: "1px solid var(--mantine-color-default-border)" }}>
-          <Stack gap={0} p={4}>
-            {SHORTCUTS.map(({ keys, label }) => (
-              <Group key={label} justify="space-between" wrap="nowrap" gap="md" px={6} py={4}>
-                <Group gap={3} wrap="nowrap" style={{ flexShrink: 0 }}>
-                  {keys.map((k) => (
-                    <Kbd key={k} size="xs">
-                      {k}
-                    </Kbd>
-                  ))}
+      {/* Right column: reference - quick-add syntax and keyboard shortcuts. */}
+      <Stack gap="md" style={{ flex: 1, minWidth: 0 }}>
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>
+            Quick add
+          </Text>
+          <Text size="xs" c="dimmed">
+            Type these into an item to set its labels, people, and dates inline. A
+            date in a comment (due…, remind…) sets the item's reminder/due too,
+            leaving the comment as written.
+          </Text>
+          <ScrollArea
+            maxHeight={110}
+            style={{ border: "1px solid var(--mantine-color-default-border)" }}
+          >
+            <Stack gap={0} p={4}>
+              {QUICK_ADD.map(({ ex, label }) => (
+                <Group key={ex} justify="space-between" wrap="nowrap" gap="md" px={6} py={4}>
+                  <Text
+                    size="xs"
+                    style={{
+                      flexShrink: 0,
+                      fontFamily: "var(--mantine-font-family-monospace)",
+                      color: "var(--mantine-color-text)",
+                    }}
+                  >
+                    {ex}
+                  </Text>
+                  <Text size="xs" c="dimmed" ta="right">
+                    {label}
+                  </Text>
                 </Group>
-                <Text size="xs" c="dimmed" ta="right">
-                  {label}
-                </Text>
-              </Group>
-            ))}
-          </Stack>
-        </ScrollArea>
+              ))}
+            </Stack>
+          </ScrollArea>
+        </Stack>
+
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>
+            Keyboard shortcuts
+          </Text>
+          <ScrollArea
+            maxHeight={110}
+            style={{ border: "1px solid var(--mantine-color-default-border)" }}
+          >
+            <Stack gap={0} p={4}>
+              {SHORTCUTS.map(({ keys, label }) => (
+                <Group key={label} justify="space-between" wrap="nowrap" gap="md" px={6} py={4}>
+                  <Group gap={3} wrap="nowrap" style={{ flexShrink: 0 }}>
+                    {keys.map((k) => (
+                      <Kbd key={k} size="xs">
+                        {k}
+                      </Kbd>
+                    ))}
+                  </Group>
+                  <Text size="xs" c="dimmed" ta="right">
+                    {label}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          </ScrollArea>
+        </Stack>
       </Stack>
-    </Stack>
+    </Group>
   );
 }

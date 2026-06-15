@@ -6,13 +6,27 @@
 import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
+import { pickColor } from "../assignee";
+import { randomLabelColor } from "../label";
 import { parseList } from "../markdown";
 import { referencedMedia } from "../media";
+import { type QuickAddParse } from "../quick-add";
 import { applyState, normalizeDepths, removeItem } from "./operations";
-import { type Comment, type TodoData, type TodosState } from "./types";
+import {
+  type Assignee,
+  type Comment,
+  type Label,
+  type TodoData,
+  type TodosState,
+} from "./types";
 
 /** Wall-clock now, in epoch ms - the single clock the store stamps from. */
 const now = () => Date.now();
+
+/** Append `add` ids to `base` (which may be absent), dropping duplicates. */
+const union = (base: string[] | undefined, add: string[]): string[] => [
+  ...new Set([...(base ?? []), ...add]),
+];
 
 export const useTodos = create<TodosState>((set, get) => {
   /** Apply `updater` to items, recording an undo step (with coalescing). */
@@ -298,6 +312,52 @@ export const useTodos = create<TodosState>((set, get) => {
         ];
       }, `text:${id}`);
       set({ focusId: id });
+    },
+
+    applyQuickAdd: (id, parsed: QuickAddParse) => {
+      // Mint any newly-named people/labels first, outside the items history (like
+      // addAssignee/addLabel), and collect their fresh ids to merge onto the item.
+      const newAssignees: Assignee[] = parsed.newAssignees.map((name) => ({
+        id: crypto.randomUUID(),
+        name,
+        color: pickColor(name),
+      }));
+      const newLabels: Label[] = parsed.newLabels.map((name) => ({
+        id: crypto.randomUUID(),
+        name,
+        color: randomLabelColor(),
+      }));
+      if (newAssignees.length) set((s) => ({ assignees: [...s.assignees, ...newAssignees] }));
+      if (newLabels.length) set((s) => ({ labels: [...s.labels, ...newLabels] }));
+
+      const addAssigneeIds = [...parsed.assigneeIds, ...newAssignees.map((a) => a.id)];
+      const addLabelIds = [...parsed.labelIds, ...newLabels.map((l) => l.id)];
+
+      // Coalesce under the same key the text field uses, so the quick-add folds
+      // into the run of edits that produced it rather than landing as its own
+      // step. One undo then jumps straight back to before those edits (the clean
+      // pre-edit text), instead of to the intermediate "Fix login #bug" snapshot
+      // with the raw token sitting in the field.
+      commit((items) => {
+        const i = items.findIndex((x) => x.id === id);
+        if (i === -1) return items;
+        const it = items[i];
+        // Merge (don't replace) assignees/labels, so quick-add adds to whatever
+        // the item already had. Dates only overwrite when the parse found one.
+        const assignees = union(it.assignees, addAssigneeIds);
+        const labels = union(it.labels, addLabelIds);
+        const next = items.slice();
+        next[i] = {
+          ...it,
+          text: parsed.text,
+          assignees: assignees.length ? assignees : undefined,
+          labels: labels.length ? labels : undefined,
+          notifyAt: parsed.notifyAt ?? it.notifyAt,
+          dueDate: parsed.dueDate ?? it.dueDate,
+          updatedAt: now(),
+        };
+        return next;
+      }, `text:${id}`);
     },
 
     // Reset the caret hint to its default as focus is consumed, so a one-off

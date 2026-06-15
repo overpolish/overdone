@@ -25,7 +25,9 @@ export function Settings({
   const [tab, setTab] = useState<SettingsTab>("global");
 
   return (
-    <Stack gap="md" w={300}>
+    // The Global tab lays its content out in two columns, so it needs the wider
+    // frame; the List tab (labels / assignees) stays in the narrow single column.
+    <Stack gap="md" w={tab === "global" ? 600 : 300}>
       <Group justify="space-between" wrap="nowrap" align="center">
         <Group gap={8} wrap="nowrap">
           <IconSettings size={18} stroke={1.8} />

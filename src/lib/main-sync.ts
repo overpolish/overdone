@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { broadcastListsChanged, setRenameWriter, useLists } from "./lists";
 import { serializeList, setMarkdownTitle } from "./markdown";
-import { emitAssigneesSync, emitLabelsSync } from "./panel";
+import { emitAssigneesSync, emitDatesSync, emitLabelsSync } from "./panel";
 import { useTodos } from "./todos";
 
 /**
@@ -76,6 +76,15 @@ export function bindMainWindow() {
       emitLabelsSync({
         roster: state.labels,
         byItem: Object.fromEntries(state.items.map((i) => [i.id, i.labels ?? []])),
+      });
+    }
+    // Keep an open details panel's NOTIFY / DUE fields live (e.g. a comment that
+    // set a reminder, or undo/redo) without needing a reopen.
+    if (state.items !== prev.items) {
+      emitDatesSync({
+        byItem: Object.fromEntries(
+          state.items.map((i) => [i.id, { notifyAt: i.notifyAt, dueDate: i.dueDate }]),
+        ),
       });
     }
 

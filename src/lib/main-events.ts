@@ -25,9 +25,16 @@ import {
   type RosterAction,
   type StatusAction,
 } from "./panel";
+import { datesFromNewComments } from "./quick-add";
 import { useSettings } from "./settings";
 import { isStruck } from "./todo";
 import { type TodoData, useTodos } from "./todos";
+
+/** Plain text of a comment's stored HTML, for date parsing (the comment itself
+ * is left untouched - only its text is read). */
+function htmlToText(html: string): string {
+  return new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+}
 
 /** Subscribe to a Tauri event for the component's lifetime. */
 function useTauriEvent<T>(event: string, handler: (payload: T) => void) {
@@ -61,9 +68,24 @@ export function usePanelActionListeners() {
     void getCurrentWindow().setFocus();
   });
 
-  // Apply comment-log changes made in the details panel back to the store.
+  // Apply comment-log changes made in the details panel back to the store. A
+  // newly added or edited comment also feeds the date parser ("remind me tomorrow
+  // at 15:00" / "due friday"): the comment text is left exactly as written, but a
+  // recognized date sets the item's reminder / due date. Only freshly changed
+  // comments are scanned, so reopening the panel doesn't re-derive old dates.
   useTauriEvent<DetailsAction>("details:action", ({ itemId, comments }) => {
-    useTodos.getState().setItemComments(itemId, comments);
+    const todos = useTodos.getState();
+    const item = todos.items.find((i) => i.id === itemId);
+    const prevById = new Map((item?.comments ?? []).map((c) => [c.id, c.text]));
+    const dates = datesFromNewComments(prevById, comments, htmlToText);
+    todos.setItemComments(itemId, comments);
+    // Merge onto the item: only overwrite the field a comment actually set.
+    if (dates.notifyAt != null || dates.dueDate != null) {
+      todos.setItemDates(itemId, {
+        notifyAt: dates.notifyAt ?? item?.notifyAt,
+        dueDate: dates.dueDate ?? item?.dueDate,
+      });
+    }
   });
 
   // Apply assignee changes made in the details panel: register any newly created

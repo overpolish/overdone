@@ -36,6 +36,9 @@ export interface ItemStatus {
   done: boolean;
   /** A fired-but-unacknowledged notification (shows the dismiss bell). */
   needsAction: boolean;
+  /** A reminder is scheduled but hasn't fired yet (shows a quiet pending bell, so
+   * setting one - e.g. from a comment - has immediate, visible confirmation). */
+  pendingNotify: boolean;
   dueState: DueState;
   /** The accent that wins the row by priority (see below). */
   status: RowStatus;
@@ -52,6 +55,9 @@ export interface ItemStatus {
 export function rowStatus(item: TodoData): ItemStatus {
   const done = isStruck(item.state);
   const needsAction = item.notifiedAt != null;
+  // A reminder still waiting to fire (notifyAt is cleared the moment it fires and
+  // becomes notifiedAt, so the two never overlap). Hidden once the item resolves.
+  const pendingNotify = item.notifyAt != null && !done;
 
   const dueState: DueState = (() => {
     if (item.dueDate == null || done) return null;
@@ -71,5 +77,12 @@ export function rowStatus(item: TodoData): ItemStatus {
           ? "today"
           : null;
 
-  return { done, needsAction, dueState, status, statusColor: status ? STATUS_COLOR[status] : null };
+  return {
+    done,
+    needsAction,
+    pendingNotify,
+    dueState,
+    status,
+    statusColor: status ? STATUS_COLOR[status] : null,
+  };
 }

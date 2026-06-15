@@ -220,6 +220,18 @@ export function emitLabelsSync(sync: LabelsSync) {
   void emit("labels:sync", sync);
 }
 
+/** The main window's current per-item dates, pushed to the panel so an open
+ * details panel reflects changes from elsewhere (a comment that set a reminder,
+ * undo/redo) without a reopen. */
+export interface DatesSync {
+  /** Each item's notify time / due date (epoch ms), keyed by item id. */
+  byItem: Record<string, { notifyAt?: number; dueDate?: number }>;
+}
+
+export function emitDatesSync(sync: DatesSync) {
+  void emit("dates:sync", sync);
+}
+
 /**
  * Open the details panel for an item, pinned just below its row (top-left
  * aligned with the row, like the status picker sits below a checkbox).

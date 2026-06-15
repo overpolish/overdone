@@ -6,10 +6,11 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import { IconBell, IconCalendar } from "@tabler/icons-react";
+import { listen } from "@tauri-apps/api/event";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { emitDatesAction } from "../../lib/panel";
+import { type DatesSync, emitDatesAction } from "../../lib/panel";
 
 // Mantine's date components speak strings: dates are "YYYY-MM-DD", date-times
 // "YYYY-MM-DD HH:mm:ss" (local wall-clock). The store keeps epoch ms, so convert
@@ -48,6 +49,21 @@ export function useDatesEditor(
     setDueDateState(ms);
     emitDatesAction({ itemId, notifyAt, dueDate: ms });
   };
+
+  // Adopt date changes the main window broadcasts for this item (a comment that
+  // set a reminder, undo/redo). Uses the raw setters, not the emitting ones, so
+  // adopting an echo of our own edit doesn't loop back to the store.
+  useEffect(() => {
+    const un = listen<DatesSync>("dates:sync", (e) => {
+      const d = e.payload.byItem[itemId];
+      if (!d) return;
+      setNotifyAtState(d.notifyAt);
+      setDueDateState(d.dueDate);
+    });
+    return () => {
+      void un.then((off) => off());
+    };
+  }, [itemId]);
 
   return { notifyAt, dueDate, setNotifyAt, setDueDate };
 }

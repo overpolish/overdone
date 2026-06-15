@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
+import { type QuickAddParse } from "../quick-add";
 import { type TodoState } from "../todo";
 
 /** A person who can be assigned to items, scoped to a single list's roster. */
@@ -173,6 +174,15 @@ export interface TodosState {
   addSubItem: (parentId: string) => void;
   /** Insert a new (empty by default) item at the top and focus it. */
   addItem: (initialText?: string) => void;
+  /**
+   * Apply a parsed quick-add result to an item in one undo step: mint any new
+   * roster people/labels, then merge the extracted assignees, labels, and dates
+   * onto the item alongside its cleaned text. New roster entries are added like
+   * the other roster ops (outside the items history); the item edit is a single
+   * commit so the whole quick-add collapses to one undo. No-op fields are left
+   * untouched (a quick-add that found no date won't clear an existing one).
+   */
+  applyQuickAdd: (id: string, parsed: QuickAddParse) => void;
   clearFocus: () => void;
   clearFocusTitle: () => void;
   /** Set (or clear, with null) the item whose editing panel is open. */
