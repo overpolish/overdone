@@ -70,11 +70,11 @@ export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
         People you can assign to items in this list.
       </Text>
 
-      {/* Add field stays pinned at the top, outside the scrolling list. Its
-          trailing button matches the rows' delete button (same width + gap) so
-          the right edges line up. The px matches the scroll's inner padding so
-          everything shares one left/right edge. */}
-      <Group gap={6} wrap="nowrap" mt={2} px={4}>
+      {/* Add field stays pinned at the top, outside the scrolling list. It goes
+          edge-to-edge (no px) so its outer edges line up with the bordered list
+          box below, which is also full-width. Its trailing button matches the
+          rows' delete button (same width + gap) so the right edges line up. */}
+      <Group gap={6} wrap="nowrap" mt={2}>
         <TextInput
           size="xs"
           style={{ flex: 1 }}

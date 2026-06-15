@@ -67,7 +67,7 @@ export function LabelSettings({ initial }: { initial: Label[] }) {
         click the badge to reshuffle it.
       </Text>
 
-      <Group gap={6} wrap="nowrap" mt={2} px={4}>
+      <Group gap={6} wrap="nowrap" mt={2}>
         <TextInput
           size="xs"
           style={{ flex: 1 }}

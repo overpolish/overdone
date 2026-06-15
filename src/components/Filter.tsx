@@ -4,6 +4,7 @@
  */
 
 import {
+  ActionIcon,
   Button,
   Checkbox,
   Divider,
@@ -18,6 +19,7 @@ import {
 import {
   IconBookmark,
   IconFilter,
+  IconPlus,
   IconSortAscending,
   IconSortDescending,
   IconTrash,
@@ -117,184 +119,224 @@ export function Filter({
   };
 
   return (
-    <Stack gap="md" w={300}>
+    <Stack gap="md" w={600}>
       <Group justify="space-between" wrap="nowrap" align="center" px={8}>
         <Group gap={8} wrap="nowrap" align="center">
           <IconFilter size={18} stroke={1.8} style={{ display: "block" }} />
           <Title order={5}>Filter</Title>
         </Group>
         {altered && (
-          <Button variant="subtle" color="gray" size="compact-xs" onClick={() => clear(listId)}>
+          <Button
+            variant="subtle"
+            color="gray"
+            size="compact-xs"
+            onClick={() => clear(listId)}
+          >
             Clear
           </Button>
         )}
       </Group>
 
-      <ScrollArea maxHeight={420}>
+      <ScrollArea maxHeight={560}>
         {/* Pad inside the scroll clip so chips and the selection rings on
             selected pills clear the rounded corners instead of being cut. */}
         <Stack gap="md" px={8} py={6}>
-          <Section title="Status">
-            <Group gap={6}>
-              {TODO_STATES.map((s) => (
-                <ToggleChip
-                  key={s.value}
-                  selected={c.states.includes(s.value)}
-                  onClick={() => toggle("states", s.value as TodoState)}
-                >
-                  <StateBox state={s.value} size={14} />
-                  <span>{s.label}</span>
-                </ToggleChip>
-              ))}
-            </Group>
-          </Section>
+          <Group align="flex-start" grow wrap="nowrap" gap="md">
+            <Stack gap="md">
+              <Section title="Status">
+                <Group gap={6}>
+                  {TODO_STATES.map((s) => (
+                    <ToggleChip
+                      key={s.value}
+                      selected={c.states.includes(s.value)}
+                      onClick={() => toggle("states", s.value as TodoState)}
+                    >
+                      <StateBox state={s.value} size={14} />
+                      <span>{s.label}</span>
+                    </ToggleChip>
+                  ))}
+                </Group>
+              </Section>
 
-          {labels.length > 0 && (
-            <Section title="Labels">
-              <Group gap={6}>
-                {labels.map((l) => (
-                  <PillToggle
-                    key={l.id}
-                    selected={c.labels.includes(l.id)}
-                    onClick={() => toggle("labels", l.id)}
-                  >
-                    <LabelBadge label={l} size={16} />
-                  </PillToggle>
-                ))}
-              </Group>
-            </Section>
-          )}
-
-          {assignees.length > 0 && (
-            <Section title="Assignees">
-              <Group gap={6}>
-                {assignees.map((a) => (
-                  <ToggleChip
-                    key={a.id}
-                    selected={c.assignees.includes(a.id)}
-                    onClick={() => toggle("assignees", a.id)}
-                  >
-                    <AssigneeAvatar assignee={a} size={16} withTooltip={false} />
-                    <span>{a.name}</span>
-                  </ToggleChip>
-                ))}
-              </Group>
-            </Section>
-          )}
-
-          <Section title="Due date">
-            <Group gap={6}>
-              {DUE_OPTIONS.map((d) => (
-                <ToggleChip
-                  key={d.value}
-                  selected={c.due === d.value}
-                  onClick={() => patch(listId, { due: d.value })}
-                >
-                  <span>{d.label}</span>
-                </ToggleChip>
-              ))}
-            </Group>
-          </Section>
-
-          <Section title="Comments">
-            <SegmentedControl
-              size="xs"
-              fullWidth
-              data={TRI_DATA}
-              value={c.hasComments}
-              onChange={(v) => patch(listId, { hasComments: v as Tri })}
-            />
-          </Section>
-
-          <Section title="Reminder">
-            <SegmentedControl
-              size="xs"
-              fullWidth
-              data={TRI_DATA}
-              value={c.hasReminder}
-              onChange={(v) => patch(listId, { hasReminder: v as Tri })}
-            />
-          </Section>
-
-          <Section title="Sort">
-            <Group gap={6} wrap="nowrap" align="center">
-              <SegmentedControl
-                size="xs"
-                style={{ flex: 1 }}
-                data={SORT_DATA}
-                value={c.sort}
-                onChange={(v) => patch(listId, { sort: v as SortKey })}
-              />
-              {c.sort !== "manual" && (
-                <IconButton
-                  label={c.sortDir === "asc" ? "Sort ascending" : "Sort descending"}
-                  icon={c.sortDir === "asc" ? IconSortAscending : IconSortDescending}
-                  onClick={() =>
-                    patch(listId, { sortDir: c.sortDir === "asc" ? "desc" : "asc" })
-                  }
-                />
+              {labels.length > 0 && (
+                <Section title="Labels">
+                  <Group gap={6}>
+                    {labels.map((l) => (
+                      <PillToggle
+                        key={l.id}
+                        selected={c.labels.includes(l.id)}
+                        onClick={() => toggle("labels", l.id)}
+                      >
+                        <LabelBadge label={l} size={16} />
+                      </PillToggle>
+                    ))}
+                  </Group>
+                </Section>
               )}
-            </Group>
-          </Section>
 
-          <Divider />
+              {assignees.length > 0 && (
+                <Section title="Assignees">
+                  <Group gap={6}>
+                    {assignees.map((a) => (
+                      <ToggleChip
+                        key={a.id}
+                        selected={c.assignees.includes(a.id)}
+                        onClick={() => toggle("assignees", a.id)}
+                      >
+                        <AssigneeAvatar
+                          assignee={a}
+                          size={16}
+                          withTooltip={false}
+                        />
+                        <span>{a.name}</span>
+                      </ToggleChip>
+                    ))}
+                  </Group>
+                </Section>
+              )}
 
-          <Section title="Saved filters">
-            {applicable.length === 0 ? (
-              <Text size="xs" c="dimmed">
-                None yet. Set a filter, then save it below.
-              </Text>
-            ) : (
-              <Stack gap={2}>
-                {applicable.map((f) => (
-                  <SavedRow
-                    key={f.id}
-                    filter={f}
-                    onLoad={() => setCriteria(listId, f.criteria)}
-                    onDelete={() => deleteSaved(f.id)}
-                  />
-                ))}
-              </Stack>
-            )}
-
-            <Stack gap={8} mt={6}>
-              <Group
-                component="label"
-                justify="space-between"
-                wrap="nowrap"
-                style={{ cursor: active ? "pointer" : "default" }}
-              >
-                <Text size="sm" fw={500} c={active ? undefined : "dimmed"}>
-                  Available on all lists
-                </Text>
-                <Checkbox
-                  checked={global}
-                  disabled={!active}
-                  onChange={(e) => setGlobal(e.currentTarget.checked)}
-                />
-              </Group>
-              <Group gap={6} wrap="nowrap" align="center">
-                <TextInput
-                  size="xs"
-                  style={{ flex: 1 }}
-                  placeholder="Name this filter…"
-                  leftSection={<IconBookmark size={14} />}
-                  value={name}
-                  disabled={!active}
-                  onChange={(e) => setName(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      save();
-                    }
-                  }}
-                />
-                <Button size="xs" disabled={!active || !name.trim()} onClick={save}>
-                  Save
-                </Button>
-              </Group>
+              <Section title="Due date">
+                <Group gap={6}>
+                  {DUE_OPTIONS.map((d) => (
+                    <ToggleChip
+                      key={d.value}
+                      selected={c.due === d.value}
+                      onClick={() => patch(listId, { due: d.value })}
+                    >
+                      <span>{d.label}</span>
+                    </ToggleChip>
+                  ))}
+                </Group>
+              </Section>
             </Stack>
-          </Section>
+
+            <Stack gap="md">
+              <Section title="Comments">
+                <SegmentedControl
+                  size="xs"
+                  fullWidth
+                  data={TRI_DATA}
+                  value={c.hasComments}
+                  onChange={(v) => patch(listId, { hasComments: v as Tri })}
+                />
+              </Section>
+
+              <Section title="Reminder">
+                <SegmentedControl
+                  size="xs"
+                  fullWidth
+                  data={TRI_DATA}
+                  value={c.hasReminder}
+                  onChange={(v) => patch(listId, { hasReminder: v as Tri })}
+                />
+              </Section>
+
+              <Section title="Sort">
+                <Group gap={6} wrap="nowrap" align="center">
+                  <SegmentedControl
+                    size="xs"
+                    style={{ flex: 1 }}
+                    data={SORT_DATA}
+                    value={c.sort}
+                    onChange={(v) => patch(listId, { sort: v as SortKey })}
+                  />
+                  {c.sort !== "manual" && (
+                    <IconButton
+                      label={
+                        c.sortDir === "asc"
+                          ? "Sort ascending"
+                          : "Sort descending"
+                      }
+                      icon={
+                        c.sortDir === "asc"
+                          ? IconSortAscending
+                          : IconSortDescending
+                      }
+                      onClick={() =>
+                        patch(listId, {
+                          sortDir: c.sortDir === "asc" ? "desc" : "asc",
+                        })
+                      }
+                    />
+                  )}
+                </Group>
+              </Section>
+
+              <Divider />
+
+              <Section title="Save filter">
+                <Stack gap={8}>
+                  <Group
+                    component="label"
+                    justify="space-between"
+                    wrap="nowrap"
+                    style={{ cursor: active ? "pointer" : "default" }}
+                  >
+                    <Text size="sm" fw={500} c={active ? undefined : "dimmed"}>
+                      Available on all lists
+                    </Text>
+                    <Checkbox
+                      checked={global}
+                      disabled={!active}
+                      onChange={(e) => setGlobal(e.currentTarget.checked)}
+                    />
+                  </Group>
+                  <Group gap={6} wrap="nowrap" align="center">
+                    <TextInput
+                      size="xs"
+                      style={{ flex: 1 }}
+                      placeholder="Name this filter…"
+                      leftSection={<IconBookmark size={14} />}
+                      value={name}
+                      disabled={!active}
+                      onChange={(e) => setName(e.currentTarget.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          save();
+                        }
+                      }}
+                    />
+                    <ActionIcon
+                      variant="default"
+                      size={22}
+                      aria-label="Save filter"
+                      disabled={!active || !name.trim()}
+                      onClick={save}
+                    >
+                      <IconPlus size={14} />
+                    </ActionIcon>
+                  </Group>
+                </Stack>
+              </Section>
+            </Stack>
+          </Group>
+
+          {applicable.length > 0 && (
+            <>
+              <Divider />
+              <Section title="Saved filters">
+                <ScrollArea
+                  maxHeight={104}
+                  hideScrollbar
+                  style={{
+                    border: "1px solid var(--mantine-color-default-border)",
+                  }}
+                >
+                  <Stack gap={2} p={4}>
+                    {applicable.map((f) => (
+                      <SavedRow
+                        key={f.id}
+                        filter={f}
+                        onLoad={() => setCriteria(listId, f.criteria)}
+                        onDelete={() => deleteSaved(f.id)}
+                      />
+                    ))}
+                  </Stack>
+                </ScrollArea>
+              </Section>
+            </>
+          )}
         </Stack>
       </ScrollArea>
     </Stack>
@@ -303,10 +345,21 @@ export function Filter({
 
 /** A titled sub-section: an UPPERCASE eyebrow label above its controls (matches
  * the details panel's LABELS / ASSIGNEES headings). */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <Stack gap="xs">
-      <Text size="xs" fw={600} c="dimmed" style={{ textTransform: "uppercase" }}>
+      <Text
+        size="xs"
+        fw={600}
+        c="dimmed"
+        style={{ textTransform: "uppercase" }}
+      >
         {title}
       </Text>
       {children}
@@ -347,8 +400,11 @@ function ToggleChip({
           : hovered
             ? "var(--mantine-color-default-hover)"
             : "transparent",
-        color: selected ? "var(--mantine-color-text)" : "var(--mantine-color-dimmed)",
-        transition: "background 120ms ease, border-color 120ms ease, color 120ms ease",
+        color: selected
+          ? "var(--mantine-color-text)"
+          : "var(--mantine-color-dimmed)",
+        transition:
+          "background 120ms ease, border-color 120ms ease, color 120ms ease",
       }}
     >
       {children}
@@ -374,7 +430,9 @@ function PillToggle({
         display: "inline-flex",
         borderRadius: "var(--mantine-radius-xl)",
         opacity: selected ? 1 : 0.5,
-        boxShadow: selected ? "0 0 0 2px var(--mantine-primary-color-filled)" : "none",
+        boxShadow: selected
+          ? "0 0 0 2px var(--mantine-primary-color-filled)"
+          : "none",
         transition: "opacity 120ms ease, box-shadow 120ms ease",
       }}
     >
@@ -399,12 +457,14 @@ function SavedRow({
     <Group
       gap={2}
       wrap="nowrap"
-      pr={4}
+      pr={6}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        borderRadius: "var(--mantine-radius-md)",
-        background: hovered ? "var(--mantine-color-default-hover)" : "transparent",
+        borderRadius: "var(--mantine-radius-sm)",
+        background: hovered
+          ? "var(--mantine-color-default-hover)"
+          : "transparent",
       }}
     >
       <UnstyledButton
@@ -414,22 +474,34 @@ function SavedRow({
           minWidth: 0,
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 6,
           padding: "6px 8px",
         }}
       >
         {filter.global && (
           <IconWorld
-            size={13}
-            style={{ display: "block", flexShrink: 0, color: "var(--mantine-color-dimmed)" }}
+            size={12}
+            style={{
+              display: "block",
+              flexShrink: 0,
+              color: "var(--mantine-color-dimmed)",
+            }}
           />
         )}
-        <Text size="sm" truncate>
+        <Text size="xs" truncate>
           {filter.name}
         </Text>
       </UnstyledButton>
-      <Group gap={2} style={{ opacity: hovered ? 1 : 0, transition: "opacity 120ms ease" }}>
-        <IconButton label={`Delete ${filter.name}`} icon={IconTrash} danger onClick={onDelete} />
+      <Group
+        gap={2}
+        style={{ opacity: hovered ? 1 : 0, transition: "opacity 120ms ease" }}
+      >
+        <IconButton
+          label={`Delete ${filter.name}`}
+          icon={IconTrash}
+          danger
+          onClick={onDelete}
+        />
       </Group>
     </Group>
   );

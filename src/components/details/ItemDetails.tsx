@@ -4,7 +4,7 @@
  */
 
 import { Box, Button, Group, Stack, Text, Title } from "@mantine/core";
-import { IconSend } from "@tabler/icons-react";
+import { IconCheck } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { type Editor } from "@tiptap/react";
@@ -72,7 +72,7 @@ function formatDate(ts: number): string {
 
 /**
  * Item details, shown in the floating panel pinned below the row. For now this
- * is the comment log - post (⌘/Ctrl+Enter or the Post button), edit, and delete
+ * is the comment log - save (⌘/Ctrl+Enter or the Save button), edit, and delete
  * entries, each timestamped. Comments are rich text (bold / italic / underline /
  * lists) and can embed images & videos (toolbar button, drag-drop, or paste).
  * The panel owns the editing session and streams the whole updated log back to
@@ -255,9 +255,9 @@ export function ItemDetails({
               size="xs"
               onClick={post}
               disabled={htmlIsEmpty(draft)}
-              leftSection={<IconSend size={14} stroke={1.8} />}
+              leftSection={<IconCheck size={14} stroke={1.8} />}
             >
-              Post
+              Save
             </Button>
           </Group>
 
