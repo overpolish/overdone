@@ -4,14 +4,14 @@
  */
 
 import { ActionIcon, Box, Group, UnstyledButton } from "@mantine/core";
-import { IconBell, IconCalendar, IconMessage } from "@tabler/icons-react";
+import { IconBell, IconMessage } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useRef } from "react";
 
 import { openAssigneePanel, openDetailsPanel } from "../../lib/panel";
 import { type Assignee, type TodoData } from "../../lib/todos";
 import { AddAssigneeButton, AssigneeAvatars } from "../AssigneeAvatar";
-import { type DueState, LINE_HEIGHT, STATUS_COLOR } from "./itemStatus";
+import { LINE_HEIGHT } from "./itemStatus";
 
 interface ItemControlsProps {
   item: TodoData;
@@ -19,7 +19,6 @@ interface ItemControlsProps {
   rowRef: React.RefObject<HTMLDivElement | null>;
   hovered: boolean;
   assignees: Assignee[];
-  dueState: DueState;
   needsAction: boolean;
   /** A reminder is scheduled but hasn't fired yet (quiet pending bell). */
   pendingNotify: boolean;
@@ -37,7 +36,6 @@ export function ItemControls({
   rowRef,
   hovered,
   assignees,
-  dueState,
   needsAction,
   pendingNotify,
   hasComments,
@@ -86,28 +84,6 @@ export function ItemControls({
           >
             <IconBell size={14} stroke={1.8} />
           </ActionIcon>
-        </Box>
-      )}
-      {/* Due indicator: orange when due today, red when overdue (nothing for a
-          future/no due date). A non-interactive status cue - not dismissable;
-          it only clears when the due date changes or the item is done/cancelled. */}
-      {dueState && (
-        <Box
-          aria-label={dueState === "overdue" ? "Overdue" : "Due today"}
-          title={dueState === "overdue" ? "Overdue" : "Due today"}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            // Match the dismiss bell / details column: 14px glyph centered in a
-            // 20px slot, so the due indicator lines up with the other controls.
-            justifyContent: "center",
-            width: 20,
-            height: LINE_HEIGHT,
-            flexShrink: 0,
-            color: STATUS_COLOR[dueState],
-          }}
-        >
-          <IconCalendar size={14} stroke={1.8} />
         </Box>
       )}
       {/* Assignee control, top-anchored to the first text line like the other
