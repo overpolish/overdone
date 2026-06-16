@@ -217,7 +217,8 @@ export const useTodos = create<TodosState>((set, get) => {
 
     // Title lives outside the items undo history; it's a single field that
     // autosaves like the rest of the list.
-    setTitle: (title) => set({ title }),
+    // No active list (e.g. all lists deleted): nothing to title.
+    setTitle: (title) => set((s) => (s.activeId ? { title } : s)),
 
     deleteItem: (id) => commit((items) => removeItem(items, id), null),
 
@@ -302,6 +303,8 @@ export const useTodos = create<TodosState>((set, get) => {
     },
 
     addItem: (initialText = "") => {
+      // No active list (e.g. all lists deleted): nothing to add to.
+      if (!get().activeId) return;
       const id = crypto.randomUUID();
       // Coalesce under the same key the text field uses, so creating an item
       // and typing its first words collapse into a single undo step.
@@ -403,6 +406,22 @@ export const useTodos = create<TodosState>((set, get) => {
         items.flatMap((it) => (it.comments ?? []).map((c: Comment) => c.text)),
       );
       void invoke("prune_media", { listId: id, keep });
+    },
+
+    close: () => {
+      set({
+        activeId: null,
+        title: "",
+        assignees: [],
+        labels: [],
+        items: [],
+        past: [],
+        future: [],
+        lastKey: null,
+        focusId: null,
+        revealedId: null,
+        focusTitle: false,
+      });
     },
 
     undo: () => {

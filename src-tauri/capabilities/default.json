@@ -18,7 +18,7 @@
     "dialog:allow-open",
     {
       "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "$APPDATA/media/**" }]
+      "allow": [{ "path": "$APPDATA/lists/**" }]
     },
     {
       "identifier": "opener:allow-open-url",

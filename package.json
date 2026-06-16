@@ -12,7 +12,8 @@
     "tauri": "tauri",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "generate-tray-icons": "tsx scripts/generate-tray-icons.ts",
-    "build:mac": "tauri build --bundles app,dmg",
+    "build:mac": "./scripts/build-and-sign-mac.sh",
+    "build:mac:unsigned": "tauri build --bundles app,dmg",
     "build:win": "tauri build --bundles nsis,msi",
     "build:debug": "tauri build --debug"
   },

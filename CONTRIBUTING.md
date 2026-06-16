@@ -34,10 +34,14 @@ and reloads on frontend changes. Rust changes trigger a recompile + restart.
 ## Building installers
 
 ```sh
-pnpm build:mac      # macOS  -> .app + .dmg          (run on macOS)
-pnpm build:win      # Windows -> NSIS .exe + .msi     (run on Windows)
-pnpm build:debug    # fast debug build for the current platform
+pnpm build:mac          # macOS  -> signed + notarized .app + .dmg  (run on macOS)
+pnpm build:mac:unsigned # macOS  -> unsigned .app + .dmg (no cert needed)
+pnpm build:win          # Windows -> NSIS .exe + .msi               (run on Windows)
+pnpm build:debug        # fast debug build for the current platform
 ```
+
+`pnpm build:mac` signs and notarizes (see [Releasing (macOS)](#releasing-macos)).
+Without a Developer ID certificate, use `pnpm build:mac:unsigned` for a local bundle.
 
 Each build first runs `tsc && vite build` (typecheck + frontend bundle), then
 compiles Rust and packages the installers.
@@ -66,6 +70,48 @@ Notifications use `@tauri-apps/plugin-notification`.
 - **Windows:** only display correctly for an **installed** app - in dev they
   appear under the PowerShell name/icon. Build with `pnpm build:win` (or
   `build:debug`), install, then launch to test for real.
+
+## Releasing (macOS)
+
+`pnpm build:mac` produces a signed, notarized, and stapled `.app` + `.dmg` ready
+to distribute. It wraps `tauri build` via `scripts/build-and-sign-mac.sh`, letting
+Tauri code-sign with your Developer ID certificate and submit to Apple's notary
+service in one step.
+
+### One-time setup
+
+- A **Developer ID Application** certificate in your login keychain (from your
+  Apple Developer account). Confirm it's installed:
+  ```sh
+  security find-identity -v -p codesigning
+  ```
+- An **app-specific password** for your Apple ID, created at
+  [appleid.apple.com](https://appleid.apple.com) under Sign-In and Security.
+  Notarization uses this, not your normal Apple ID password.
+
+Copy `.env.template` to `.env` (gitignored) and set your `APPLE_ID`. The signing
+identity and Team ID are auto-detected from your keychain certificate, so that's
+usually all you need. The build sources `.env` automatically; anything already set
+in the environment (e.g. CI secrets) takes precedence.
+
+### Build
+
+```sh
+pnpm build:mac
+```
+
+You're prompted for the app-specific password (or set `APPLE_PASSWORD` to skip the
+prompt, e.g. in CI). The build typechecks, compiles, signs, then uploads to Apple
+and waits for notarization, so it takes a few minutes. Output lands in
+`src-tauri/target/release/bundle/{macos,dmg}/`.
+
+To override the defaulted credentials:
+
+```sh
+APPLE_ID="you@example.com" APPLE_TEAM_ID="XXXXXXXXXX" \
+  APPLE_SIGNING_IDENTITY="Developer ID Application: Name (TEAMID)" \
+  pnpm build:mac
+```
 
 ## Other tasks
 

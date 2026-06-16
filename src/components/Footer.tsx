@@ -20,6 +20,8 @@ export function Footer() {
   const title = useTodos((s) => s.title);
   const setTitle = useTodos((s) => s.setTitle);
   const items = useTodos((s) => s.items);
+  // No list loaded (all deleted): the title field has nothing to edit.
+  const hasList = useTodos((s) => s.activeId !== null);
   const focusTitle = useTodos((s) => s.focusTitle);
   const clearFocusTitle = useTodos((s) => s.clearFocusTitle);
   // Counts reflect what's shown: when a filter hides items, count the visible
@@ -53,32 +55,38 @@ export function Footer() {
       }}
     >
       <Group gap="sm" wrap="nowrap" align="center">
-        <TextInput
-          ref={inputRef}
-          variant="unstyled"
-          placeholder="Untitled"
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-          style={{ flex: 1, minWidth: 0 }}
-          styles={{
-            input: {
-              // Strip the default input padding/min-height so it fits the bar.
-              padding: 0,
-              minHeight: 0,
-              height: "auto",
-              borderRadius: 0,
-              fontSize: "11px",
-              fontWeight: 600,
-              lineHeight: 1.3,
-            },
-          }}
-        />
+        {/* Hidden when no list is loaded (all deleted): there's nothing to
+            title. The counts still show the empty (0) tally. */}
+        {hasList ? (
+          <TextInput
+            ref={inputRef}
+            variant="unstyled"
+            placeholder="Untitled"
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+            style={{ flex: 1, minWidth: 0 }}
+            styles={{
+              input: {
+                // Strip the default input padding/min-height so it fits the bar.
+                padding: 0,
+                minHeight: 0,
+                height: "auto",
+                borderRadius: 0,
+                fontSize: "11px",
+                fontWeight: 600,
+                lineHeight: 1.3,
+              },
+            }}
+          />
+        ) : (
+          <Box style={{ flex: 1, minWidth: 0 }} />
+        )}
         {/* Per-state counts (colored by state) then the total, e.g. "3 1 2 (6)".
             While filtered, counts cover the visible subset and the total reads
             "X of Y". */}

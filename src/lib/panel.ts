@@ -138,7 +138,7 @@ export async function openReviewPanel(options?: { force?: boolean }) {
   // forces it open even when nothing's pending (lands on the "all caught up" card).
   if (reviewQueue.length === 0 && !options?.force) return;
   const listId = activeId ?? "";
-  const mediaDir = listId ? await join(await appDataDir(), "media", listId) : "";
+  const mediaDir = listId ? await join(await appDataDir(), "lists", listId, "media") : "";
   openPanel({ view: "dailyReview", reviewQueue, roster, listId, mediaDir });
 }
 
@@ -342,7 +342,7 @@ export async function openDetailsPanel(
   ]);
   const inner = innerPos.toLogical(scale);
   // Absolute path of this list's media folder, for resolving attachment URLs.
-  const mediaDir = listId ? await join(base, "media", listId) : "";
+  const mediaDir = listId ? await join(base, "lists", listId, "media") : "";
   openPanel({
     view: "details",
     itemId,

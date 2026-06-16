@@ -45,7 +45,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/media/**"]
+        "scope": ["$APPDATA/lists/**"]
       }
     }
   },

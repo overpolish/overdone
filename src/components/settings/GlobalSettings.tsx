@@ -342,10 +342,7 @@ export function GlobalSettings() {
             date in a comment (due…, remind…) sets the item's reminder/due too,
             leaving the comment as written.
           </Text>
-          <ScrollArea
-            maxHeight={110}
-            style={{ border: "1px solid var(--mantine-color-default-border)" }}
-          >
+          <ScrollArea maxHeight={110}>
             <Stack gap={0} p={4}>
               {QUICK_ADD.map(({ ex, label }) => (
                 <Group key={ex} justify="space-between" wrap="nowrap" gap="md" px={6} py={4}>
@@ -372,10 +369,7 @@ export function GlobalSettings() {
           <Text size="sm" fw={500}>
             Keyboard shortcuts
           </Text>
-          <ScrollArea
-            maxHeight={110}
-            style={{ border: "1px solid var(--mantine-color-default-border)" }}
-          >
+          <ScrollArea maxHeight={110}>
             <Stack gap={0} p={4}>
               {SHORTCUTS.map(({ keys, label }) => (
                 <Group key={label} justify="space-between" wrap="nowrap" gap="md" px={6} py={4}>

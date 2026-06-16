@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local signing credentials (scripts/build-and-sign-mac.sh); keep .env.template
+.env
+
 # Icon generation temp output (scripts/generate-icons.ts)
 assets/.temp-icons/
 

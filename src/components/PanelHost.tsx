@@ -35,7 +35,9 @@ function renderView(
   if (!request) return null;
   switch (request.view) {
     case "lists":
-      return <Lists />;
+      // Keyed by nonce so each open starts on the lists view (not, say, the
+      // trash view it was left on).
+      return <Lists key={request.nonce} />;
     case "search":
       // Keyed by nonce so each open starts with a fresh query + autofocus.
       return (

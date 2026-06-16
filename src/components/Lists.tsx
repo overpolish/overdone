@@ -4,10 +4,28 @@
  */
 
 import { ActionIcon, Group, Stack, Text, TextInput, Title } from "@mantine/core";
-import { IconDownload, IconListCheck, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import {
+  IconArrowBackUp,
+  IconArrowLeft,
+  IconDownload,
+  IconListCheck,
+  IconPlus,
+  IconTrash,
+  IconTrashX,
+  IconUpload,
+} from "@tabler/icons-react";
+import { useCallback, useEffect, useState } from "react";
 
-import { exportList, importList, type ListMeta, useLists } from "../lib/lists";
+import {
+  exportList,
+  importList,
+  type ListMeta,
+  listTrash,
+  purgeList,
+  restoreList,
+  type TrashMeta,
+  useLists,
+} from "../lib/lists";
 import { IconButton } from "./IconButton";
 import { ScrollArea } from "./ScrollArea";
 
@@ -20,10 +38,22 @@ function formatBytes(n: number): string {
   return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
 }
 
+/** Compact relative age, e.g. "just now", "12m ago", "3h ago", "5d ago". */
+function timeAgo(ms: number): string {
+  const secs = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 /**
  * Lists picker shown in the secondary panel. Quick-select any list (focusing a
  * row makes it the active list across windows), rename it inline, create a new
- * one, or delete it.
+ * one, delete it (deleted lists go to the trash), or open the Trash view to
+ * restore or permanently remove a deleted list.
  */
 export function Lists() {
   const lists = useLists((s) => s.lists);
@@ -34,11 +64,65 @@ export function Lists() {
   const remove = useLists((s) => s.remove);
   const rename = useLists((s) => s.rename);
 
+  const [view, setView] = useState<"lists" | "trash">("lists");
+  const [trash, setTrash] = useState<TrashMeta[]>([]);
+
+  const loadTrash = useCallback(() => {
+    void listTrash().then(setTrash);
+  }, []);
+
   // Re-scan whenever the panel mounts so it reflects edits made while it was
-  // hidden.
+  // hidden; keep the trash count fresh so the Trash button can show it.
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    loadTrash();
+  }, [refresh, loadTrash]);
+
+  if (view === "trash") {
+    return (
+      <Stack gap="md" w={260}>
+        <Group justify="space-between" wrap="nowrap">
+          <Group gap={8} wrap="nowrap">
+            <IconTrash size={18} stroke={1.8} />
+            <Title order={5}>Trash</Title>
+          </Group>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            aria-label="Back to lists"
+            onClick={() => setView("lists")}
+          >
+            <IconArrowLeft size={16} />
+          </ActionIcon>
+        </Group>
+
+        {trash.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            Trash is empty. Deleted lists appear here and are removed for good
+            after 30 days.
+          </Text>
+        ) : (
+          <>
+            <Text size="xs" c="dimmed">
+              Deleted lists are removed for good after 30 days.
+            </Text>
+            <ScrollArea maxHeight={240}>
+              <Stack gap={2}>
+                {trash.map((list) => (
+                  <TrashRow
+                    key={list.id}
+                    list={list}
+                    onRestore={() => void restoreList(list.id).then(loadTrash)}
+                    onPurge={() => void purgeList(list.id).then(loadTrash)}
+                  />
+                ))}
+              </Stack>
+            </ScrollArea>
+          </>
+        )}
+      </Stack>
+    );
+  }
 
   return (
     <Stack gap="md" w={260}>
@@ -48,6 +132,17 @@ export function Lists() {
           <Title order={5}>Lists</Title>
         </Group>
         <Group gap={2} wrap="nowrap">
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            aria-label="Trash"
+            onClick={() => {
+              loadTrash();
+              setView("trash");
+            }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
           <ActionIcon
             variant="subtle"
             color="gray"
@@ -82,8 +177,7 @@ export function Lists() {
                 onSelect={() => setActive(list.id)}
                 onRename={(title) => rename(list.id, title)}
                 onExport={() => void exportList(list.id, list.title)}
-                onDelete={() => void remove(list.id)}
-                canDelete={lists.length > 1}
+                onDelete={() => void remove(list.id).then(loadTrash)}
               />
             ))}
           </Stack>
@@ -100,19 +194,9 @@ interface ListRowProps {
   onRename: (title: string) => void;
   onExport: () => void;
   onDelete: () => void;
-  /** The last remaining list can't be deleted (there's always one). */
-  canDelete: boolean;
 }
 
-function ListRow({
-  list,
-  active,
-  onSelect,
-  onRename,
-  onExport,
-  onDelete,
-  canDelete,
-}: ListRowProps) {
+function ListRow({ list, active, onSelect, onRename, onExport, onDelete }: ListRowProps) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   // Reveal the row actions on hover or keyboard focus, so tabbing through the
@@ -171,14 +255,62 @@ function ListRow({
           label={`Export ${list.title || "Untitled"}`}
           onClick={onExport}
         />
-        {canDelete && (
-          <IconButton
-            icon={IconTrash}
-            label={`Delete ${list.title || "Untitled"}`}
-            onClick={onDelete}
-            danger
-          />
-        )}
+        <IconButton
+          icon={IconTrash}
+          label={`Delete ${list.title || "Untitled"}`}
+          onClick={onDelete}
+          danger
+        />
+      </Group>
+    </Group>
+  );
+}
+
+interface TrashRowProps {
+  list: TrashMeta;
+  onRestore: () => void;
+  onPurge: () => void;
+}
+
+function TrashRow({ list, onRestore, onPurge }: TrashRowProps) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const revealed = hovered || focused;
+
+  return (
+    <Group
+      gap={4}
+      wrap="nowrap"
+      pr={8}
+      pl={12}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
+      style={{ borderRadius: "var(--mantine-radius-md)" }}
+    >
+      <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+        <Text size="sm" truncate>
+          {list.title || "Untitled"}
+        </Text>
+        <Text size="10px" c="dimmed">
+          {`deleted ${timeAgo(list.deletedAt)} · ${formatBytes(list.bytes)}`}
+        </Text>
+      </Stack>
+
+      {/* Restore / delete-forever reveal on hover or focus. */}
+      <Group gap={2} wrap="nowrap" style={{ flexShrink: 0, opacity: revealed ? 1 : 0 }}>
+        <IconButton
+          icon={IconArrowBackUp}
+          label={`Restore ${list.title || "Untitled"}`}
+          onClick={onRestore}
+        />
+        <IconButton
+          icon={IconTrashX}
+          label={`Delete ${list.title || "Untitled"} forever`}
+          onClick={onPurge}
+          danger
+        />
       </Group>
     </Group>
   );

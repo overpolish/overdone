@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Stack, Text } from "@mantine/core";
-import { IconFilter, IconKeyboard } from "@tabler/icons-react";
+import { Button, Stack, Text } from "@mantine/core";
+import { IconFilter, IconKeyboard, IconListCheck } from "@tabler/icons-react";
 
 import { DailyReviewBanner } from "./components/DailyReviewBanner";
 import { Footer } from "./components/Footer";
@@ -20,6 +20,7 @@ import {
   usePanelActionListeners,
   useTrayAlert,
 } from "./lib/main-events";
+import { useLists } from "./lib/lists";
 import { useDrag } from "./lib/reorder";
 import { useTodos } from "./lib/todos";
 import { useUpdateCheck } from "./lib/update";
@@ -48,6 +49,9 @@ function DropIndicator() {
 
 function App() {
   const items = useTodos((s) => s.items);
+  // Null when every list has been deleted: nothing's loaded, so the items area
+  // gives way to a "create a list" prompt.
+  const activeId = useTodos((s) => s.activeId);
   // The list as displayed: the active filter hides non-matches and view-sorts.
   // Schedulers/tray still track the full item set, not the visible subset.
   const visible = useVisibleItems();
@@ -75,7 +79,21 @@ function App() {
 
       <ScrollArea radius={0} style={{ flex: 1 }}>
         <Stack gap={0} p="sm" pos="relative">
-          {items.length === 0 ? (
+          {activeId === null ? (
+            <Stack align="center" gap={10} pt="xl" c="dimmed">
+              <IconListCheck size={40} stroke={1.5} opacity={0.5} />
+              <Text size="sm" ta="center">
+                No list open
+              </Text>
+              <Button
+                size="xs"
+                variant="default"
+                onClick={() => void useLists.getState().create()}
+              >
+                Create a list
+              </Button>
+            </Stack>
+          ) : items.length === 0 ? (
             <Stack align="center" gap={6} pt="xl" c="dimmed">
               <IconKeyboard size={40} stroke={1.5} opacity={0.5} />
               <Text size="sm" ta="center">

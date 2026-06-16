@@ -29,11 +29,12 @@ export function bindMainWindow() {
   if (bound) return;
   bound = true;
 
-  // Active list changed (panel switch / create) -> load it.
+  // Active list changed (panel switch / create / delete) -> load it, or clear
+  // the editor when nothing's active (the last list was deleted).
   useLists.subscribe((state, prev) => {
-    if (state.activeId && state.activeId !== prev.activeId) {
-      void useTodos.getState().open(state.activeId);
-    }
+    if (state.activeId === prev.activeId) return;
+    if (state.activeId) void useTodos.getState().open(state.activeId);
+    else useTodos.getState().close();
   });
 
   // Autosave: persist edits to the loaded list, debounced. The pending write is
@@ -144,7 +145,28 @@ export function bindMainWindow() {
   void init();
 }
 
-/** Resolve which list to show on launch, creating a default one if none exist. */
+// Set once the app has resolved a list state at least once, so we can tell a
+// genuine first run (seed a default list) from a user who deleted every list
+// (leave it empty rather than re-seeding behind their back).
+const INITIALIZED_KEY = "overdone-initialized";
+
+function wasInitialized(): boolean {
+  try {
+    return localStorage.getItem(INITIALIZED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markInitialized() {
+  try {
+    localStorage.setItem(INITIALIZED_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
+/** Resolve which list to show on launch, seeding a default only on first run. */
 async function init() {
   const lists = useLists.getState();
   await lists.refresh();
@@ -154,13 +176,24 @@ async function init() {
   const active =
     available.find((l) => l.id === persisted)?.id ?? available[0]?.id ?? null;
 
-  if (!active) {
-    // First run: create a default list. `create` sets it active, which the
-    // subscription above turns into an `open`.
+  if (active) {
+    markInitialized();
+    useLists.setState({ activeId: active });
+    await useTodos.getState().open(active);
+    return;
+  }
+
+  // No lists. On the very first run, seed a default; if the user emptied their
+  // lists deliberately, respect that and show the empty state.
+  if (!wasInitialized()) {
+    markInitialized();
+    // `create` sets the new list active, which the subscription turns into an
+    // `open`.
     await lists.create();
     return;
   }
 
-  useLists.setState({ activeId: active });
-  await useTodos.getState().open(active);
+  // Drop any stale active pointer so the editor clears to the empty state.
+  useLists.setState({ activeId: "" });
+  useTodos.getState().close();
 }

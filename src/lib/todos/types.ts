@@ -201,6 +201,8 @@ export interface TodosState {
   revealItem: (id: string | null) => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
   open: (id: string) => Promise<void>;
+  /** Clear the loaded list (no list active, e.g. the last one was deleted). */
+  close: () => void;
   undo: () => void;
   redo: () => void;
 }

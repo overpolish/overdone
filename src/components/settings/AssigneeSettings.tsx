@@ -71,8 +71,8 @@ export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
       </Text>
 
       {/* Add field stays pinned at the top, outside the scrolling list. It goes
-          edge-to-edge (no px) so its outer edges line up with the bordered list
-          box below, which is also full-width. Its trailing button matches the
+          edge-to-edge (no px) so its outer edges line up with the list box
+          below, which is also full-width. Its trailing button matches the
           rows' delete button (same width + gap) so the right edges line up. */}
       <Group gap={6} wrap="nowrap" mt={2}>
         <TextInput
@@ -95,11 +95,7 @@ export function AssigneeSettings({ initial }: { initial: Assignee[] }) {
       </Group>
 
       {sorted.length > 0 && (
-        <ScrollArea
-          maxHeight={76}
-          hideScrollbar
-          style={{ border: "1px solid var(--mantine-color-default-border)" }}
-        >
+        <ScrollArea maxHeight={76} hideScrollbar>
           {/* Padding keeps the rows' focus rings and hover surfaces clear of the
               container's rounded (clipped) edges and corners. */}
           <Stack gap={4} p={8}>

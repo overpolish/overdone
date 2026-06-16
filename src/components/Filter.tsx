@@ -316,13 +316,7 @@ export function Filter({
             <>
               <Divider />
               <Section title="Saved filters">
-                <ScrollArea
-                  maxHeight={104}
-                  hideScrollbar
-                  style={{
-                    border: "1px solid var(--mantine-color-default-border)",
-                  }}
-                >
+                <ScrollArea maxHeight={104} hideScrollbar>
                   <Stack gap={2} p={4}>
                     {applicable.map((f) => (
                       <SavedRow

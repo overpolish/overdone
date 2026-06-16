@@ -325,14 +325,12 @@ export function ItemDetails({
           </Group>
 
           {comments.length > 0 && (
-            <ScrollArea
-              maxHeight={300}
-              style={{ border: "1px solid var(--mantine-color-default-border)" }}
-            >
+            <ScrollArea maxHeight={300}>
               {/* Newest first; storage stays chronological (new posts append).
-                  Padding keeps the comment tiles clear of the bordered, clipped
-                  container edges and rounded corners. */}
-              <Stack gap={8} p={4}>
+                  Only vertical padding: the tiles run full-width so their edges
+                  line up with the composer field above (their md radius matches
+                  the container's, so the corners still nest cleanly). */}
+              <Stack gap={8} py={4}>
                 {comments
                   .slice()
                   .reverse()
