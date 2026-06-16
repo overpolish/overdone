@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Distributable app archives collected by scripts/build-and-sign-mac.sh
+distribution/
+
 # Local signing credentials (scripts/build-and-sign-mac.sh); keep .env.template
 .env
 

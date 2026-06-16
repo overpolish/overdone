@@ -3,10 +3,12 @@
 # SPDX-FileCopyrightText: 2026 overpolish
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 #
-# Builds the macOS .app + .dmg, code-signs with the Developer ID Application
-# certificate, then notarizes and staples. Tauri does the sign + notarize +
-# staple in-process during `tauri build` once these env vars are set, so this
-# script just supplies the credentials and runs the build.
+# Builds the macOS .app + .dmg for both Apple Silicon and Intel, code-signs with
+# the Developer ID Application certificate, then notarizes and staples. Tauri
+# does the sign + notarize + staple in-process during `tauri build` once these
+# env vars are set, so this script just supplies the credentials and runs the
+# build. Each .dmg is then zipped into distribution/ (Payhip accepts .zip, not
+# raw .dmg).
 #
 # Credentials:
 #   APPLE_ID                Apple ID email used for notarization (required, .env)
@@ -64,14 +66,100 @@ fi
 
 export APPLE_SIGNING_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_PASSWORD
 
+# Tauri's bundle_dmg.sh normally mounts the volume and drives Finder via
+# AppleScript to lay out the window (the "installer" window that pops open). That
+# step is flaky (it fails if a stale volume is mounted or Finder automation is
+# blocked) and we don't need it: the layout is already baked into the .DS_Store.
+# When CI is set, the Tauri bundler passes --skip-jenkins to bundle_dmg.sh, which
+# skips that AppleScript step entirely (gate confirmed in the tauri-cli binary;
+# TAURI_BUNDLER_DMG_IGNORE_CI is the opt-out). So set CI to suppress the window.
+export CI=true
+
 echo "Signing as: $APPLE_SIGNING_IDENTITY"
 echo "Notarizing as: $APPLE_ID (team $APPLE_TEAM_ID)"
 echo "Building, signing, and notarizing (notarization can take a few minutes)..."
 echo
 
-pnpm tauri build --bundles app,dmg
+ICNS="$ROOT/src-tauri/icons/icon.macOS.icns"
+
+# Give a .dmg FILE its own icon. Tauri sets the volume icon (.VolumeIcon.icns,
+# shown when the image is mounted) but never stamps the .dmg file itself, so
+# Finder shows the generic disk-image icon. Stamp the app icon onto the file's
+# resource fork so the .dmg matches the app. The resource fork is HFS metadata
+# and doesn't affect the signature or staple; ditto carries it into the zip.
+stamp_dmg_icon() {
+  local dmg="$1"
+  if [[ ! -f "$ICNS" ]] || ! command -v Rez >/dev/null 2>&1; then
+    echo "Warning: skipped .dmg icon (need Xcode command-line tools: Rez/DeRez/SetFile)." >&2
+    return
+  fi
+  echo "Stamping app icon onto $(basename "$dmg")..."
+  local tmp_icns tmp_rsrc
+  tmp_icns="$(mktemp -t dmgicon).icns"
+  tmp_rsrc="$(mktemp -t dmgicon).rsrc"
+  cp "$ICNS" "$tmp_icns"
+  sips -i "$tmp_icns" >/dev/null          # embed an icon resource into the icns
+  DeRez -only icns "$tmp_icns" > "$tmp_rsrc"
+  Rez -append "$tmp_rsrc" -o "$dmg"       # write it to the .dmg's resource fork
+  SetFile -a C "$dmg"                     # flag the file to use its custom icon
+  rm -f "$tmp_icns" "$tmp_rsrc"
+}
+
+# Collect the finished archives here under user-friendly names. Gitignored; this
+# is what you upload for distribution.
+DIST_DIR="$ROOT/distribution"
+mkdir -p "$DIST_DIR"
+
+# Build both macOS architectures. Nothing in the app is silicon-specific, so we
+# ship an arch-native build for each: Apple Silicon and Intel. Each --target
+# build lands under target/<triple>/release/bundle instead of the default
+# target/. We build the .dmg (nicer install UX: drag-to-Applications, custom
+# icon) then zip it, because Payhip accepts .zip uploads but not raw .dmg.
+TARGETS=(aarch64-apple-darwin x86_64-apple-darwin)
+
+for target in "${TARGETS[@]}"; do
+  case "$target" in
+    aarch64-apple-darwin) label="Silicon" ;;
+    x86_64-apple-darwin)  label="Intel" ;;
+    *)                    label="$target" ;;
+  esac
+
+  # Ensure the Rust std for this target is present (idempotent; no-op if already
+  # installed). Cross-compiling Apple Silicon -> Intel and vice versa just needs
+  # the target's prebuilt std, which rustup fetches.
+  if command -v rustup >/dev/null 2>&1; then
+    rustup target add "$target" >/dev/null 2>&1 || true
+  fi
+
+  echo
+  echo "=== Building $target ($label) ==="
+  pnpm tauri build --bundles app,dmg --target "$target"
+
+  dmg="$(ls -t "$ROOT/src-tauri/target/$target/release/bundle/dmg"/*.dmg 2>/dev/null | head -1 || true)"
+  if [[ -z "$dmg" ]]; then
+    echo "Warning: no .dmg found for $target; skipping." >&2
+    continue
+  fi
+
+  # Rename Overdone_<version>_<arch>.dmg -> Overdone_<version>_<label>.dmg by
+  # swapping the trailing _<arch> token for the friendly label, then stamp the
+  # icon and zip it. We stage the renamed .dmg in distribution/, zip it, and
+  # remove it so only the uploadable .zip remains.
+  base="$(basename "$dmg")"                  # e.g. Overdone_1.0.0_aarch64.dmg
+  friendly="$DIST_DIR/${base%_*}_${label}.dmg"   # -> Overdone_1.0.0_Silicon.dmg
+  cp "$dmg" "$friendly"
+  stamp_dmg_icon "$friendly"
+
+  zip="${friendly%.dmg}.zip"
+  echo "Zipping $(basename "$friendly") -> $(basename "$zip")..."
+  rm -f "$zip"
+  # ditto (NOT `zip`) preserves the .dmg's custom-icon resource fork inside the
+  # archive, so it survives download + unzip on the buyer's Mac.
+  ditto -c -k "$friendly" "$zip"
+  rm -f "$friendly"
+done
 
 echo
-echo "Done. Signed, notarized, stapled bundles are in:"
-echo "  src-tauri/target/release/bundle/macos/  (.app)"
-echo "  src-tauri/target/release/bundle/dmg/     (.dmg)"
+echo "Done. Distributable .zips (each wraps a signed, notarized, stapled .dmg) are in:"
+echo "  distribution/"
+ls -1 "$DIST_DIR"/*.zip 2>/dev/null | sed 's#^#  #' || true
