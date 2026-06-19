@@ -215,9 +215,9 @@ const STORAGE_NAME = "overdone-filters";
 const CHANNEL_NAME = "overdone:filters";
 
 interface FiltersState {
-  /** Active criteria keyed by list id. In-memory only (not persisted), so a
-   * fresh launch starts unfiltered; survives list switches within a session and
-   * syncs across windows. */
+  /** Active criteria keyed by list id. Persisted, so each list reopens with the
+   * filter it last had; survives list switches within a session and syncs across
+   * windows. */
   active: Record<string, FilterCriteria>;
   /** Saved filters (persisted). */
   saved: SavedFilter[];
@@ -272,8 +272,9 @@ export const useFilters = create<FiltersState>()(
     {
       name: STORAGE_NAME,
       storage: createJSONStorage(() => localStorage),
-      // Only saved filters persist; active filters reset on launch.
-      partialize: (state) => ({ saved: state.saved }),
+      // Persist both the saved filters and the per-list active criteria, so a
+      // list reopens with the filter it last had instead of resetting.
+      partialize: (state) => ({ saved: state.saved, active: state.active }),
     },
   ),
 );
