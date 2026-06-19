@@ -11,22 +11,29 @@ import { caretEdges } from "../../lib/caret";
 import { useItemMenu } from "../../lib/context-menu";
 import { resolveLabels } from "../../lib/label";
 import { parseQuickAdd } from "../../lib/quick-add";
-import { useDrag } from "../../lib/reorder";
+import { selectByModifier, useDrag } from "../../lib/reorder";
+import { useSelection } from "../../lib/selection";
 import { type TodoData, useTodos } from "../../lib/todos";
 import { LabelBadges } from "../LabelBadge";
 import { StateCheckbox } from "../StateCheckbox";
 import { ItemControls } from "./ItemControls";
+import { RowWash } from "./RowWash";
 import { INDENT, LINE_HEIGHT, rowStatus } from "./itemStatus";
 
 interface TodoItemProps {
   item: TodoData;
+  /** Whether the visible row above is also selected (drives the contiguous
+   * highlight: a run of selected rows merges by dropping the shared edge). */
+  selPrev?: boolean;
+  /** Whether the visible row below is also selected. */
+  selNext?: boolean;
 }
 
 /**
  * A single todo row: the custom status checkbox plus an inline, unstyled text
  * field. Reads/writes through the todos store so edits flow through undo/redo.
  */
-export function TodoItem({ item }: TodoItemProps) {
+export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemProps) {
   const setItemText = useTodos((s) => s.setItemText);
   const dismissNotification = useTodos((s) => s.dismissNotification);
   const deleteItemFocusNeighbor = useTodos((s) => s.deleteItemFocusNeighbor);
@@ -35,7 +42,11 @@ export function TodoItem({ item }: TodoItemProps) {
   const focusId = useTodos((s) => s.focusId);
   const focusCaret = useTodos((s) => s.focusCaret);
   const clearFocus = useTodos((s) => s.clearFocus);
-  const dragging = useDrag((s) => s.id === item.id);
+  // Selected as part of a multi-selection (drives the highlight, and dimming the
+  // whole selection while any of it is being dragged).
+  const selected = useSelection((s) => s.ids.has(item.id));
+  const dragId = useDrag((s) => s.id);
+  const dragging = dragId === item.id || (dragId !== null && selected);
   const child = item.depth === 1;
   const { done, needsAction, pendingNotify, dueState, statusColor } = rowStatus(item);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -88,6 +99,9 @@ export function TodoItem({ item }: TodoItemProps) {
       onBlurCapture={() => setFocusWithin(false)}
       onContextMenu={(e) => {
         e.preventDefault();
+        // Right-clicking an unselected row drops the selection so the menu acts
+        // on just this item; right-clicking within a selection keeps it (bulk).
+        if (!useSelection.getState().ids.has(item.id)) useSelection.getState().clear();
         useItemMenu.getState().show(item.id, e.clientX, e.clientY);
       }}
       style={{
@@ -97,42 +111,13 @@ export function TodoItem({ item }: TodoItemProps) {
         transition: "opacity 120ms ease",
       }}
     >
-      {/* Status wash backing the row (red overdue / amber notification / orange
-          due-today, by priority), matching the tinted text + icon. Bleeds only
-          horizontally - rows are flush (Stack gap 0), so a vertical bleed would
-          overlap the neighbour's wash and double up into a dark seam. */}
-      {statusColor && (
-        <Box
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            marginInline: -8,
-            borderRadius: "var(--mantine-radius-sm)",
-            background: `color-mix(in srgb, ${statusColor} 14%, transparent)`,
-            pointerEvents: "none",
-            zIndex: -1,
-          }}
-        />
-      )}
-      {/* Highlight backing the row while its editing panel is open. Behind the
-          content (zIndex -1). Bleeds only horizontally (like the status wash
-          above) - a vertical bleed would overlap the neighbouring rows. */}
-      {editing && (
-        <Box
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            marginInline: -8,
-            borderRadius: "var(--mantine-radius-sm)",
-            background: "var(--mantine-color-default-hover)",
-            boxShadow: "inset 0 0 0 1px var(--mantine-color-default-border)",
-            pointerEvents: "none",
-            zIndex: -1,
-          }}
-        />
-      )}
+      <RowWash
+        statusColor={statusColor}
+        selected={selected}
+        selPrev={selPrev}
+        selNext={selNext}
+        editing={editing}
+      />
       {/* Nesting guide: a faint vertical line under the parent's checkbox. */}
       {child && (
         <div
@@ -160,7 +145,21 @@ export function TodoItem({ item }: TodoItemProps) {
       {/* Text column: any labels render as badges stacked above the title, like
           GitHub. The column owns the row's flexible width so wrapped badges and
           title share one left edge. */}
-      <Box style={{ flex: 1, minWidth: 0 }}>
+      <Box
+        style={{ flex: 1, minWidth: 0 }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          // Shift/Cmd/Ctrl is a selection shortcut, so run the selection gesture
+          // and suppress the default (no caret move, no native text-select).
+          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            e.preventDefault();
+            selectByModifier(item.id, e);
+            return;
+          }
+          // A plain click here starts a single-item edit: drop any selection.
+          useSelection.getState().clear();
+        }}
+      >
         {labels.length > 0 && (
           <Box pt={3} pb={1}>
             <LabelBadges labels={labels} />

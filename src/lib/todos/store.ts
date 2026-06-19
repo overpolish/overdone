@@ -267,6 +267,64 @@ export const useTodos = create<TodosState>((set, get) => {
         return floatPinned(normalizeDepths(next));
       }, null),
 
+    moveItems: (ids, dropIndex) =>
+      commit((items) => {
+        const idSet = new Set(ids);
+        // An item moves if it's selected, or it's a sub-item whose parent is
+        // selected (a parent drags its children, matching single-item drag).
+        let parentSelected = false;
+        const moving = items.map((it) => {
+          if (it.depth === 0) parentSelected = idSet.has(it.id);
+          return idSet.has(it.id) || (it.depth === 1 && parentSelected);
+        });
+        if (!moving.some(Boolean)) return items;
+        const block = items.filter((_, i) => moving[i]);
+        const rest = items.filter((_, i) => !moving[i]);
+        // `dropIndex` is in original coordinates; subtract the moving rows before
+        // it to land in `rest`'s coordinates.
+        const movedBefore = moving.slice(0, dropIndex).filter(Boolean).length;
+        const to = Math.max(0, Math.min(dropIndex - movedBefore, rest.length));
+        const next = [...rest.slice(0, to), ...block, ...rest.slice(to)];
+        return floatPinned(normalizeDepths(next));
+      }, null),
+
+    deleteItems: (ids) =>
+      commit((items) => ids.reduce((acc, id) => removeItem(acc, id), items), null),
+
+    setItemsState: (ids, state) =>
+      commit((items) => {
+        const idSet = new Set(ids);
+        const t = now();
+        const struck = isStruck(state);
+        let next = items.map((it) => {
+          if (!idSet.has(it.id)) return it;
+          const applied = applyState(it, state, t);
+          return struck && applied.pinned ? { ...applied, pinned: undefined } : applied;
+        });
+        // Cancelling a selected parent cancels its open sub-items too (see the
+        // single-item setItemState).
+        if (state === "cancelled") {
+          for (let i = 0; i < next.length; i++) {
+            if (!idSet.has(next[i].id) || next[i].depth !== 0) continue;
+            for (let j = i + 1; j < next.length && next[j].depth === 1; j++) {
+              if (next[j].state !== "done") next[j] = applyState(next[j], "cancelled", t);
+            }
+          }
+        }
+        return floatPinned(next);
+      }, null),
+
+    setItemsPinned: (ids, pinned) =>
+      commit((items) => {
+        const idSet = new Set(ids);
+        const next = items.map((it) =>
+          idSet.has(it.id) && it.depth === 0
+            ? { ...it, pinned: pinned ? true : undefined, updatedAt: now() }
+            : it,
+        );
+        return floatPinned(next);
+      }, null),
+
     togglePin: (id) =>
       commit((items) => {
         const i = items.findIndex((x) => x.id === id);

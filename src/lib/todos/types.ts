@@ -176,6 +176,21 @@ export interface TodosState {
    * 0..length (as computed from the drop indicator).
    */
   moveItem: (id: string, dropIndex: number) => void;
+  /**
+   * Move a multi-selection as one contiguous block to `dropIndex` (a gap in the
+   * full-list coordinates, like {@link moveItem}). Selected items keep their
+   * relative order; a selected parent carries its sub-items along. One undo step.
+   */
+  moveItems: (ids: string[], dropIndex: number) => void;
+  /** Delete every selected item in one undo step (a deleted parent promotes its
+   * surviving sub-items, like {@link deleteItem}). */
+  deleteItems: (ids: string[]) => void;
+  /** Set the state of every selected item at once (one undo step). Mirrors the
+   * single-item {@link setItemState}, including the cancel cascade onto a
+   * cancelled parent's open sub-items. */
+  setItemsState: (ids: string[], state: TodoState) => void;
+  /** Pin or unpin every selected top-level item at once (one undo step). */
+  setItemsPinned: (ids: string[], pinned: boolean) => void;
   /** Toggle a top-level item's pinned flag, re-floating pinned items to the top.
    * No-op on sub-items (only top-level items pin). */
   togglePin: (id: string) => void;

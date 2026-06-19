@@ -8,6 +8,7 @@ import { useRef } from "react";
 
 import { openStatusPicker } from "../lib/panel";
 import { useItemDrag } from "../lib/reorder";
+import { useSelection } from "../lib/selection";
 import { type TodoState } from "../lib/todo";
 import { StateBox } from "./StateBox";
 
@@ -32,11 +33,20 @@ export function StateCheckbox({ value, itemId }: StateCheckboxProps) {
       ref={ref}
       aria-label="Change status"
       onPointerDown={onPointerDown}
-      onClick={() => {
+      onClick={(e) => {
         if (didDrag.current) {
           didDrag.current = false;
           return;
         }
+        // Shift range-selects on pointer-down already; don't also open the picker.
+        if (e.shiftKey) return;
+        // Cmd/Ctrl-click toggles this item in/out of the selection.
+        if (e.metaKey || e.ctrlKey) {
+          useSelection.getState().toggle(itemId);
+          return;
+        }
+        // A plain click drops any active selection, then opens the status picker.
+        useSelection.getState().clear();
         if (ref.current) void openStatusPicker(ref.current, itemId, value);
       }}
       style={{
