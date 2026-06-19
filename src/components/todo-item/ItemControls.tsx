@@ -4,12 +4,12 @@
  */
 
 import { ActionIcon, Box, Group, UnstyledButton } from "@mantine/core";
-import { IconBell, IconCalendar, IconMessage } from "@tabler/icons-react";
+import { IconBell, IconCalendar, IconMessage, IconPinnedFilled } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useRef } from "react";
 
 import { openAssigneePanel, openDetailsPanel } from "../../lib/panel";
-import { type Assignee, type TodoData } from "../../lib/todos";
+import { type Assignee, type TodoData, useTodos } from "../../lib/todos";
 import { AddAssigneeButton, AssigneeAvatars } from "../AssigneeAvatar";
 import { type DueState, LINE_HEIGHT, STATUS_COLOR } from "./itemStatus";
 
@@ -47,6 +47,23 @@ export function ItemControls({
 
   return (
     <Group gap={2} wrap="nowrap" align="flex-start">
+      {/* Pinned indicator: always visible (not hover-gated) so a pinned item is
+          obvious; clicking it unpins, the quick inverse of the right-click pin. */}
+      {item.pinned && (
+        <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
+          <ActionIcon
+            aria-label="Unpin"
+            title="Pinned - click to unpin"
+            variant="subtle"
+            color="gray"
+            size={20}
+            onClick={() => useTodos.getState().togglePin(item.id)}
+            style={{ flexShrink: 0 }}
+          >
+            <IconPinnedFilled size={14} stroke={1.8} />
+          </ActionIcon>
+        </Box>
+      )}
       {/* Pending reminder: a quiet, dimmed bell while a reminder is scheduled but
           hasn't fired (distinct from the amber fired bell below, and not
           dismissable). Gives setting a reminder - including from a comment -

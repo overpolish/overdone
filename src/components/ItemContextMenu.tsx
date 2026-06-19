@@ -10,6 +10,8 @@ import {
   IconArrowBarToUp,
   IconCopy,
   IconCornerDownRight,
+  IconPin,
+  IconPinnedOff,
   IconTrash,
   type IconProps,
 } from "@tabler/icons-react";
@@ -56,6 +58,14 @@ export function ItemContextMenu() {
     icon: ComponentType<IconProps>;
     onClick: () => void;
   }[] = [];
+  // Pin/unpin floats a top-level item to the top of the list (offered on top
+  // items only - a sub-item would have to leave its parent to reach the top).
+  if (!isChild)
+    actions.push({
+      label: item.pinned ? "Unpin" : "Pin to top",
+      icon: item.pinned ? IconPinnedOff : IconPin,
+      onClick: () => todos.togglePin(open.id),
+    });
   // Only worth offering when it isn't already first (a child is never at idx 0,
   // so this also promotes it to a top-level item).
   if (idx > 0)

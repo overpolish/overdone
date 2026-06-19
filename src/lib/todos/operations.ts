@@ -39,6 +39,26 @@ export function normalizeDepths(items: TodoData[]): TodoData[] {
   });
 }
 
+/**
+ * Float pinned top-level blocks (a depth-0 parent plus its sub-items) to the
+ * front of the list, preserving the relative order within the pinned and the
+ * unpinned groups. A stable partition: this is the invariant the store keeps so
+ * pinned items stay at the top under manual (drag) order, and it clamps a drag
+ * that would otherwise move a pin below an unpinned item (or vice versa).
+ * Returns the input unchanged when there's nothing to reorder.
+ */
+export function floatPinned(items: TodoData[]): TodoData[] {
+  const blocks: TodoData[][] = [];
+  for (const it of items) {
+    if (it.depth === 0 || blocks.length === 0) blocks.push([it]);
+    else blocks[blocks.length - 1].push(it);
+  }
+  const pinned = blocks.filter((b) => b[0].pinned);
+  if (pinned.length === 0 || pinned.length === blocks.length) return items;
+  const rest = blocks.filter((b) => !b[0].pinned);
+  return [...pinned, ...rest].flat();
+}
+
 /** Whether the item at `i` is a top item with at least one sub-item. */
 export function hasChildren(items: TodoData[], i: number): boolean {
   return items[i]?.depth === 0 && items[i + 1]?.depth === 1;

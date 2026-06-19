@@ -64,6 +64,10 @@ export interface TodoData {
   notifiedAt?: number;
   /** Epoch ms (UTC midnight) of the item's due date - date only, no time. */
   dueDate?: number;
+  /** Pinned items (top-level only) float to the top of the list and stay there
+   * under manual order, until the item is resolved (done/cancelled), which drops
+   * the pin. Absent/false = a normal, unpinned item. */
+  pinned?: boolean;
 }
 
 export interface TodosState {
@@ -172,6 +176,9 @@ export interface TodosState {
    * 0..length (as computed from the drop indicator).
    */
   moveItem: (id: string, dropIndex: number) => void;
+  /** Toggle a top-level item's pinned flag, re-floating pinned items to the top.
+   * No-op on sub-items (only top-level items pin). */
+  togglePin: (id: string) => void;
   /** Make an item a sub-item of the item above it (one level only). */
   indentItem: (id: string) => void;
   /** Promote a sub-item back to a top item. */

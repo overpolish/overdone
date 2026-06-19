@@ -11,7 +11,8 @@ import { randomLabelColor } from "../label";
 import { parseList } from "../markdown";
 import { referencedMedia } from "../media";
 import { type QuickAddParse } from "../quick-add";
-import { applyState, normalizeDepths, removeItem } from "./operations";
+import { isStruck } from "../todo";
+import { applyState, floatPinned, normalizeDepths, removeItem } from "./operations";
 import {
   type Assignee,
   type Comment,
@@ -67,7 +68,14 @@ export const useTodos = create<TodosState>((set, get) => {
         const i = items.findIndex((x) => x.id === id);
         if (i === -1) return items;
         const t = now();
-        const next = items.map((it, idx) => (idx === i ? applyState(it, state, t) : it));
+        const struck = isStruck(state);
+        const next = items.map((it, idx) => {
+          if (idx !== i) return it;
+          const applied = applyState(it, state, t);
+          // A resolved item (done/cancelled) leaves the pinned region: a pin
+          // holds only while the item is still open.
+          return struck && applied.pinned ? { ...applied, pinned: undefined } : applied;
+        });
         // Cancelling a parent cancels its sub-items too - except any already
         // done (a finished sub-task stays done). No other state cascades, and
         // nothing rolls up: completion is per-item and explicit, since a parent's
@@ -77,7 +85,9 @@ export const useTodos = create<TodosState>((set, get) => {
             if (next[j].state !== "done") next[j] = applyState(next[j], "cancelled", t);
           }
         }
-        return next;
+        // Dropping a pin re-floats so the now-unpinned item falls below any pins
+        // still in play.
+        return floatPinned(next);
       }, null),
 
     setItemText: (id, text) =>
@@ -252,7 +262,21 @@ export const useTodos = create<TodosState>((set, get) => {
         let to = dropIndex > from ? dropIndex - blockLen : dropIndex;
         to = Math.max(0, Math.min(to, without.length));
         const next = [...without.slice(0, to), ...block, ...without.slice(to)];
-        return normalizeDepths(next);
+        // Re-float so a drag can't strand a pinned block below an unpinned one
+        // (or push an unpinned item up into the pinned region).
+        return floatPinned(normalizeDepths(next));
+      }, null),
+
+    togglePin: (id) =>
+      commit((items) => {
+        const i = items.findIndex((x) => x.id === id);
+        // Only top-level items pin; a sub-item would have to leave its parent to
+        // reach the top, which `indentItem` already models the other way.
+        if (i === -1 || items[i].depth !== 0) return items;
+        const next = items.map((it, idx) =>
+          idx === i ? { ...it, pinned: it.pinned ? undefined : true, updatedAt: now() } : it,
+        );
+        return floatPinned(next);
       }, null),
 
     indentItem: (id) =>
@@ -262,10 +286,11 @@ export const useTodos = create<TodosState>((set, get) => {
         // first item is always depth 0). Indenting a parent flattens its
         // sub-items into siblings under the new parent (one level only).
         if (i <= 0 || items[i].depth !== 0) return items;
+        // Becoming a sub-item drops any pin (only top-level items pin).
         const next = items.map((it, idx) =>
-          idx === i ? { ...it, depth: 1, updatedAt: now() } : it,
+          idx === i ? { ...it, depth: 1, pinned: undefined, updatedAt: now() } : it,
         );
-        return next;
+        return floatPinned(next);
       }, null),
 
     outdentItem: (id) =>
@@ -275,7 +300,8 @@ export const useTodos = create<TodosState>((set, get) => {
         const next = items.map((it, idx) =>
           idx === i ? { ...it, depth: 0, updatedAt: now() } : it,
         );
-        return next;
+        // A freshly promoted top item is unpinned, so it sinks below any pins.
+        return floatPinned(next);
       }, null),
 
     addSubItem: (parentId) => {
@@ -307,10 +333,12 @@ export const useTodos = create<TodosState>((set, get) => {
       // and typing its first words collapse into a single undo step.
       commit((items) => {
         const t = now();
-        return [
+        // Prepend, then float: the new (unpinned) item lands at the top of the
+        // unpinned region, i.e. just below any pinned items.
+        return floatPinned([
           { id, text: initialText, state: "todo", depth: 0, createdAt: t, updatedAt: t },
           ...items,
-        ];
+        ]);
       }, `text:${id}`);
       set({ focusId: id });
     },
@@ -322,10 +350,11 @@ export const useTodos = create<TodosState>((set, get) => {
         const comments = commentHtml
           ? [{ id: crypto.randomUUID(), text: commentHtml, createdAt: t }]
           : undefined;
-        return [
+        // Float so the new item sits below any pins (see `addItem`).
+        return floatPinned([
           { id, text, state: "todo", depth: 0, createdAt: t, updatedAt: t, comments },
           ...items,
-        ];
+        ]);
       }, null);
       set({ focusId: id });
     },
@@ -401,8 +430,9 @@ export const useTodos = create<TodosState>((set, get) => {
         title,
         assignees,
         labels,
-        // Fix any structural quirks (item states are taken as-is - no rollup).
-        items: normalizeDepths(items),
+        // Fix any structural quirks (item states are taken as-is - no rollup),
+        // then float pins to the top in case the file was hand-edited.
+        items: floatPinned(normalizeDepths(items)),
         past: [],
         future: [],
         lastKey: null,
