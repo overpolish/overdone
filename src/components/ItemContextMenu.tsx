@@ -8,6 +8,7 @@ import {
   IconArrowBarToLeft,
   IconArrowBarToRight,
   IconArrowBarToUp,
+  IconCopy,
   IconCornerDownRight,
   IconTrash,
   type IconProps,
@@ -15,6 +16,7 @@ import {
 import { type ComponentType, useEffect, useState } from "react";
 
 import { useItemMenu } from "../lib/context-menu";
+import { resolveLabels } from "../lib/label";
 import { dangerBg, dangerFg } from "../lib/styles";
 import { useTodos } from "../lib/todos";
 
@@ -80,6 +82,18 @@ export function ItemContextMenu() {
       icon: IconArrowBarToLeft,
       onClick: () => todos.outdentItem(open.id),
     });
+  // Copy the title plus its labels as `#name` tokens, matching the quick-add
+  // syntax so the copied text pastes straight back into a new item.
+  actions.push({
+    label: "Copy item",
+    icon: IconCopy,
+    onClick: () => {
+      const labels = resolveLabels(item.labels ?? [], todos.labels);
+      const tags = labels.map((l) => `#${l.name}`).join(" ");
+      const text = [item.text.trim(), tags].filter(Boolean).join(" ");
+      void navigator.clipboard.writeText(text);
+    },
+  });
 
   const rows = actions.length + 1; // + delete
   const height = rows * ROW_HEIGHT + 16;
