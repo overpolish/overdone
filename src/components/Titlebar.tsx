@@ -8,6 +8,7 @@ import {
   IconFilter,
   IconListCheck,
   IconMinus,
+  IconNote,
   IconPlus,
   IconSearch,
   IconX,
@@ -21,6 +22,7 @@ import {
   openSearchPanel,
   openSettingsPanel,
 } from "../lib/panel";
+import { openScratchpad } from "../lib/scratchpad";
 import { useTodos } from "../lib/todos";
 import { startTitlebarDrag } from "../lib/window-drag";
 import { IconButton } from "./IconButton";
@@ -110,6 +112,9 @@ export function Titlebar() {
 
       {/* Add + lists on the right, mirroring the window controls on the left. */}
       <Group h="100%" gap={2} pr={8} pos="absolute" top={0} right={0} wrap="nowrap">
+        {/* Quick-notes scratchpad, sitting just left of the add button: jot
+            now, convert the lines into items later. */}
+        <IconButton label="Scratchpad" icon={IconNote} onClick={openScratchpad} />
         {/* Backup for type-to-create: makes a new item and focuses it. */}
         <IconButton
           label="Add item"

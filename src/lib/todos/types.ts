@@ -181,6 +181,13 @@ export interface TodosState {
   /** Insert a new (empty by default) item at the top and focus it. */
   addItem: (initialText?: string) => void;
   /**
+   * Insert a new item at the top with `text`, optionally seeding its first
+   * comment with `commentHtml` (stored HTML). Used by the scratchpad's convert
+   * action: the note's first line becomes the item, the rest its first comment.
+   * One undo step; focuses the new item.
+   */
+  addItemWithComment: (text: string, commentHtml?: string) => void;
+  /**
    * Apply a parsed quick-add result to an item in one undo step: mint any new
    * roster people/labels, then merge the extracted assignees, labels, and dates
    * onto the item alongside its cleaned text. New roster entries are added like

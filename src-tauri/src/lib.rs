@@ -8,6 +8,7 @@ mod commands;
 mod panel;
 mod passthrough;
 mod platform;
+mod scratchpad;
 mod storage;
 mod transcode;
 mod tray;
@@ -68,6 +69,8 @@ pub fn run() {
             passthrough::set_passthrough,
             commands::set_content_protected,
             commands::hide_to_tray,
+            scratchpad::show_scratchpad,
+            scratchpad::hide_scratchpad,
             storage::list_lists,
             storage::read_list,
             storage::read_text_file,
@@ -148,9 +151,12 @@ pub fn run() {
                     tauri::WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
                         let _ = win.hide();
-                        // Hide the secondary panel alongside the main window so it
-                        // doesn't linger on screen with no main window behind it.
+                        // Hide the secondary panel and the scratchpad alongside the
+                        // main window so neither lingers with no main window behind it.
                         hide_panel(&handle);
+                        if let Some(pad) = handle.get_webview_window("scratchpad") {
+                            let _ = pad.hide();
+                        }
                     }
                     _ => {}
                 });
@@ -202,6 +208,45 @@ pub fn run() {
                         }
                         hide_panel(&app_handle);
                     }
+                });
+            }
+
+            // The scratchpad is its own persistent window (not a popover): it
+            // matches the panel's chrome-free overlay look, but it never dismisses
+            // on blur, so it stays visible alongside the panel. Closing it just
+            // hides it (contents + size are kept and restored).
+            if let Some(pad) = app.get_webview_window("scratchpad") {
+                #[cfg(target_os = "windows")]
+                let _ = pad.set_decorations(false);
+
+                #[cfg(target_os = "macos")]
+                platform::hide_traffic_lights(&pad);
+
+                let _ = pad.set_content_protected(true);
+
+                let pad_handle = app.handle().clone();
+                pad.on_window_event(move |event| match event {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        if let Some(win) = pad_handle.get_webview_window("scratchpad") {
+                            let _ = win.hide();
+                        }
+                    }
+                    // Focusing the scratchpad dismisses the popover panel
+                    // (settings, comments, …), the same way focusing the main
+                    // window does - unless it's pinned. The panel's own blur
+                    // handler can't do this: focus moving to a sibling window
+                    // keeps the app active, which it treats as "stay open".
+                    tauri::WindowEvent::Focused(true) => {
+                        if !pad_handle
+                            .state::<WindowState>()
+                            .panel_pinned
+                            .load(Ordering::Relaxed)
+                        {
+                            hide_panel(&pad_handle);
+                        }
+                    }
+                    _ => {}
                 });
             }
 

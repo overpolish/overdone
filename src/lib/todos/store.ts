@@ -315,6 +315,21 @@ export const useTodos = create<TodosState>((set, get) => {
       set({ focusId: id });
     },
 
+    addItemWithComment: (text, commentHtml) => {
+      const id = crypto.randomUUID();
+      commit((items) => {
+        const t = now();
+        const comments = commentHtml
+          ? [{ id: crypto.randomUUID(), text: commentHtml, createdAt: t }]
+          : undefined;
+        return [
+          { id, text, state: "todo", depth: 0, createdAt: t, updatedAt: t, comments },
+          ...items,
+        ];
+      }, null);
+      set({ focusId: id });
+    },
+
     applyQuickAdd: (id, parsed: QuickAddParse) => {
       // Mint any newly-named people/labels first, outside the items history (like
       // addAssignee/addLabel), and collect their fresh ids to merge onto the item.

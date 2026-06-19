@@ -86,6 +86,43 @@ video {
   user-select: none;
 }
 
+/* Scratchpad editor: fills the resizable window and carries the border/focus-ring,
+ * so the nested comment editor drops its own chrome and just scrolls inside it. */
+.scratchpad-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  transition: border-color 120ms ease;
+}
+.scratchpad-editor:focus-within {
+  border-color: var(--mantine-primary-color-filled);
+}
+.scratchpad-editor .comment-input {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  /* Fill the box so clicking anywhere - not just the first line - focuses the
+   * editor: stretch the EditorContent wrapper and the ProseMirror surface down
+   * to the full height. */
+  display: flex;
+  flex-direction: column;
+}
+.scratchpad-editor .comment-input > div:first-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.scratchpad-editor .comment-input .ProseMirror {
+  flex: 1;
+}
+
 /* Comment rich-text editor, styled to read like a plain text input: a bordered
  * box that shows a focus ring, with a comfortable minimum typing area. */
 .comment-input {

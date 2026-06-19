@@ -55,6 +55,11 @@ pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
     if let Some(panel) = app.get_webview_window("panel") {
         let _ = panel.hide();
     }
+    // The scratchpad is a sibling floating window; hide it with the app so it
+    // doesn't linger on screen with no main window behind it.
+    if let Some(pad) = app.get_webview_window("scratchpad") {
+        let _ = pad.hide();
+    }
     state.panel_open.store(false, Ordering::Relaxed);
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.hide();
@@ -87,7 +92,7 @@ pub fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State
 #[tauri::command]
 pub fn set_content_protected(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
     state.content_protected.store(value, Ordering::Relaxed);
-    for label in ["main", "panel"] {
+    for label in ["main", "panel", "scratchpad"] {
         if let Some(window) = app.get_webview_window(label) {
             let _ = window.set_content_protected(value);
         }

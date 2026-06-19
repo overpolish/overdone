@@ -31,6 +31,7 @@ import {
   type StatusAction,
 } from "./panel";
 import { datesFromNewComments } from "./quick-add";
+import { type ScratchpadConvert } from "./scratchpad";
 import { useSettings } from "./settings";
 import { isStruck } from "./todo";
 import { type TodoData, useTodos } from "./todos";
@@ -168,6 +169,30 @@ export function usePanelActionListeners() {
     const todos = useTodos.getState();
     if (type === "redo") todos.redo();
     else todos.undo();
+  });
+
+  // Convert a scratchpad selection into a list item (the scratchpad runs in its
+  // own window and can't reach the list store). The first line is the item; any
+  // remaining lines + embedded media become its first comment, whose attachment
+  // files are copied from the scratchpad's media folder into the active list's so
+  // the `media/<file>` refs resolve there.
+  useTauriEvent<ScratchpadConvert>("scratchpad:convert", ({ text, comment, mediaFiles, mediaDir }) => {
+    const todos = useTodos.getState();
+    const listId = todos.activeId;
+    void (async () => {
+      if (listId && comment && mediaFiles.length) {
+        await Promise.all(
+          mediaFiles.map((file) =>
+            invoke("import_attachment", {
+              listId,
+              src: `${mediaDir}/${file}`,
+              fileName: file,
+            }).catch(() => {}),
+          ),
+        );
+      }
+      todos.addItemWithComment(text, comment);
+    })();
   });
 
   // Apply roster management changes made in Settings back to the store.
