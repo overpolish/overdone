@@ -5,6 +5,7 @@
 
 import { Divider, Text } from "@mantine/core";
 import {
+  IconArrowBarToDown,
   IconArrowBarToLeft,
   IconArrowBarToRight,
   IconArrowBarToUp,
@@ -18,9 +19,29 @@ import {
 import { type ComponentType, useEffect } from "react";
 
 import { useItemMenu } from "../../lib/context-menu";
+import { applyFilter, criteriaOf, hasActiveCriteria } from "../../lib/filters";
 import { useSelection } from "../../lib/selection";
-import { useTodos } from "../../lib/todos";
+import { type TodoData, useTodos } from "../../lib/todos";
 import { itemToText, MenuRow, MenuShell, ROW_HEIGHT, StatusRow } from "./parts";
+
+/**
+ * The full-list gap index that sends `item` to the bottom of its scope: the
+ * bottom of the pins when it's pinned (moveItem re-floats pins, so an item
+ * dropped at the array end lands as the last pin), else the end of the active
+ * filter's visible list, else the very end of the list.
+ */
+function bottomDropIndex(item: TodoData): number {
+  const { items, activeId, revealedId } = useTodos.getState();
+  if (!item.pinned) {
+    const criteria = criteriaOf(activeId);
+    if (hasActiveCriteria(criteria)) {
+      const visible = applyFilter(items, criteria, revealedId);
+      const last = visible[visible.length - 1];
+      if (last) return items.findIndex((i) => i.id === last.id) + 1;
+    }
+  }
+  return items.length;
+}
 
 /**
  * Right-click menu for a todo item: the structural actions (add sub-item,
@@ -79,6 +100,14 @@ export function ItemContextMenu() {
       label: "Move to top",
       icon: IconArrowBarToUp,
       onClick: () => todos.moveItem(open.id, 0),
+    });
+  // Bottom of the pins if pinned, else the bottom of the current filtered view,
+  // else the very bottom (see bottomDropIndex).
+  if (items.length > 1)
+    actions.push({
+      label: "Send to bottom",
+      icon: IconArrowBarToDown,
+      onClick: () => todos.moveItem(open.id, bottomDropIndex(item)),
     });
   if (!isChild)
     actions.push({
