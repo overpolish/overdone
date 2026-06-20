@@ -98,6 +98,49 @@ describe("datesFromNewComments (comment wiring)", () => {
     expect(dates.notifyAt).toBe(new Date(2026, 5, 16, 15, 0).getTime());
   });
 
+  it("carries the comment text minus the date phrase as the reminder body", () => {
+    const dates = datesFromNewComments(
+      new Map(),
+      [{ id: "c1", text: "  Testing tomorrow at 15:00  " }],
+      plain,
+      REF,
+    );
+    expect(dates.notifyMessage).toBe("Testing");
+  });
+
+  it("reads '@' as 'at': fuses the day and time, leaving a clean body", () => {
+    const dates = datesFromNewComments(
+      new Map(),
+      [{ id: "c1", text: "testing tomorrow @15:30" }],
+      plain,
+      REF,
+    );
+    expect(dates.notifyAt).toBe(new Date(2026, 5, 16, 15, 30).getTime());
+    expect(dates.dueDate).toBeUndefined();
+    expect(dates.notifyMessage).toBe("testing");
+  });
+
+  it("leaves the reminder body unset when the comment is only a date phrase", () => {
+    const dates = datesFromNewComments(
+      new Map(),
+      [{ id: "c1", text: "tomorrow at 15:00" }],
+      plain,
+      REF,
+    );
+    expect(dates.notifyAt).toBe(new Date(2026, 5, 16, 15, 0).getTime());
+    expect(dates.notifyMessage).toBeUndefined();
+  });
+
+  it("leaves the reminder body unset for a due-only comment", () => {
+    const dates = datesFromNewComments(
+      new Map(),
+      [{ id: "c1", text: "finish the report eod" }],
+      plain,
+      REF,
+    );
+    expect(dates.notifyMessage).toBeUndefined();
+  });
+
   it("ignores comments that are unchanged from before", () => {
     const prev = new Map([["c1", "due tomorrow"]]);
     const dates = datesFromNewComments(prev, [{ id: "c1", text: "due tomorrow" }], plain, REF);

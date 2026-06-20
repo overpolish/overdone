@@ -65,11 +65,14 @@ export function emitLabelAction(action: LabelAction) {
 }
 
 /** An item's notification time / due date change made in the details panel,
- * sent to the main window. Both values are sent each time (absent = cleared). */
+ * sent to the main window. All values are sent each time (absent = cleared). */
 export interface DatesAction {
   itemId: string;
   notifyAt?: number;
   dueDate?: number;
+  /** Optional custom reminder body, typed under the notify picker; fires in
+   * place of the item text when the reminder triggers. */
+  notifyMessage?: string;
 }
 
 export function emitDatesAction(action: DatesAction) {
@@ -146,8 +149,9 @@ export function emitLabelsSync(sync: LabelsSync) {
  * details panel reflects changes from elsewhere (a comment that set a reminder,
  * undo/redo) without a reopen. */
 export interface DatesSync {
-  /** Each item's notify time / due date (epoch ms), keyed by item id. */
-  byItem: Record<string, { notifyAt?: number; dueDate?: number }>;
+  /** Each item's notify time / due date (epoch ms) and reminder body, keyed by
+   * item id. */
+  byItem: Record<string, { notifyAt?: number; dueDate?: number; notifyMessage?: string }>;
 }
 
 export function emitDatesSync(sync: DatesSync) {

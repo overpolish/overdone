@@ -154,6 +154,13 @@ export function scanDates(text: string, ref: Date): DateScan {
       masked = masked.slice(0, index) + " ".repeat(m[0].length) + masked.slice(index + m[0].length);
     }
   }
+  // "@" as an "at" shorthand ("tomorrow @15:30"): chrono won't read it as a
+  // connector, so it splits the phrase into a bare date + a loose time (wrong
+  // day, and a stray "@" left in the comment-derived message). Blanking it to a
+  // space - same length, so offsets still index `text` - lets chrono fuse them
+  // into one "tomorrow 15:30". "@" never helps chrono find a date, so this only
+  // ever fixes a split, never invents a match.
+  masked = masked.replace(/@/g, " ");
   for (const r of chrono.parse(masked, ref, { forwardDate: true })) {
     const { date, hasTime } = resolveDate(r);
     cands.push({ index: r.index, length: r.text.length, date, hasTime, strong: isStrongDate(r.text) });

@@ -71,10 +71,14 @@ export function usePanelActionListeners() {
     const prevById = new Map((item?.comments ?? []).map((c) => [c.id, c.text]));
     const dates = datesFromNewComments(prevById, comments, htmlToText);
     todos.setItemComments(itemId, comments);
-    // Merge onto the item: only overwrite the field a comment actually set.
+    // Merge onto the item: only overwrite the field a comment actually set. A
+    // new notifyAt brings its comment text along as the reminder body; if this
+    // comment only set a due date, keep whatever message the existing reminder
+    // had.
     if (dates.notifyAt != null || dates.dueDate != null) {
       todos.setItemDates(itemId, {
         notifyAt: dates.notifyAt ?? item?.notifyAt,
+        notifyMessage: dates.notifyAt != null ? dates.notifyMessage : item?.notifyMessage,
         dueDate: dates.dueDate ?? item?.dueDate,
       });
     }
@@ -96,9 +100,10 @@ export function usePanelActionListeners() {
     todos.setItemLabels(itemId, labelIds);
   });
 
-  // Apply notification-time / due-date changes made in the details panel.
-  useTauriEvent<DatesAction>("dates:action", ({ itemId, notifyAt, dueDate }) => {
-    useTodos.getState().setItemDates(itemId, { notifyAt, dueDate });
+  // Apply notification-time / due-date / reminder-body changes made in the
+  // details panel. All fields are sent together, so an absent one clears.
+  useTauriEvent<DatesAction>("dates:action", ({ itemId, notifyAt, dueDate, notifyMessage }) => {
+    useTodos.getState().setItemDates(itemId, { notifyAt, dueDate, notifyMessage });
   });
 
   // Snooze from the daily review: defer the item by `days`, so it drops off
@@ -122,6 +127,9 @@ export function usePanelActionListeners() {
     todos.setItemDates(itemId, {
       dueDate: it.dueDate != null ? deferDay(it.dueDate) : undefined,
       notifyAt: reminder != null ? deferTime(reminder) : undefined,
+      // Carry the comment-derived body along so a snoozed reminder still shows it
+      // (a fired item has already had it cleared by markNotified).
+      notifyMessage: reminder != null ? it.notifyMessage : undefined,
     });
     if (it.notifiedAt != null) todos.dismissNotification(itemId);
   });

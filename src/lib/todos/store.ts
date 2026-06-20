@@ -147,7 +147,9 @@ export const useTodos = create<TodosState>((set, get) => {
     markNotified: (id) =>
       set((s) => ({
         items: s.items.map((i) =>
-          i.id === id ? { ...i, notifyAt: undefined, notifiedAt: now() } : i,
+          i.id === id
+            ? { ...i, notifyAt: undefined, notifyMessage: undefined, notifiedAt: now() }
+            : i,
         ),
       })),
 
@@ -282,6 +284,9 @@ export const useTodos = create<TodosState>((set, get) => {
           assignees: assignees.length ? assignees : undefined,
           labels: labels.length ? labels : undefined,
           notifyAt: parsed.notifyAt ?? it.notifyAt,
+          // A title-parsed reminder has no custom body; drop any stale one a
+          // prior comment left so the fired notification falls back to the text.
+          notifyMessage: parsed.notifyAt != null ? undefined : it.notifyMessage,
           dueDate: parsed.dueDate ?? it.dueDate,
           updatedAt: now(),
         };

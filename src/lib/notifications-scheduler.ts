@@ -24,7 +24,12 @@ export function useNotificationScheduler(items: TodoData[]) {
     // (on the next item change or app restart).
     const MAX_DELAY = 2 ** 31 - 1;
     const fire = (item: TodoData) => {
-      void notify("Item needs action", item.text);
+      // A reminder born from a comment carries that comment's text; show the item
+      // as the headline and the note as the body. Otherwise keep the generic
+      // banner with the item's text.
+      const note = item.notifyMessage?.trim();
+      if (note) void notify(item.text || "Reminder", note);
+      else void notify("Item needs action", item.text);
       useTodos.getState().markNotified(item.id);
     };
     const timers: ReturnType<typeof setTimeout>[] = [];

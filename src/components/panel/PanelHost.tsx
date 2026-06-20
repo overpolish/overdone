@@ -75,6 +75,7 @@ function renderView(request: PanelRequest | null) {
           labelIds={request.labelIds ?? []}
           notifyAt={request.notifyAt}
           dueDate={request.dueDate}
+          notifyMessage={request.notifyMessage}
           createdAt={request.createdAt}
           updatedAt={request.updatedAt}
         />

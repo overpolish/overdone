@@ -55,6 +55,8 @@ interface ItemDetailsProps {
   notifyAt?: number;
   /** The item's due date (epoch ms at UTC midnight, date only), if set. */
   dueDate?: number;
+  /** The item's custom reminder body, if set. */
+  notifyMessage?: string;
   /** Epoch ms when the item was created. Absent for legacy items. */
   createdAt?: number;
   /** Epoch ms of the last edit to the item itself (text/state/nesting). */
@@ -97,6 +99,7 @@ export function ItemDetails({
   labelIds: initialLabelIds,
   notifyAt: initialNotifyAt,
   dueDate: initialDueDate,
+  notifyMessage: initialNotifyMessage,
   createdAt,
   updatedAt,
 }: ItemDetailsProps) {
@@ -104,7 +107,7 @@ export function ItemDetails({
   const [draft, setDraft] = useState("");
   const assignees = useAssigneeEditor(itemId, initialRoster, initialAssigneeIds);
   const labels = useLabelEditor(itemId, initialLabels, initialLabelIds);
-  const dates = useDatesEditor(itemId, initialNotifyAt, initialDueDate);
+  const dates = useDatesEditor(itemId, initialNotifyAt, initialDueDate, initialNotifyMessage);
   // Which comment is being edited (single source of truth across rows).
   const [editingId, setEditingId] = useState<string | null>(null);
   // Whether a comment editor in the panel has focus, so the drag grip shows only
@@ -237,7 +240,14 @@ export function ItemDetails({
       return;
     }
     setTouchedAt(Date.now());
-  }, [comments, labels.labelIds, assignees.assigneeIds, dates.notifyAt, dates.dueDate]);
+  }, [
+    comments,
+    labels.labelIds,
+    assignees.assigneeIds,
+    dates.notifyAt,
+    dates.dueDate,
+    dates.notifyMessage,
+  ]);
 
   // "Last updated" tracks the latest activity on the item - its own edits plus
   // any comment posts/edits (live, so editing here updates it immediately).

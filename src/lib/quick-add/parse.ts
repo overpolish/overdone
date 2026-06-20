@@ -59,19 +59,29 @@ export function parseDates(
  * doesn't re-derive old dates; the last match of each kind wins. `textOf` pulls
  * plain text from a comment's stored form (HTML), kept injectable so this stays
  * pure and testable. Used by the details:action wiring (see main-events).
+ *
+ * When a comment sets `notifyAt`, the comment text minus the date phrase it
+ * matched rides along as `notifyMessage` ("Testing tomorrow at 15:00" -> body
+ * "Testing"), so the fired reminder shows the note, not the scheduling words. If
+ * stripping leaves nothing (the comment was only a date phrase), it's left unset
+ * and the reminder falls back to the item's text.
  */
 export function datesFromNewComments(
   prevById: Map<string, string>,
   comments: Array<{ id: string; text: string }>,
   textOf: (stored: string) => string,
   ref: Date = new Date(),
-): { notifyAt?: number; dueDate?: number } {
-  const dates: { notifyAt?: number; dueDate?: number } = {};
+): { notifyAt?: number; dueDate?: number; notifyMessage?: string } {
+  const dates: { notifyAt?: number; dueDate?: number; notifyMessage?: string } = {};
   for (const c of comments) {
     if (prevById.get(c.id) === c.text) continue; // unchanged - skip
-    const found = parseDates(textOf(c.text), ref);
-    if (found.notifyAt != null) dates.notifyAt = found.notifyAt;
-    if (found.dueDate != null) dates.dueDate = found.dueDate;
+    const plain = textOf(c.text);
+    const scan = scanDates(plain, ref);
+    if (scan.notifyAt != null) {
+      dates.notifyAt = scan.notifyAt;
+      dates.notifyMessage = tidy(applyRemovals(plain, scan.removals)) || undefined;
+    }
+    if (scan.dueDate != null) dates.dueDate = scan.dueDate;
   }
   return dates;
 }

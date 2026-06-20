@@ -59,6 +59,11 @@ export interface TodoData {
   labels?: string[];
   /** Epoch ms for a scheduled notification (date AND time), set in details. */
   notifyAt?: number;
+  /** Custom reminder body, captured from the comment whose NLP set `notifyAt`
+   * ("remind me to email Sarah tomorrow"). Shown as the notification's body when
+   * the reminder fires; absent for manually-picked or quick-add reminders, which
+   * fall back to the item's text. Cleared once the reminder fires. */
+  notifyMessage?: string;
   /** Epoch ms when a scheduled notification fired - the item "needs action"
    * (shown amber, with a bell) until the user dismisses it. */
   notifiedAt?: number;
@@ -139,7 +144,7 @@ export interface TodosState {
    */
   setItemDates: (
     id: string,
-    dates: { notifyAt?: number; dueDate?: number },
+    dates: { notifyAt?: number; dueDate?: number; notifyMessage?: string },
   ) => void;
   /** A scheduled notification fired: clear notifyAt and flag the item as needing
    * action (amber + bell in the list) until dismissed. */

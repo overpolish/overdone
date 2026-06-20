@@ -94,7 +94,10 @@ export function bindMainWindow() {
     if (state.items !== prev.items) {
       emitDatesSync({
         byItem: Object.fromEntries(
-          state.items.map((i) => [i.id, { notifyAt: i.notifyAt, dueDate: i.dueDate }]),
+          state.items.map((i) => [
+            i.id,
+            { notifyAt: i.notifyAt, dueDate: i.dueDate, notifyMessage: i.notifyMessage },
+          ]),
         ),
       });
     }
