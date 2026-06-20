@@ -31,10 +31,52 @@ export interface ScratchpadState {
 
 const STORAGE_NAME = "overdone-scratchpad";
 const ACTIVE_KEY = "overdone-active-list";
+const RECTS_KEY = "overdone-scratchpad-rects";
 
 /** This list's note, or "" when it has none yet. */
 export function scratchpadText(listId: string | null): string {
   return (listId && useScratchpad.getState().texts[listId]) || "";
+}
+
+/** The scratchpad window's remembered geometry for one list (physical pixels:
+ * outer top-left + inner size), so each list reopens its scratchpad where it
+ * last sat. Stored as a `{ [listId]: rect }` map in localStorage (the scratchpad
+ * window is the sole reader/writer, so no cross-window sync is needed). */
+export interface ScratchpadRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function isRect(r: unknown): r is ScratchpadRect {
+  return (
+    !!r &&
+    typeof r === "object" &&
+    ["x", "y", "w", "h"].every((k) => typeof (r as Record<string, unknown>)[k] === "number")
+  );
+}
+
+/** This list's saved scratchpad geometry, or null when it has none yet. */
+export function loadScratchpadRect(listId: string): ScratchpadRect | null {
+  try {
+    const map = JSON.parse(localStorage.getItem(RECTS_KEY) ?? "{}");
+    const rect = map?.[listId];
+    return isRect(rect) ? rect : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Remember this list's scratchpad geometry (merged into the per-list map). */
+export function saveScratchpadRect(listId: string, rect: ScratchpadRect): void {
+  try {
+    const map = JSON.parse(localStorage.getItem(RECTS_KEY) ?? "{}");
+    map[listId] = rect;
+    localStorage.setItem(RECTS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore (private-mode / disabled storage)
+  }
 }
 
 export const useScratchpad = create<ScratchpadState>()(

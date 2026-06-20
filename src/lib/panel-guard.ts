@@ -34,7 +34,8 @@ interface PanelGuardStore {
 
   setComposer: (source: DraftSource) => void;
   setInline: (source: DraftSource | null) => void;
-  /** Report editor focus (also mirrored to the backend's keep-open flag). */
+  /** Report editor focus (drives the drag grip). The backend keep-open hold it
+   * feeds is applied only while the focused editor has draft content. */
   setEditing: (value: boolean) => void;
   /** Funnel a close/swap through the guard. Returns true if it was parked behind
    * the prompt (the caller must not proceed); false if it's safe to proceed. */
@@ -59,13 +60,24 @@ function anyDirty(s: { composer: DraftSource; inline: DraftSource | null }): boo
 }
 
 export const usePanelGuard = create<PanelGuardStore>((set, get) => {
-  // The last value mirrored to the backend, so it's only pushed on a real change.
+  // The last values mirrored to the backend, each pushed only on a real change.
   let lastDirty = false;
+  let lastEditing = false;
   const syncBackend = () => {
     const dirty = anyDirty(get());
-    if (dirty === lastDirty) return;
-    lastDirty = dirty;
-    setPanelDirty(dirty);
+    if (dirty !== lastDirty) {
+      lastDirty = dirty;
+      setPanelDirty(dirty);
+    }
+    // The "editing" hold (survive an app switch) only applies once the focused
+    // editor actually has content. Focusing an empty composer and clicking away
+    // should dismiss the panel like any other blur - the hold is for not losing
+    // something you've started, so gate it on there being a draft to lose.
+    const editing = get().editing && dirty;
+    if (editing !== lastEditing) {
+      lastEditing = editing;
+      setPanelEditing(editing);
+    }
   };
 
   return {
@@ -85,7 +97,8 @@ export const usePanelGuard = create<PanelGuardStore>((set, get) => {
     setEditing: (value) => {
       if (get().editing === value) return;
       set({ editing: value });
-      setPanelEditing(value);
+      // Recompute the backend hold (gated on draft content), not a raw focus push.
+      syncBackend();
     },
     request: (action) => {
       if (!anyDirty(get())) return false;

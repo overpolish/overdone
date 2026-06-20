@@ -124,20 +124,20 @@ video {
   border-color: var(--mantine-primary-color-filled);
 }
 .scratchpad-editor .comment-input {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+  /* The notes scroll via the wrapping <ScrollArea>, not the editor box itself, so
+   * this just drops its own chrome and fills the scroll viewport: filling makes
+   * clicking anywhere (not only the first line) focus the editor, by stretching
+   * the EditorContent wrapper and the ProseMirror surface to the full height. */
+  min-height: 100%;
   border: none;
   border-radius: 0;
   background: transparent;
-  /* Fill the box so clicking anywhere - not just the first line - focuses the
-   * editor: stretch the EditorContent wrapper and the ProseMirror surface down
-   * to the full height. */
   display: flex;
   flex-direction: column;
 }
 .scratchpad-editor .comment-input > div:first-child {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

@@ -7,8 +7,10 @@ import { Box, Group, Stack, Text, Title } from "@mantine/core";
 import { IconNote, IconX } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DOMSerializer } from "@tiptap/pm/model";
 import { type Editor } from "@tiptap/react";
 import {
@@ -31,6 +33,8 @@ import {
   closeScratchpad,
   emitScratchpadConvert,
   scratchpadLines,
+  loadScratchpadRect,
+  saveScratchpadRect,
   scratchpadMediaId,
   scratchpadText,
   useScratchpad,
@@ -40,8 +44,13 @@ import { CommentInput, FormatBar, useCommentEditor } from "../editor/CommentEdit
 import { DiagramModalHost } from "../diagram";
 import { IconButton } from "../ui/IconButton";
 import { ScratchpadConvertMenu } from "./ScratchpadConvertMenu";
-import { attachScrollShadows } from "../../lib/scroll-shadow";
+import { ScrollArea } from "../ui/ScrollArea";
 import { useMediaBusy } from "../details/useMediaBusy";
+
+// TEMP(demo): example note shown when a list's scratchpad is empty, so it isn't
+// blank for screenshots. Dev-only. Remove this constant and its use below once
+// the screenshots are captured.
+const DEMO_SCRATCHPAD_NOTE = `<h2>Launch week standup</h2><p>Quick notes pad - tables and code render here just like in item comments.</p><ul><li>Embargo lifts <strong>09:00 PT</strong> Thursday</li><li>Firefox pricing bug is the last <em>P1</em> blocker</li><li>Re-scan booked for Friday AM</li></ul><p>Capacity this week:</p><table><colgroup><col style="width: 40%"><col style="width: 30%"><col style="width: 30%"></colgroup><tr><th>Owner</th><th>Focus</th><th>Status</th></tr><tr><td>Alice</td><td>Landing page</td><td data-cell-bg="#fff3bf">in progress</td></tr><tr><td>Bob</td><td>Analytics + security</td><td data-cell-bg="#ffc9c9">blocked</td></tr><tr><td>Cara</td><td>Pricing table</td><td data-cell-bg="#d3f9d8">on track</td></tr></table><p>One-liner to tail the collector while testing:</p><pre><code class="language-bash">wrangler tail launch-collector --format pretty | grep -i signup</code></pre><p>Paste anything here while you work; it is saved per list automatically.</p>`;
 
 /**
  * The scratchpad's own window: a persistent, freely-resizable rich-text pad for
@@ -68,6 +77,69 @@ export function ScratchpadWindow() {
         setMediaDir(await join(await appDataDir(), "media", scratchpadMediaId(activeId)));
       } catch {
         setMediaDir("");
+      }
+    })();
+  }, [activeId]);
+
+  // Per-list scratchpad window geometry: each list reopens its scratchpad where
+  // it last sat. The window-state plugin still provides a global fallback for a
+  // list with no saved spot yet (it restores before this runs; our per-list
+  // restore below overrides it when a rect exists).
+  const restoringRef = useRef(false);
+
+  // Save (debounced) the window's geometry under whichever list is active. The
+  // listeners mount once and capture the active list per move. Suppressed while
+  // we're programmatically restoring, so a restore can't overwrite a sibling
+  // list's saved spot.
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Capture the active list at the moment of the move (debounced), then save its
+    // geometry - but only if that list is still active after the async read, so a
+    // move during a list switch can't save one list's spot under another.
+    const save = (id: string) => {
+      if (restoringRef.current) return;
+      void (async () => {
+        const [pos, size] = await Promise.all([win.outerPosition(), win.innerSize()]);
+        if (restoringRef.current || useLists.getState().activeId !== id) return;
+        saveScratchpadRect(id, { x: pos.x, y: pos.y, w: size.width, h: size.height });
+      })();
+    };
+    const schedule = () => {
+      const id = useLists.getState().activeId;
+      if (!id) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => save(id), 300);
+    };
+    let offMoved: (() => void) | undefined;
+    let offResized: (() => void) | undefined;
+    void win.onMoved(schedule).then((off) => (offMoved = off));
+    void win.onResized(schedule).then((off) => (offResized = off));
+    return () => {
+      if (timer) clearTimeout(timer);
+      offMoved?.();
+      offResized?.();
+    };
+  }, []);
+
+  // Restore this list's saved geometry when the active list changes (leaving the
+  // window where it is when the list has none yet).
+  useEffect(() => {
+    if (!activeId) return;
+    const rect = loadScratchpadRect(activeId);
+    if (!rect) return;
+    const win = getCurrentWindow();
+    restoringRef.current = true;
+    void (async () => {
+      try {
+        await win.setPosition(new PhysicalPosition(rect.x, rect.y));
+        await win.setSize(new PhysicalSize(rect.w, rect.h));
+      } finally {
+        // Let the move/resize events the restore itself fires settle before
+        // re-enabling saves, so it doesn't immediately re-save under this list.
+        setTimeout(() => {
+          restoringRef.current = false;
+        }, 250);
       }
     })();
   }, [activeId]);
@@ -147,7 +219,12 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
   };
 
   const editor = useCommentEditor({
-    content: toDisplayHtml(scratchpadText(listId), mediaDir),
+    // TEMP(demo): fall back to an example note when empty (dev only) for
+    // screenshots. Restore to `scratchpadText(listId)` after capturing them.
+    content: toDisplayHtml(
+      scratchpadText(listId) || (import.meta.env.DEV ? DEMO_SCRATCHPAD_NOTE : ""),
+      mediaDir,
+    ),
     placeholder: "Jot quick notes here…",
     autoFocus: true,
     onChange,
@@ -158,16 +235,6 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
     },
   });
   editorRef.current = editor;
-
-  // The notes scroll with the app's overlay scrollbar + fade shadows, like every
-  // other scroll area. The editor's own `.comment-input` is the scroll container
-  // (it fills the window); attach once the editor has mounted it.
-  const editorHostRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!editor) return;
-    const el = editorHostRef.current?.querySelector<HTMLElement>(".comment-input");
-    return el ? attachScrollShadows(el, "vertical") : undefined;
-  }, [editor]);
 
   // Clear scratchpad attachments orphaned by a previous session, mirroring list
   // open (the edit-time cleanup only covers the current session).
@@ -258,12 +325,13 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
         />
 
         <div
-          ref={editorHostRef}
           className="scratchpad-editor"
           onContextMenu={onContextMenu}
           style={{ flex: 1, minHeight: 0 }}
         >
-          <CommentInput editor={editor} busy={busy} busyLabel={busyLabel} />
+          <ScrollArea radius={0} style={{ flex: 1, minHeight: 0 }}>
+            <CommentInput editor={editor} busy={busy} busyLabel={busyLabel} />
+          </ScrollArea>
         </div>
 
         {error ? (
