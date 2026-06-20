@@ -45,7 +45,7 @@
         "width": 360,
         "height": 440,
         "minWidth": 280,
-        "minHeight": 220,
+        "minHeight": 280,
         "hiddenTitle": true,
         "titleBarStyle": "Overlay",
         "resizable": true,

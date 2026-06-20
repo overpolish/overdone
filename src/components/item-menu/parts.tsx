@@ -13,7 +13,7 @@ import { TODO_STATES, type TodoState } from "../../lib/todo";
 import { type TodoData } from "../../lib/todos";
 import { StateBox } from "../StateBox";
 
-export const MENU_WIDTH = 184;
+export const MENU_WIDTH = 194;
 export const ROW_HEIGHT = 30;
 
 /** Format an item as its title plus its labels as `#name` tokens - the quick-add

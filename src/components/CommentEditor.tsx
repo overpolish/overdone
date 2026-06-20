@@ -6,6 +6,8 @@
 import { Box, Button, Group, Loader, Paper, Popover, Stack, Text, TextInput } from "@mantine/core";
 import {
   IconBold,
+  IconCode,
+  IconCodeDots,
   IconExternalLink,
   IconItalic,
   IconLink,
@@ -27,6 +29,7 @@ import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState }
 import { Attachment } from "../lib/attachment";
 import { normalizeUrl, openExternal } from "../lib/links";
 import { Mermaid } from "../lib/mermaid-node";
+import { CodeBlock } from "./CodeBlockNode";
 import { IconButton } from "./IconButton";
 
 interface UseCommentEditorOptions {
@@ -75,7 +78,12 @@ export function useCommentEditor({
       // next to a link gets swallowed into it. Force inclusive off so text typed
       // at either boundary stays outside the link. Click-to-open is off (links
       // open via the bubble / Links section); autolink wraps pasted/typed URLs.
-      StarterKit.configure({ link: false }),
+      // Replace StarterKit's plain code block with our lowlight one (live syntax
+      // highlighting + an in-block language field; inline `code` stays
+      // StarterKit's). Highlighting is rendered as editor decorations, so the
+      // stored HTML stays clean `<pre><code>`.
+      StarterKit.configure({ link: false, codeBlock: false }),
+      CodeBlock,
       Link.extend({ inclusive: () => false }).configure({
         openOnClick: false,
         autolink: true,
@@ -130,6 +138,8 @@ export function FormatBar({
       bold: editor?.isActive("bold") ?? false,
       italic: editor?.isActive("italic") ?? false,
       underline: editor?.isActive("underline") ?? false,
+      code: editor?.isActive("code") ?? false,
+      codeBlock: editor?.isActive("codeBlock") ?? false,
       link: editor?.isActive("link") ?? false,
       bullet: editor?.isActive("bulletList") ?? false,
       ordered: editor?.isActive("orderedList") ?? false,
@@ -156,6 +166,18 @@ export function FormatBar({
         icon={IconUnderline}
         active={active?.underline}
         onClick={() => editor.chain().focus().toggleUnderline().run()}
+      />
+      <IconButton
+        label="Inline code"
+        icon={IconCode}
+        active={active?.code}
+        onClick={() => editor.chain().focus().toggleCode().run()}
+      />
+      <IconButton
+        label="Code block"
+        icon={IconCodeDots}
+        active={active?.codeBlock}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
       />
       <LinkButton editor={editor} active={active?.link} />
       <IconButton

@@ -6,8 +6,9 @@
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import { IconCheck, IconPencil, IconTrash } from "@tabler/icons-react";
 import { type Editor } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { highlightCodeInHtml } from "../../lib/highlight";
 import { openExternal } from "../../lib/links";
 import { fragmentToMarkdown } from "../../lib/markdown";
 import {
@@ -105,24 +106,26 @@ export function CommentRow({
     onSave(doc.body.innerHTML);
   };
 
-  // Comment HTML with attachment refs resolved to asset URLs. Diagrams are then
-  // rendered into it asynchronously (below); until that resolves we show the raw
-  // HTML, so non-diagram comments render immediately.
+  // Comment HTML with attachment refs resolved to asset URLs, then code blocks
+  // syntax-highlighted (stored plain; see highlightCodeInHtml). Diagrams are
+  // rendered into it asynchronously (below); until that resolves we show the
+  // highlighted HTML, so non-diagram comments render immediately.
   const displayHtml = toDisplayHtml(comment.text, mediaDir);
-  const [rendered, setRendered] = useState(displayHtml);
+  const highlighted = useMemo(() => highlightCodeInHtml(displayHtml), [displayHtml]);
+  const [rendered, setRendered] = useState(highlighted);
   useEffect(() => {
-    if (!displayHtml.includes("data-mermaid")) {
-      setRendered(displayHtml);
+    if (!highlighted.includes("data-mermaid")) {
+      setRendered(highlighted);
       return;
     }
     let cancelled = false;
-    void renderMermaidInHtml(displayHtml).then((html) => {
+    void renderMermaidInHtml(highlighted).then((html) => {
       if (!cancelled) setRendered(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [displayHtml]);
+  }, [highlighted]);
 
   if (editing) {
     return (

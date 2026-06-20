@@ -97,10 +97,31 @@ function serializeSelection(editor: Editor): string {
   return div.innerHTML;
 }
 
+/**
+ * Whether the selection is nothing but code block(s) - no prose to become an
+ * item's title. A code block can't be an item, so the convert action is disabled
+ * for such a selection. (Inline code inside a normal line is fine - that line can
+ * still be a title.)
+ */
+function selectionIsOnlyCode(editor: Editor): boolean {
+  const { from, to } = editor.state.selection;
+  let hasCode = false;
+  let hasProse = false;
+  editor.state.doc.nodesBetween(from, to, (node) => {
+    if (node.type.name === "codeBlock") {
+      hasCode = true;
+      return false; // its text isn't prose - don't descend
+    }
+    if (node.isText && (node.text ?? "").trim()) hasProse = true;
+    return true;
+  });
+  return hasCode && !hasProse;
+}
+
 function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string }) {
   const { busy, busyLabel, error, run } = useMediaBusy();
   const editorRef = useRef<Editor | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; canConvert: boolean } | null>(null);
   // This list's scratchpad attachments live in their own media folder.
   const mediaId = scratchpadMediaId(listId);
 
@@ -168,7 +189,8 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
     return () => off?.();
   }, [mediaId, mediaDir, run]);
 
-  // Right-click over a non-empty selection offers to convert it into an item.
+  // Right-click over a non-empty selection offers to convert it into an item;
+  // a code-block-only selection shows the action disabled (it can't be a title).
   const onContextMenu = (e: ReactMouseEvent) => {
     e.preventDefault();
     const ed = editorRef.current;
@@ -176,13 +198,13 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
     const { from, to } = ed.state.selection;
     const text = ed.state.doc.textBetween(from, to, "\n", "\n");
     if (scratchpadLines(text).length === 0) return;
-    setMenu({ x: e.clientX, y: e.clientY });
+    setMenu({ x: e.clientX, y: e.clientY, canConvert: !selectionIsOnlyCode(ed) });
   };
 
   const convert = () => {
     setMenu(null);
     const ed = editorRef.current;
-    if (!ed || ed.state.selection.empty) return;
+    if (!ed || ed.state.selection.empty || selectionIsOnlyCode(ed)) return;
     const { from, to } = ed.state.selection;
     const text = ed.state.doc.textBetween(from, to, "\n", "\n");
     const built = buildConvertedItem(text, serializeSelection(ed));
@@ -243,6 +265,7 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
         <ScratchpadConvertMenu
           x={menu.x}
           y={menu.y}
+          canConvert={menu.canConvert}
           onConvert={convert}
           onClose={() => setMenu(null)}
         />

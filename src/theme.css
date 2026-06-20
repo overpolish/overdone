@@ -15,11 +15,33 @@
 :root[data-mantine-color-scheme="light"],
 :host([data-mantine-color-scheme="light"]) {
   --mantine-primary-color-contrast: var(--mantine-color-white);
+  /* highlight.js token palette (GitHub-ish), used by code blocks. */
+  --hljs-comment: #6e7781;
+  --hljs-keyword: #cf222e;
+  --hljs-string: #0a3069;
+  --hljs-number: #0550ae;
+  --hljs-function: #8250df;
+  --hljs-attr: #0550ae;
+  --hljs-type: #953800;
+  --hljs-tag: #116329;
+  --hljs-symbol: #e36209;
+  /* Horizontal scroll-shadow strength for code blocks (matches ScrollArea). */
+  --code-scroll-shadow: rgba(0, 0, 0, 0.14);
 }
 
 :root[data-mantine-color-scheme="dark"],
 :host([data-mantine-color-scheme="dark"]) {
   --mantine-primary-color-contrast: var(--mantine-color-black);
+  --hljs-comment: #8b949e;
+  --hljs-keyword: #ff7b72;
+  --hljs-string: #a5d6ff;
+  --hljs-number: #79c0ff;
+  --hljs-function: #d2a8ff;
+  --hljs-attr: #79c0ff;
+  --hljs-type: #ffa657;
+  --hljs-tag: #7ee787;
+  --hljs-symbol: #ffa657;
+  --code-scroll-shadow: rgba(0, 0, 0, 0.4);
 }
 
 /*
@@ -502,4 +524,196 @@ video {
    whole panel). Applies to every OverlayScrollbars viewport in the app. */
 [data-overlayscrollbars-viewport] {
   overscroll-behavior: none;
+}
+
+/* Code: inline `code` and `pre > code` blocks, shared by the comment editor
+   (live, highlighted via CodeBlockLowlight decorations) and the read-only
+   comment body (highlighted on render via highlightCodeInHtml). */
+.comment-body code,
+.comment-input .ProseMirror code {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.88em;
+  padding: 0.05em 0.3em;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+.comment-body pre,
+.comment-input .ProseMirror pre {
+  margin: 0.4em 0;
+  /* Only top padding (above the header). No side or bottom padding: the scroller
+     runs flush to those edges so the scrollbar and edge shadows reach right into
+     them. The 9px sides + 7px bottom live on the code (and the header's sides)
+     instead, riding the scroll as leading/trailing space. */
+  padding: 7px 0 0;
+  /* Clip the inner scroll (and its shadows) to the block's rounded corners. */
+  overflow: hidden;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  font-size: 0.88em;
+  line-height: 1.45;
+}
+/* Inside a block the <code> is bare - the <pre> carries the surface. It's the
+   horizontal scroll surface; in the editor it sits in an OverlayScrollbars area,
+   in the read-only body it scrolls natively with a CSS scroll-shadow. */
+.comment-body pre code,
+.comment-input .ProseMirror pre code {
+  display: block;
+  /* Side + bottom padding live here (not the <pre>) so they sit inside the scroll
+     viewport: content reaches the flush edges, and the scrollbar/shadows extend
+     into the bottom space rather than stopping above a container pad. */
+  padding: 0 9px 7px;
+  background: none;
+  border: none;
+  font-size: 1em;
+}
+/* No wrap (default): the code is as wide as its longest line so the surrounding
+   scroller can scroll it; soft wrap breaks long lines to the block width. */
+.comment-input .ProseMirror pre:not([data-wrap="true"]) code {
+  width: max-content;
+  min-width: 100%;
+}
+.comment-body pre[data-wrap="true"] code,
+.comment-input .ProseMirror pre[data-wrap="true"] code {
+  overflow-wrap: anywhere;
+}
+/* Read-only body: no React scroller, so scroll natively with soft edge shadows
+   that fade in only when there's more to scroll. The two "cover" gradients (block
+   background -> transparent) ride the content (`local`) and sit over a shadow at
+   that edge until you scroll away from it; the two shadow gradients are pinned to
+   the viewport (`scroll`). Classic CSS scroll-shadow, matched to the ScrollArea
+   look so the editor and body read the same. */
+.comment-body pre:not([data-wrap="true"]) code {
+  white-space: pre;
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--mantine-color-default), transparent) 0 0 / 16px 100% no-repeat
+      local,
+    linear-gradient(to left, var(--mantine-color-default), transparent) 100% 0 / 16px 100% no-repeat
+      local,
+    linear-gradient(to right, var(--code-scroll-shadow), transparent) 0 0 / 16px 100% no-repeat
+      scroll,
+    linear-gradient(to left, var(--code-scroll-shadow), transparent) 100% 0 / 16px 100% no-repeat
+      scroll;
+}
+.comment-body pre[data-wrap="true"] code {
+  white-space: pre-wrap;
+}
+
+/* The code block's static header: language field (left) and soft-wrap toggle
+   (right). Editor-only (the read-only body never renders it). It sits in normal
+   flow above the scroller, so it stays put while the code scrolls beneath it. */
+.comment-input .ProseMirror pre .code-block-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Match the code's side padding so the header aligns with the code text. */
+  padding: 0 9px;
+  margin-bottom: 4px;
+}
+/* The copy + wrap toggles, grouped tightly on the right of the header. */
+.comment-input .ProseMirror pre .code-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.comment-input .ProseMirror pre .code-block-lang {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.85em;
+  color: var(--mantine-color-dimmed);
+}
+.comment-input .ProseMirror pre .code-block-lang::placeholder {
+  color: var(--mantine-color-dimmed);
+  opacity: 0.6;
+}
+
+/* highlight.js token colours (see the --hljs-* vars above). Scoped to the code
+   contexts so the classes can't leak elsewhere. */
+.comment-body .hljs-comment,
+.comment-body .hljs-quote,
+.comment-input .ProseMirror .hljs-comment,
+.comment-input .ProseMirror .hljs-quote {
+  color: var(--hljs-comment);
+  font-style: italic;
+}
+.comment-body .hljs-keyword,
+.comment-body .hljs-selector-tag,
+.comment-body .hljs-literal,
+.comment-body .hljs-section,
+.comment-input .ProseMirror .hljs-keyword,
+.comment-input .ProseMirror .hljs-selector-tag,
+.comment-input .ProseMirror .hljs-literal,
+.comment-input .ProseMirror .hljs-section {
+  color: var(--hljs-keyword);
+}
+.comment-body .hljs-string,
+.comment-body .hljs-regexp,
+.comment-body .hljs-addition,
+.comment-input .ProseMirror .hljs-string,
+.comment-input .ProseMirror .hljs-regexp,
+.comment-input .ProseMirror .hljs-addition {
+  color: var(--hljs-string);
+}
+.comment-body .hljs-number,
+.comment-input .ProseMirror .hljs-number {
+  color: var(--hljs-number);
+}
+.comment-body .hljs-title,
+.comment-body .hljs-title.function_,
+.comment-input .ProseMirror .hljs-title,
+.comment-input .ProseMirror .hljs-title.function_ {
+  color: var(--hljs-function);
+}
+.comment-body .hljs-attr,
+.comment-body .hljs-attribute,
+.comment-body .hljs-variable,
+.comment-body .hljs-template-variable,
+.comment-body .hljs-property,
+.comment-input .ProseMirror .hljs-attr,
+.comment-input .ProseMirror .hljs-attribute,
+.comment-input .ProseMirror .hljs-variable,
+.comment-input .ProseMirror .hljs-template-variable,
+.comment-input .ProseMirror .hljs-property {
+  color: var(--hljs-attr);
+}
+.comment-body .hljs-type,
+.comment-body .hljs-built_in,
+.comment-body .hljs-title.class_,
+.comment-input .ProseMirror .hljs-type,
+.comment-input .ProseMirror .hljs-built_in,
+.comment-input .ProseMirror .hljs-title.class_ {
+  color: var(--hljs-type);
+}
+.comment-body .hljs-tag,
+.comment-body .hljs-name,
+.comment-body .hljs-selector-id,
+.comment-body .hljs-selector-class,
+.comment-input .ProseMirror .hljs-tag,
+.comment-input .ProseMirror .hljs-name,
+.comment-input .ProseMirror .hljs-selector-id,
+.comment-input .ProseMirror .hljs-selector-class {
+  color: var(--hljs-tag);
+}
+.comment-body .hljs-symbol,
+.comment-body .hljs-bullet,
+.comment-body .hljs-meta,
+.comment-input .ProseMirror .hljs-symbol,
+.comment-input .ProseMirror .hljs-bullet,
+.comment-input .ProseMirror .hljs-meta {
+  color: var(--hljs-symbol);
+}
+.comment-body .hljs-emphasis,
+.comment-input .ProseMirror .hljs-emphasis {
+  font-style: italic;
+}
+.comment-body .hljs-strong,
+.comment-input .ProseMirror .hljs-strong {
+  font-weight: 600;
 }
