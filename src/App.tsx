@@ -4,13 +4,14 @@
  */
 
 import { Stack, Text } from "@mantine/core";
-import { IconFilter, IconKeyboard } from "@tabler/icons-react";
+import { IconFilter, IconKeyboard, IconListCheck } from "@tabler/icons-react";
 import { useEffect } from "react";
 
 import { DailyReviewBanner } from "./components/DailyReviewBanner";
 import { Footer } from "./components/Footer";
 import { ItemContextMenu } from "./components/item-menu";
 import { ScrollArea } from "./components/ScrollArea";
+import { TabBar } from "./components/TabBar";
 import { TodoItem } from "./components/todo-item";
 import { Titlebar } from "./components/Titlebar";
 import { useVisibleItems } from "./lib/filters";
@@ -50,6 +51,9 @@ function DropIndicator() {
 
 function App() {
   const items = useTodos((s) => s.items);
+  // Null when the last tab was closed: no list is open (a distinct empty state
+  // from an open-but-empty list).
+  const noList = useTodos((s) => s.activeId === null);
   // The list as displayed: the active filter hides non-matches and view-sorts.
   // Schedulers/tray still track the full item set, not the visible subset.
   const visible = useVisibleItems();
@@ -86,11 +90,23 @@ function App() {
     >
       <Titlebar />
 
+      <TabBar />
+
       <DailyReviewBanner />
 
       <ScrollArea radius={0} style={{ flex: 1 }}>
         <Stack gap={0} p="sm" pos="relative">
-          {items.length === 0 ? (
+          {noList ? (
+            <Stack align="center" gap={6} pt="xl" c="dimmed">
+              <IconListCheck size={40} stroke={1.5} opacity={0.5} />
+              <Text size="sm" ta="center">
+                No list open
+              </Text>
+              <Text size="xs" ta="center" opacity={0.7}>
+                Open one from Lists (⌘L)
+              </Text>
+            </Stack>
+          ) : items.length === 0 ? (
             <Stack align="center" gap={6} pt="xl" c="dimmed">
               <IconKeyboard size={40} stroke={1.5} opacity={0.5} />
               <Text size="sm" ta="center">
@@ -118,7 +134,7 @@ function App() {
         </Stack>
       </ScrollArea>
 
-      <Footer />
+      {!noList && <Footer />}
       <ItemContextMenu />
     </div>
   );

@@ -107,11 +107,6 @@ export interface TodosState {
    */
   focusCaret: "start" | "end";
   /**
-   * When true, the list title field should grab focus and select its contents
-   * on the next render (set when a freshly-created, untitled list is opened).
-   */
-  focusTitle: boolean;
-  /**
    * Id of the item whose editing panel (details / assignees / status) is
    * currently open, so its row can be highlighted as "being edited". Null when
    * no item-scoped panel is open. Transient - not part of undo history.
@@ -219,7 +214,6 @@ export interface TodosState {
    */
   applyQuickAdd: (id: string, parsed: QuickAddParse) => void;
   clearFocus: () => void;
-  clearFocusTitle: () => void;
   /** Set (or clear, with null) the item whose editing panel is open. */
   setEditingId: (id: string | null) => void;
   /** Focus an item's text field (e.g. when picked from search). */
@@ -230,6 +224,8 @@ export interface TodosState {
   revealItem: (id: string | null) => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
   open: (id: string) => Promise<void>;
+  /** Clear the store to the no-list-open state (closing the last tab). */
+  closeList: () => void;
   undo: () => void;
   redo: () => void;
 }

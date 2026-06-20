@@ -19,6 +19,9 @@ interface IconButtonProps {
   active?: boolean;
   /** Tints amber and stays lit to flag an altered state (e.g. filter active). */
   warning?: boolean;
+  /** A smaller variant for tight spots (e.g. a tab's close button), so it doesn't
+   * inflate the row it sits in. */
+  compact?: boolean;
 }
 
 /**
@@ -27,10 +30,19 @@ interface IconButtonProps {
  * title bar's window controls, the comment log's edit/delete actions, and the
  * comment editor's format toggles (via `active`).
  */
-export function IconButton({ label, icon: Icon, onClick, danger, active, warning }: IconButtonProps) {
+export function IconButton({
+  label,
+  icon: Icon,
+  onClick,
+  danger,
+  active,
+  warning,
+  compact,
+}: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const dark = useComputedColorScheme("light") === "dark";
   const ref = useRef<HTMLButtonElement>(null);
+  const size = compact ? 16 : 22;
 
   // When the button's box straddles a physical pixel, WKWebView smears the thin
   // icon strokes asymmetrically so the glyph reads off-center (and appears to
@@ -61,12 +73,12 @@ export function IconButton({ label, icon: Icon, onClick, danger, active, warning
         // Re-enable events for the button; some hosts (the title bar) sit in a
         // drag region that disables them.
         pointerEvents: "auto",
-        width: 22,
-        height: 22,
+        width: size,
+        height: size,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: "var(--mantine-radius-md)",
+        borderRadius: compact ? "var(--mantine-radius-sm)" : "var(--mantine-radius-md)",
         opacity: strong ? 1 : 0.5,
         color:
           danger && hovered
@@ -87,7 +99,10 @@ export function IconButton({ label, icon: Icon, onClick, danger, active, warning
         transition: "opacity 120ms ease, background 120ms ease, color 120ms ease",
       }}
     >
-      <Icon size={14} stroke={2} style={{ display: "block" }} />
+      {/* Keep the icon size even so it centers on an integer offset within the
+          (even) button box - an odd size lands on a half-pixel and the device-grid
+          snap above can't save it (the thin strokes smear off-center). */}
+      <Icon size={compact ? 10 : 14} stroke={2} style={{ display: "block" }} />
     </UnstyledButton>
   );
 }

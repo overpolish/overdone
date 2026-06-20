@@ -8,33 +8,63 @@ import { emit } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-/** Reserved media-folder id for scratchpad attachments (`media/scratchpad/…`).
- * Real lists use UUIDs, so this can't collide with one. */
-export const SCRATCHPAD_MEDIA_ID = "scratchpad";
+/** The media-folder id for a list's scratchpad attachments
+ * (`media/scratchpad-<listId>/…`). Kept separate from the list's own media
+ * (`media/<listId>`), and the `scratchpad-` prefix can't collide with a list's
+ * UUID folder. */
+export function scratchpadMediaId(listId: string): string {
+  return `scratchpad-${listId}`;
+}
 
 /**
- * The freeform quick-notes scratchpad's content, persisted to localStorage so
- * jottings survive restarts. `text` is canonical stored HTML (attachment srcs as
- * portable `media/<file>` refs); the editor rewrites to/from display URLs. The
- * scratchpad has its own OS window, so its size/position are remembered by the
- * window-state plugin, not here.
+ * The freeform quick-notes scratchpad's content, one note per list (keyed by list
+ * id), persisted to localStorage so jottings survive restarts. Each value is
+ * canonical stored HTML (attachment srcs as portable `media/<file>` refs); the
+ * editor rewrites to/from display URLs. The scratchpad has its own OS window, so
+ * its size/position are remembered by the window-state plugin, not here.
  */
 export interface ScratchpadState {
-  text: string;
-  setText: (text: string) => void;
+  /** Note HTML keyed by list id. */
+  texts: Record<string, string>;
+  setText: (listId: string, text: string) => void;
 }
 
 const STORAGE_NAME = "overdone-scratchpad";
+const ACTIVE_KEY = "overdone-active-list";
+
+/** This list's note, or "" when it has none yet. */
+export function scratchpadText(listId: string | null): string {
+  return (listId && useScratchpad.getState().texts[listId]) || "";
+}
 
 export const useScratchpad = create<ScratchpadState>()(
   persist(
     (set) => ({
-      text: "",
-      setText: (text) => set({ text }),
+      texts: {},
+      setText: (listId, text) =>
+        set((s) => ({ texts: { ...s.texts, [listId]: text } })),
     }),
     {
       name: STORAGE_NAME,
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      // v0 held a single global `text`. Carry it onto whichever list was active
+      // at upgrade time so the existing note isn't lost (legacy embedded media,
+      // which lived in the old shared folder, won't resolve under the new
+      // per-list folder - but plain-text notes migrate cleanly).
+      migrate: (persisted, version) => {
+        if (version === 0 && persisted && typeof persisted === "object") {
+          const legacy = (persisted as { text?: string }).text ?? "";
+          let activeId: string | null = null;
+          try {
+            activeId = localStorage.getItem(ACTIVE_KEY);
+          } catch {
+            activeId = null;
+          }
+          return { texts: legacy && activeId ? { [activeId]: legacy } : {} };
+        }
+        return persisted as ScratchpadState;
+      },
     },
   ),
 );

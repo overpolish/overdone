@@ -26,11 +26,13 @@ import {
   toDisplayHtml,
   toStoredHtml,
 } from "../lib/media";
+import { useLists } from "../lib/lists";
 import {
   closeScratchpad,
   emitScratchpadConvert,
-  SCRATCHPAD_MEDIA_ID,
   scratchpadLines,
+  scratchpadMediaId,
+  scratchpadText,
   useScratchpad,
 } from "../lib/scratchpad";
 import { buildConvertedItem } from "../lib/scratchpad-convert";
@@ -48,20 +50,26 @@ import { useMediaBusy } from "./details/useMediaBusy";
  * turn them into a list item: the first line becomes the item, the rest (extra
  * lines and any images) becomes its first comment.
  *
- * Resolves the media folder before mounting the editor (so existing attachments
- * seed with working URLs), then renders the body keyed by it.
+ * The scratchpad is per-list: it shows the active list's note (the active list is
+ * mirrored across windows by the lists store). Resolves that list's media folder
+ * before mounting the editor (so existing attachments seed with working URLs),
+ * then renders the body keyed by the list id so switching lists remounts it with
+ * the right note + folder.
  */
 export function ScratchpadWindow() {
+  const activeId = useLists((s) => s.activeId);
   const [mediaDir, setMediaDir] = useState<string | null>(null);
   useEffect(() => {
+    setMediaDir(null);
+    if (!activeId) return;
     void (async () => {
       try {
-        setMediaDir(await join(await appDataDir(), "media", SCRATCHPAD_MEDIA_ID));
+        setMediaDir(await join(await appDataDir(), "media", scratchpadMediaId(activeId)));
       } catch {
         setMediaDir("");
       }
     })();
-  }, []);
+  }, [activeId]);
 
   return (
     <Box
@@ -73,7 +81,9 @@ export function ScratchpadWindow() {
         background: "var(--mantine-color-body)",
       }}
     >
-      {mediaDir !== null && <ScratchpadBody mediaDir={mediaDir} />}
+      {activeId && mediaDir !== null && (
+        <ScratchpadBody key={activeId} listId={activeId} mediaDir={mediaDir} />
+      )}
     </Box>
   );
 }
@@ -87,13 +97,15 @@ function serializeSelection(editor: Editor): string {
   return div.innerHTML;
 }
 
-function ScratchpadBody({ mediaDir }: { mediaDir: string }) {
+function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string }) {
   const { busy, busyLabel, error, run } = useMediaBusy();
   const editorRef = useRef<Editor | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // This list's scratchpad attachments live in their own media folder.
+  const mediaId = scratchpadMediaId(listId);
 
   // Canonical stored HTML lives in the store; the editor speaks display HTML.
-  const prevStoredRef = useRef(useScratchpad.getState().text);
+  const prevStoredRef = useRef(scratchpadText(listId));
   // Set for the convert edit so the move's attachments aren't deleted here while
   // the main window copies them into the list (the scratchpad copies are pruned
   // on the next open instead).
@@ -106,21 +118,21 @@ function ScratchpadBody({ mediaDir }: { mediaDir: string }) {
     } else {
       const after = new Set(referencedMedia([stored]));
       const removed = referencedMedia([prevStoredRef.current]).filter((f) => !after.has(f));
-      if (removed.length) void invoke("delete_attachments", { listId: SCRATCHPAD_MEDIA_ID, files: removed });
+      if (removed.length) void invoke("delete_attachments", { listId: mediaId, files: removed });
     }
     prevStoredRef.current = stored;
-    useScratchpad.getState().setText(stored);
+    useScratchpad.getState().setText(listId, stored);
   };
 
   const editor = useCommentEditor({
-    content: toDisplayHtml(useScratchpad.getState().text, mediaDir),
+    content: toDisplayHtml(scratchpadText(listId), mediaDir),
     placeholder: "Jot quick notes here…",
     autoFocus: true,
     onChange,
     onEscape: closeScratchpad,
     onPasteFiles: (files) => {
       const ed = editorRef.current;
-      if (ed) run(() => insertPastedFiles(ed, SCRATCHPAD_MEDIA_ID, mediaDir, files));
+      if (ed) run(() => insertPastedFiles(ed, mediaId, mediaDir, files));
     },
   });
   editorRef.current = editor;
@@ -129,10 +141,10 @@ function ScratchpadBody({ mediaDir }: { mediaDir: string }) {
   // open (the edit-time cleanup only covers the current session).
   useEffect(() => {
     void invoke("prune_media", {
-      listId: SCRATCHPAD_MEDIA_ID,
-      keep: referencedMedia([useScratchpad.getState().text]),
+      listId: mediaId,
+      keep: referencedMedia([scratchpadText(listId)]),
     });
-  }, []);
+  }, [mediaId, listId]);
 
   // Reopening the window puts the caret back at the end of the notes.
   useEffect(() => {
@@ -150,11 +162,11 @@ function ScratchpadBody({ mediaDir }: { mediaDir: string }) {
         if (e.payload.type !== "drop") return;
         const { paths } = e.payload;
         const ed = editorRef.current;
-        if (ed) run(() => insertDroppedPaths(ed, SCRATCHPAD_MEDIA_ID, mediaDir, paths));
+        if (ed) run(() => insertDroppedPaths(ed, mediaId, mediaDir, paths));
       })
       .then((f) => (off = f));
     return () => off?.();
-  }, [mediaDir, run]);
+  }, [mediaId, mediaDir, run]);
 
   // Right-click over a non-empty selection offers to convert it into an item.
   const onContextMenu = (e: ReactMouseEvent) => {
@@ -209,7 +221,7 @@ function ScratchpadBody({ mediaDir }: { mediaDir: string }) {
       <Stack gap="sm" px="md" pb="md" style={{ flex: 1, minHeight: 0 }}>
         <FormatBar
           editor={editor}
-          onAddMedia={() => editor && run(() => pickAndInsert(editor, SCRATCHPAD_MEDIA_ID, mediaDir))}
+          onAddMedia={() => editor && run(() => pickAndInsert(editor, mediaId, mediaDir))}
         />
 
         <div className="scratchpad-editor" onContextMenu={onContextMenu} style={{ flex: 1, minHeight: 0 }}>

@@ -5,7 +5,7 @@
 
 import { ActionIcon, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconDownload, IconListCheck, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { exportList, importList, type ListMeta, useLists } from "../lib/lists";
 import { IconButton } from "./IconButton";
@@ -34,11 +34,17 @@ export function Lists() {
   const remove = useLists((s) => s.remove);
   const rename = useLists((s) => s.rename);
 
+  // Id of a just-created list whose row should grab focus so its name can be
+  // typed straightaway (the only place a list is renamed now).
+  const [focusId, setFocusId] = useState<string | null>(null);
+
   // Re-scan whenever the panel mounts so it reflects edits made while it was
   // hidden.
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const createAndFocus = () => void create().then(setFocusId);
 
   return (
     <Stack gap="md" w={260}>
@@ -60,7 +66,7 @@ export function Lists() {
             variant="subtle"
             color="gray"
             aria-label="New list"
-            onClick={() => void create()}
+            onClick={createAndFocus}
           >
             <IconPlus size={16} />
           </ActionIcon>
@@ -79,10 +85,12 @@ export function Lists() {
                 key={list.id}
                 list={list}
                 active={list.id === activeId}
+                autoFocus={list.id === focusId}
                 onSelect={() => setActive(list.id)}
                 onRename={(title) => rename(list.id, title)}
                 onExport={() => void exportList(list.id, list.title)}
                 onDelete={() => void remove(list.id)}
+                onFocused={() => setFocusId(null)}
                 canDelete={lists.length > 1}
               />
             ))}
@@ -96,10 +104,14 @@ export function Lists() {
 interface ListRowProps {
   list: ListMeta;
   active: boolean;
+  /** Grab focus and select the name (a freshly created list, ready to rename). */
+  autoFocus: boolean;
   onSelect: () => void;
   onRename: (title: string) => void;
   onExport: () => void;
   onDelete: () => void;
+  /** Clear the parent's one-shot autofocus flag once consumed. */
+  onFocused: () => void;
   /** The last remaining list can't be deleted (there's always one). */
   canDelete: boolean;
 }
@@ -107,10 +119,12 @@ interface ListRowProps {
 function ListRow({
   list,
   active,
+  autoFocus,
   onSelect,
   onRename,
   onExport,
   onDelete,
+  onFocused,
   canDelete,
 }: ListRowProps) {
   const [hovered, setHovered] = useState(false);
@@ -118,6 +132,17 @@ function ListRow({
   // Reveal the row actions on hover or keyboard focus, so tabbing through the
   // row lands on visible buttons instead of invisible (opacity: 0) targets.
   const revealed = hovered || focused;
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!autoFocus) return;
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      el.select();
+    }
+    onFocused();
+  }, [autoFocus, onFocused]);
 
   return (
     <Group
@@ -133,12 +158,16 @@ function ListRow({
         background: active ? "var(--mantine-color-default)" : "transparent",
       }}
     >
-      {/* Focusing the field selects the list; typing renames it. */}
+      {/* Clicking the row selects the list; typing renames it. Selection is on
+          click (not focus) so reopening the panel - which restores focus to the
+          last-edited field - doesn't silently reselect, and clicking an already
+          focused row still works. */}
       <TextInput
+        ref={inputRef}
         variant="unstyled"
         placeholder="Untitled"
         value={list.title}
-        onFocus={onSelect}
+        onClick={onSelect}
         onChange={(e) => onRename(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

@@ -59,7 +59,6 @@ export const useTodos = create<TodosState>((set, get) => {
     lastKey: null,
     focusId: null,
     focusCaret: "end",
-    focusTitle: false,
     editingId: null,
     revealedId: null,
 
@@ -386,6 +385,7 @@ export const useTodos = create<TodosState>((set, get) => {
     },
 
     addItem: (initialText = "") => {
+      if (!get().activeId) return; // no list open - nowhere to add
       const id = crypto.randomUUID();
       // Coalesce under the same key the text field uses, so creating an item
       // and typing its first words collapse into a single undo step.
@@ -402,6 +402,7 @@ export const useTodos = create<TodosState>((set, get) => {
     },
 
     addItemWithComment: (text, commentHtml) => {
+      if (!get().activeId) return; // no list open - nowhere to add
       const id = crypto.randomUUID();
       commit((items) => {
         const t = now();
@@ -467,8 +468,6 @@ export const useTodos = create<TodosState>((set, get) => {
     // `start` (arrow-down) doesn't leak into the next focus.
     clearFocus: () => set({ focusId: null, focusCaret: "end" }),
 
-    clearFocusTitle: () => set({ focusTitle: false }),
-
     setEditingId: (id) => set({ editingId: id }),
 
     focusItem: (id, caret = "end") => set({ focusId: id, focusCaret: caret }),
@@ -495,10 +494,12 @@ export const useTodos = create<TodosState>((set, get) => {
         future: [],
         lastKey: null,
         focusId: null,
+        // An item-scoped panel (details/assignee/status) belonged to the old
+        // list, so its highlight clears on switch (the panel itself is closed by
+        // the main-window sync).
+        editingId: null,
         // A search-pinned item doesn't carry across lists.
         revealedId: null,
-        // A fresh, untitled list opens with its title field focused for naming.
-        focusTitle: title === "",
       });
       // Clear orphaned attachments (no unsaved drafts exist at load time, so any
       // unreferenced media file is genuinely stale).
@@ -507,6 +508,22 @@ export const useTodos = create<TodosState>((set, get) => {
       );
       void invoke("prune_media", { listId: id, keep });
     },
+
+    // No list open: wipe the loaded list to a blank slate (closing the last tab).
+    closeList: () =>
+      set({
+        activeId: null,
+        title: "",
+        assignees: [],
+        labels: [],
+        items: [],
+        past: [],
+        future: [],
+        lastKey: null,
+        focusId: null,
+        editingId: null,
+        revealedId: null,
+      }),
 
     undo: () => {
       const { past, future, items } = get();
