@@ -177,6 +177,114 @@ pub fn raise_panel_above(panel: &tauri::WebviewWindow, _main: &tauri::WebviewWin
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn raise_panel_above(_panel: &tauri::WebviewWindow, _main: &tauri::WebviewWindow) {}
 
+/// Make an always-on-top window float across *all* Spaces - including other
+/// apps' full-screen Spaces - so switching to a full-screen app leaves the
+/// window floating over it instead of stranded on its original Space (where it
+/// would vanish). This is what "stick to whatever display/Space you're on" means
+/// on macOS: the window joins every Space rather than living on one.
+///
+/// Two native settings together do this (the window must already be a
+/// non-activating panel - see `convert_to_panel` - or it won't draw over another
+/// app's full-screen Space at all):
+/// - collection behavior makes it *join* every Space, including a full-screen
+///   one: `CanJoinAllSpaces` (show on every Space, so it follows you across
+///   Spaces and displays), `FullScreenAuxiliary` (allowed into a full-screen
+///   Space as an overlay), `Stationary` (don't slide with the Space-switch).
+/// - a menu-bar-class window level decides z-order *within* that Space (set here,
+///   not via Tauri's always-on-top - see below).
+///
+/// When `enabled` is false we restore the default managed behavior and the normal
+/// window level, so toggling always-on-top off returns it to a single-Space,
+/// normal-level window.
+#[cfg(target_os = "macos")]
+pub fn set_float_across_spaces(window: &tauri::WebviewWindow, enabled: bool) {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+
+    let Ok(ns_ptr) = window.ns_window() else {
+        return;
+    };
+    let ns_window = unsafe { &*(ns_ptr as *const NSWindow) };
+
+    if enabled {
+        ns_window.setCollectionBehavior(
+            NSWindowCollectionBehavior::CanJoinAllSpaces
+                | NSWindowCollectionBehavior::FullScreenAuxiliary
+                | NSWindowCollectionBehavior::Stationary,
+        );
+        // Window level is what actually decides z-order *within* the full-screen
+        // app's Space: Tauri's always-on-top parks the window at the floating
+        // level (3), which renders *behind* a full-screen app's normal-level
+        // window, so it never appears over it. A menu-bar-class level renders
+        // above it. `NSMainMenuWindowLevel` is 24; the +3 margin matches a
+        // known-working setup (orbit-cursor) where a smaller margin still failed
+        // to render over some full-screen apps. We set the level natively here
+        // (not via `set_always_on_top`) because tao applies that one a runloop
+        // late, which would clobber this back down to the floating level.
+        ns_window.setLevel(NS_MAIN_MENU_WINDOW_LEVEL + 3);
+    } else {
+        ns_window.setCollectionBehavior(
+            NSWindowCollectionBehavior::Default
+                | NSWindowCollectionBehavior::Managed
+                | NSWindowCollectionBehavior::ParticipatesInCycle,
+        );
+        ns_window.setLevel(NS_NORMAL_WINDOW_LEVEL);
+    }
+}
+
+/// Convert a window into a non-activating `NSPanel` (in place - same on-screen
+/// window, same `WebviewWindow` handle, just a reclassed native object). This is
+/// the one piece that actually lets a *background* app's window draw over another
+/// app's full-screen Space: a regular window only renders over full-screen while
+/// its app is frontmost, but a non-activating panel renders over it without its
+/// app ever becoming active (confirmed: with the right level + collection
+/// behavior, a plain window still vanished because `app_active` was false).
+///
+/// `to_panel` reassigns the window's class to an `NSPanel` subclass that still
+/// returns `canBecomeKeyWindow = YES`, so it keeps accepting text input. We then:
+/// - OR in the non-activating panel style mask (preserving the existing titled /
+///   full-size-content bits, so the window keeps its look) - the mask is only
+///   honored now that the object is an `NSPanel`.
+/// - clear `hidesOnDeactivate`, so it stays visible when our app isn't frontmost
+///   (the whole point - otherwise switching to the full-screen app hides it).
+///
+/// Idempotent enough to call once per window at startup. Level + collection
+/// behavior are still set by `set_float_across_spaces`, which also gates them on
+/// the always-on-top preference.
+#[cfg(target_os = "macos")]
+pub fn convert_to_panel(window: &tauri::WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowStyleMask};
+    use tauri_nspanel::WebviewWindowExt;
+
+    if window.to_panel().is_err() {
+        return;
+    }
+
+    let Ok(ns_ptr) = window.ns_window() else {
+        return;
+    };
+    let ns_window = unsafe { &*(ns_ptr as *const NSWindow) };
+    let mask = ns_window.styleMask() | NSWindowStyleMask::NonactivatingPanel;
+    ns_window.setStyleMask(mask);
+    ns_window.setHidesOnDeactivate(false);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn convert_to_panel(_window: &tauri::WebviewWindow) {}
+
+/// `NSMainMenuWindowLevel` / `NSNormalWindowLevel` as raw `NSWindowLevel`
+/// (`isize`) values - the AppKit named constants for the window-level bands.
+#[cfg(target_os = "macos")]
+const NS_MAIN_MENU_WINDOW_LEVEL: isize = 24;
+#[cfg(target_os = "macos")]
+const NS_NORMAL_WINDOW_LEVEL: isize = 0;
+
+/// On Windows an always-on-top (topmost) window already floats over borderless
+/// full-screen apps, and exclusive-full-screen apps can't be floated over at all,
+/// so there's nothing extra to do - this is a no-op to keep the call sites
+/// cross-platform.
+#[cfg(not(target_os = "macos"))]
+pub fn set_float_across_spaces(_window: &tauri::WebviewWindow, _enabled: bool) {}
+
 #[cfg(target_os = "macos")]
 pub fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
     use objc2_app_kit::NSWindow;

@@ -44,6 +44,14 @@ pub fn run() {
                 .build(),
         );
 
+    // Lets us convert the floating windows into non-activating NSPanels so they
+    // draw over other apps' full-screen Spaces. macOS-only; must be registered
+    // before the windows are converted in `setup`.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     // Launch-at-startup support. Desktop-only (the plugin has no mobile impl),
     // and the actual enable/disable is driven from the settings UI via the
     // plugin's JS API.
@@ -119,6 +127,14 @@ pub fn run() {
                 // out.
                 let _ = window.set_content_protected(true);
 
+                // Make it a non-activating panel so it can draw over other apps'
+                // full-screen Spaces even while our app is in the background, then
+                // float it across all Spaces. Always-on-top defaults on (see the
+                // window config + WindowState); the JS startup sync flips the
+                // floating off via `set_always_on_top` if the user opted out.
+                platform::convert_to_panel(&window);
+                platform::set_float_across_spaces(&window, true);
+
                 // Window starts hidden in the config to avoid a flash of the
                 // native frame; reveal it once it's configured.
                 let _ = window.show();
@@ -182,6 +198,12 @@ pub fn run() {
                 // popover's contents aren't captured either.
                 let _ = panel.set_content_protected(true);
 
+                // Non-activating panel + float across all Spaces, so the popover
+                // stays above a full-screen app alongside the main window (matches
+                // always-on-top defaulting on).
+                platform::convert_to_panel(&panel);
+                platform::set_float_across_spaces(&panel, true);
+
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {
@@ -222,6 +244,12 @@ pub fn run() {
                 platform::hide_traffic_lights(&pad);
 
                 let _ = pad.set_content_protected(true);
+
+                // Non-activating panel + float across all Spaces, so the scratchpad
+                // stays visible over a full-screen app too (matches always-on-top
+                // defaulting on).
+                platform::convert_to_panel(&pad);
+                platform::set_float_across_spaces(&pad, true);
 
                 let pad_handle = app.handle().clone();
                 pad.on_window_event(move |event| match event {

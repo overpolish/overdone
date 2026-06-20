@@ -71,16 +71,30 @@ pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
 #[tauri::command]
 pub fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
     state.always_on_top.store(value, Ordering::Relaxed);
-    // Applied directly even with the panel open. Raising the main window's level
-    // could leave the open panel (set just above the main window's *previous*
-    // level) behind it, so re-raise the panel above the new level - the setting
-    // lives in the panel, so it can be toggled while the panel is showing.
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_always_on_top(value);
-        if state.panel_open.load(Ordering::Relaxed) {
-            if let Some(panel) = app.get_webview_window("panel") {
-                crate::platform::raise_panel_above(&panel, &window);
-            }
+    // On macOS we own the window level natively (see `set_float_across_spaces`):
+    // it sets a menu-bar-class level + all-Spaces collection behavior so the
+    // window renders above other apps' full-screen windows. We deliberately do
+    // NOT also call Tauri's `set_always_on_top` there - tao applies that a runloop
+    // late at the *floating* level, which would clobber our higher level back down
+    // and sink the window behind full-screen apps again. On Windows there's no
+    // such native path, so Tauri's always-on-top is the mechanism (a topmost
+    // window already floats over borderless full-screen apps).
+    for label in ["main", "panel", "scratchpad"] {
+        if let Some(window) = app.get_webview_window(label) {
+            crate::platform::set_float_across_spaces(&window, value);
+            #[cfg(not(target_os = "macos"))]
+            let _ = window.set_always_on_top(value);
+        }
+    }
+    // Re-raise the open panel above the main window: changing the main window's
+    // level could otherwise leave the panel (seated one level above the main
+    // window's *previous* level) behind it. The setting lives in the panel, so it
+    // can be toggled while the panel is showing.
+    if state.panel_open.load(Ordering::Relaxed) {
+        if let (Some(main), Some(panel)) =
+            (app.get_webview_window("main"), app.get_webview_window("panel"))
+        {
+            crate::platform::raise_panel_above(&panel, &main);
         }
     }
 }
