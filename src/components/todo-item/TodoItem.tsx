@@ -4,7 +4,7 @@
  */
 
 import { Box, Group, Textarea } from "@mantine/core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { resolveAssignees } from "../../lib/assignee";
 import { caretEdges } from "../../lib/caret";
@@ -73,6 +73,40 @@ export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemPro
   // place the caret per the hint, and scroll the row into view - the custom
   // scroll container doesn't always follow focus on its own.
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow/shrink the field to fit its text. Driven off the real textarea's
+  // scrollHeight (reset to auto first so it can shrink) rather than Mantine's
+  // `autosize`: that measures a hidden shadow textarea, and when its width is
+  // read stale the wrapped lines measure as a single row, collapsing the field
+  // to one line and sticking there. The real element always wraps at the right
+  // width, so this can't undercount.
+  const autosize = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // Skip while hidden (scrollHeight 0) so the row isn't pinned to zero; the
+    // width observer below re-fits it when it's shown again.
+    if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  // Re-fit whenever the text changes (typing, deleting, quick-add stripping it).
+  useLayoutEffect(autosize, [item.text, autosize]);
+
+  // Re-fit when the available width changes (resizing the window rewraps lines).
+  // Guarded on width so our own height changes don't re-trigger it into a loop.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    let lastWidth = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === lastWidth) return;
+      lastWidth = el.clientWidth;
+      autosize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [autosize]);
+
   useEffect(() => {
     if (focusId !== item.id) return;
     const el = inputRef.current;
@@ -219,9 +253,9 @@ export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemPro
               }
             }
           }}
-          // Grow with content and wrap instead of overflowing the narrow window.
-          autosize
-          minRows={1}
+          // Wrap instead of overflowing the narrow window; height is driven by the
+          // scrollHeight effect above (not Mantine's autosize, which can collapse).
+          rows={1}
           style={{ width: "100%" }}
           styles={{
             input: {
@@ -232,6 +266,10 @@ export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemPro
               // the gap after them.
               padding: 0,
               minHeight: 0,
+              // The effect sets an exact pixel height; hide overflow so there's no
+              // scrollbar flash mid-resize, and lock manual resizing.
+              overflow: "hidden",
+              resize: "none",
               fontSize: "13px",
               lineHeight: `${LINE_HEIGHT}px`,
               // The text sits a hair low in the line box; nudge it up 1px to
