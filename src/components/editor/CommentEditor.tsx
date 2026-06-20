@@ -13,6 +13,7 @@ import {
   IconListNumbers,
   IconPhoto,
   IconSitemap,
+  IconTable,
   IconUnderline,
 } from "@tabler/icons-react";
 import Link from "@tiptap/extension-link";
@@ -25,6 +26,7 @@ import { Attachment } from "../../lib/attachment";
 import { Mermaid } from "../../lib/mermaid-node";
 import { CodeBlock } from "./CodeBlockNode";
 import { LinkBubble, LinkButton } from "./LinkEditor";
+import { TableControls, insertDefaultTable, tableExtensions } from "./table";
 import { IconButton } from "../ui/IconButton";
 
 interface UseCommentEditorOptions {
@@ -88,6 +90,7 @@ export function useCommentEditor({
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Attachment,
       Mermaid,
+      ...tableExtensions,
     ],
     content,
     autofocus: autoFocus ? "end" : false,
@@ -192,6 +195,7 @@ export function FormatBar({
         icon={IconSitemap}
         onClick={() => editor.chain().focus().insertMermaid().run()}
       />
+      <IconButton label="Insert table" icon={IconTable} onClick={() => insertDefaultTable(editor)} />
       {onAddMedia && (
         <IconButton label="Insert image or video" icon={IconPhoto} onClick={onAddMedia} />
       )}
@@ -232,6 +236,7 @@ export function CommentInput({
     <Box className="comment-input" style={{ position: "relative" }}>
       <EditorContent editor={editor} />
       {editor && <LinkBubble editor={editor} />}
+      {editor && <TableControls editor={editor} />}
       {busy && (
         <Group
           gap={8}
@@ -257,7 +262,7 @@ export function CommentInput({
 /** Whether editor HTML carries no content (so Save should no-op). */
 export function htmlIsEmpty(html: string): boolean {
   // An embedded attachment or diagram counts as content on its own.
-  if (/<(?:img|video)\b/i.test(html)) return false;
+  if (/<(?:img|video|table)\b/i.test(html)) return false;
   if (/data-mermaid/i.test(html)) return false;
   // Otherwise strip tags, drop non-breaking spaces, and check for any text.
   return html.replace(/<[^>]*>/g, "").replace(/ /g, "").trim() === "";

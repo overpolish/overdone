@@ -58,7 +58,7 @@ export function CodeLanguageField({
         onChange={setOpen}
         position="bottom-start"
         offset={2}
-        width={160}
+        width={132}
         shadow="md"
         radius="md"
         trapFocus={false}
@@ -111,22 +111,23 @@ export function CodeLanguageField({
             onMouseDown={(e) => e.stopPropagation()}
           />
         </Popover.Target>
-        <Popover.Dropdown
-          p={0}
-          style={{ overflow: "hidden", fontSize: "var(--mantine-font-size-xs)" }}
-        >
-          <ScrollArea maxHeight={150} radius="md">
-            {matches.map((lang, i) => (
-              <PickerOption
-                key={lang}
-                bold={lang === value}
-                highlighted={i === highlight}
-                onHover={() => setActiveIndex(i)}
-                onSelect={() => pick(lang)}
-              >
-                {lang}
-              </PickerOption>
-            ))}
+        <Popover.Dropdown p={0} style={{ overflow: "hidden" }}>
+          <ScrollArea maxHeight={104} radius={0}>
+            <Box p={4}>
+              {matches.map((lang, i) => (
+                <PickerOption
+                  key={lang}
+                  bold={lang === value}
+                  highlighted={i === highlight}
+                  onHover={() => setActiveIndex(i)}
+                  onSelect={() => pick(lang)}
+                >
+                  {/* Size the row text explicitly (xs) like the label/assignee
+                      pickers - the dropdown's inherited font doesn't reach here. */}
+                  <span style={{ fontSize: "var(--mantine-font-size-xs)" }}>{lang}</span>
+                </PickerOption>
+              ))}
+            </Box>
           </ScrollArea>
         </Popover.Dropdown>
       </Popover>

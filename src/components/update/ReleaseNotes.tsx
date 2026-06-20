@@ -4,8 +4,10 @@
  */
 
 import { Box } from "@mantine/core";
+import { useEffect, useRef } from "react";
 
 import { openExternal } from "../../lib/links";
+import { attachScrollShadows } from "../../lib/scroll-shadow";
 import { ScrollArea } from "../ui/ScrollArea";
 
 /**
@@ -15,9 +17,22 @@ import { ScrollArea } from "../ui/ScrollArea";
  * browser rather than navigating the app webview.
  */
 export function ReleaseNotes({ html, maxHeight = 360 }: { html: string; maxHeight?: number }) {
+  // GitHub's HTML can include wide `<pre>` code blocks; give them the same
+  // overlay-scrollbar + fade-shadow horizontal scroll as everything else.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const detachers = [...root.querySelectorAll<HTMLElement>("pre")].map((el) =>
+      attachScrollShadows(el, "horizontal"),
+    );
+    return () => detachers.forEach((detach) => detach());
+  }, [html]);
+
   return (
     <ScrollArea maxHeight={maxHeight}>
       <Box
+        ref={ref}
         className="release-notes"
         fz="sm"
         style={{ wordBreak: "break-word" }}

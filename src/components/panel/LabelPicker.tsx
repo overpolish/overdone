@@ -12,7 +12,7 @@ import { labelColors, randomLabelColor, resolveLabels } from "../../lib/label";
 import { emitLabelAction, type LabelsSync } from "../../lib/panel";
 import { type Label } from "../../lib/todos";
 import { LabelBadge } from "../ui/LabelBadge";
-import { PickerOption } from "../ui/PickerOption";
+import { PickerOption, usePickerHighlight } from "../ui/PickerOption";
 import { ScrollArea } from "../ui/ScrollArea";
 
 /**
@@ -93,6 +93,10 @@ export function LabelPicker({ roster, value, onChange, onCreate }: LabelPickerPr
   );
   const exists = roster.some((l) => l.name.trim().toLowerCase() === q);
   const showCreate = q.length > 0 && !exists;
+  // Arrow-key highlight over the suggestion rows (+ the optional create row).
+  const { highlight, setIndex, onArrowKey } = usePickerHighlight(
+    available.length + (showCreate ? 1 : 0),
+  );
 
   const add = (id: string) => {
     onChange([...value, id]);
@@ -115,13 +119,18 @@ export function LabelPicker({ roster, value, onChange, onCreate }: LabelPickerPr
         onChange={(e) => {
           setSearch(e.currentTarget.value);
           setOpen(true);
+          setIndex(0);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          setIndex(0);
+        }}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => {
+          if (onArrowKey(e)) return;
           if (e.key === "Enter") {
             e.preventDefault();
-            if (available[0]) add(available[0].id);
+            if (highlight < available.length) add(available[highlight].id);
             else if (showCreate) create();
           } else if (e.key === "Backspace" && search === "" && selected.length) {
             remove(selected[selected.length - 1].id);
@@ -145,13 +154,22 @@ export function LabelPicker({ roster, value, onChange, onCreate }: LabelPickerPr
         >
           <ScrollArea maxHeight={76} radius={0}>
             <Box p={4}>
-              {available.map((l) => (
-                <PickerOption key={l.id} onSelect={() => add(l.id)}>
+              {available.map((l, i) => (
+                <PickerOption
+                  key={l.id}
+                  highlighted={i === highlight}
+                  onHover={() => setIndex(i)}
+                  onSelect={() => add(l.id)}
+                >
                   <LabelBadge label={l} size={16} />
                 </PickerOption>
               ))}
               {showCreate && (
-                <PickerOption onSelect={create}>
+                <PickerOption
+                  highlighted={highlight === available.length}
+                  onHover={() => setIndex(available.length)}
+                  onSelect={create}
+                >
                   <IconPlus size={14} />
                   <span style={{ fontSize: "var(--mantine-font-size-xs)" }}>
                     Create “{search.trim()}”

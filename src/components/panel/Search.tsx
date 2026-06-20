@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Button, Group, Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
-import { IconLink, IconMessage, IconSearch } from "@tabler/icons-react";
+import { Button, Group, Stack, Text, TextInput } from "@mantine/core";
+import { IconSearch } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { resolveAssignees } from "../../lib/assignee";
@@ -13,12 +13,10 @@ import { resolveLabels } from "../../lib/label";
 import { linkLabel, scanCommentLinks, type ScannedLink } from "../../lib/links";
 import { htmlToText } from "../../lib/media";
 import { closePanel, emitClearReveal, emitFocusItem } from "../../lib/panel";
-import { isStruck } from "../../lib/todo";
 import { type Assignee, type Comment, type Label, type TodoData } from "../../lib/todos";
-import { AssigneeAvatar } from "../ui/AssigneeAvatar";
-import { LabelBadge } from "../ui/LabelBadge";
+import { usePickerHighlight } from "../ui/PickerOption";
 import { ScrollArea } from "../ui/ScrollArea";
-import { StateBox } from "../ui/StateBox";
+import { ResultRow } from "./SearchResultRow";
 
 /** A comment's plain text, cached by the (immutable) comment object so a roster
  * change driving a re-index - or an item edit that leaves a given comment
@@ -176,6 +174,10 @@ export function Search({
     closePanel();
   };
 
+  // Arrow-key navigation over the results (the input keeps focus; the highlighted
+  // row gets the wash and scrolls into view), matching the label/assignee pickers.
+  const { highlight, setIndex, onArrowKey } = usePickerHighlight(results.length);
+
   return (
     <Stack gap="xs" w={300}>
       {pinned && (
@@ -194,9 +196,13 @@ export function Search({
         placeholder="Search items…"
         leftSection={<IconSearch size={16} />}
         value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
+        onChange={(e) => {
+          setQuery(e.currentTarget.value);
+          setIndex(0);
+        }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && results[0]) pick(results[0].item.id);
+          if (onArrowKey(e)) return;
+          if (e.key === "Enter" && results[highlight]) pick(results[highlight].item.id);
         }}
       />
 
@@ -207,7 +213,7 @@ export function Search({
       ) : (
         <ScrollArea maxHeight={260}>
           <Stack gap={2}>
-            {results.map(({ item, snippet, label, assignee, link }) => (
+            {results.map(({ item, snippet, label, assignee, link }, i) => (
               <ResultRow
                 key={item.id}
                 item={item}
@@ -215,6 +221,8 @@ export function Search({
                 label={label}
                 assignee={assignee}
                 link={link}
+                highlighted={i === highlight}
+                onHover={() => setIndex(i)}
                 onSelect={() => pick(item.id)}
               />
             ))}
@@ -222,97 +230,6 @@ export function Search({
         </ScrollArea>
       )}
     </Stack>
-  );
-}
-
-function ResultRow({
-  item,
-  snippet,
-  label,
-  assignee,
-  link,
-  onSelect,
-}: {
-  item: TodoData;
-  snippet?: string;
-  label?: Label;
-  assignee?: Assignee;
-  link?: ScannedLink;
-  onSelect: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const done = isStruck(item.state);
-  // A second line shows why a non-title field matched (comment / label /
-  // assignee / link).
-  const hasHint = Boolean(snippet || label || assignee || link);
-
-  return (
-    <UnstyledButton
-      onClick={onSelect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "flex",
-        alignItems: hasHint ? "flex-start" : "center",
-        gap: 8,
-        padding: "6px 8px",
-        borderRadius: "var(--mantine-radius-md)",
-        background: hovered ? "var(--mantine-color-default-hover)" : "transparent",
-      }}
-    >
-      <StateBox state={item.state} size={16} optical />
-      <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-        <Text
-          size="sm"
-          truncate
-          style={{
-            textDecoration: done ? "line-through" : undefined,
-            opacity: done ? 0.6 : 1,
-          }}
-          c={item.text ? undefined : "dimmed"}
-        >
-          {item.text || "Untitled"}
-        </Text>
-        {snippet && (
-          <Text
-            size="xs"
-            c="dimmed"
-            truncate
-            style={{ display: "flex", alignItems: "center", gap: 4 }}
-          >
-            <IconMessage size={12} style={{ flexShrink: 0 }} />
-            {snippet}
-          </Text>
-        )}
-        {label && (
-          <div style={{ display: "flex" }}>
-            <LabelBadge label={label} size={15} />
-          </div>
-        )}
-        {assignee && (
-          <Text
-            size="xs"
-            c="dimmed"
-            truncate
-            style={{ display: "flex", alignItems: "center", gap: 4 }}
-          >
-            <AssigneeAvatar assignee={assignee} size={14} withTooltip={false} />
-            {assignee.name}
-          </Text>
-        )}
-        {link && (
-          <Text
-            size="xs"
-            c="dimmed"
-            truncate
-            style={{ display: "flex", alignItems: "center", gap: 4 }}
-          >
-            <IconLink size={12} style={{ flexShrink: 0 }} />
-            {linkLabel(link)}
-          </Text>
-        )}
-      </Stack>
-    </UnstyledButton>
   );
 }
 

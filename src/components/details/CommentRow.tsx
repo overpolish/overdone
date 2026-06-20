@@ -8,8 +8,10 @@ import { IconCheck, IconPencil, IconTrash } from "@tabler/icons-react";
 import { type Editor } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { setCodeBlockAttr, splitComment } from "../../lib/code-blocks";
 import { highlightCodeInHtml } from "../../lib/highlight";
 import { openExternal } from "../../lib/links";
+import { applyTableColumns } from "../../lib/table-layout";
 import { fragmentToMarkdown } from "../../lib/markdown";
 import {
   insertPastedFiles,
@@ -22,6 +24,8 @@ import { type Comment } from "../../lib/todos";
 import { CommentInput, FormatBar, useCommentEditor } from "../editor/CommentEditor";
 import { useDiagramEditor } from "../diagram";
 import { IconButton } from "../ui/IconButton";
+import { ScrollArea } from "../ui/ScrollArea";
+import { ReadOnlyCodeBlock } from "./ReadOnlyCodeBlock";
 import { useMediaBusy } from "./useMediaBusy";
 
 /** The tag of the nearest list enclosing the selection's anchor, so a re-wrapped
@@ -111,7 +115,10 @@ export function CommentRow({
   // rendered into it asynchronously (below); until that resolves we show the
   // highlighted HTML, so non-diagram comments render immediately.
   const displayHtml = toDisplayHtml(comment.text, mediaDir);
-  const highlighted = useMemo(() => highlightCodeInHtml(displayHtml), [displayHtml]);
+  const highlighted = useMemo(
+    () => applyTableColumns(highlightCodeInHtml(displayHtml)),
+    [displayHtml],
+  );
   const [rendered, setRendered] = useState(highlighted);
   useEffect(() => {
     if (!highlighted.includes("data-mermaid")) {
@@ -126,6 +133,15 @@ export function CommentRow({
       cancelled = true;
     };
   }, [highlighted]);
+
+  // Split the rendered HTML into plain-HTML runs, code blocks, and tables, so each
+  // code block renders as the interactive React component and each table in a
+  // horizontal ScrollArea (the rest stays raw HTML). A code block's language/wrap
+  // change saves back to the stored comment, keyed by index.
+  const segments = useMemo(() => splitComment(rendered), [rendered]);
+  const saveCodeBlock = (index: number, patch: { language?: string | null; wrap?: boolean }) => {
+    onSave(setCodeBlockAttr(comment.text, index, patch));
+  };
 
   if (editing) {
     return (
@@ -205,8 +221,37 @@ export function CommentRow({
             void openFullSize(el.getAttribute("src") ?? "", mediaDir);
           }
         }}
-        dangerouslySetInnerHTML={{ __html: rendered }}
-      />
+      >
+        {segments.map((seg, i) => {
+          if (seg.kind === "code") {
+            return (
+              <ReadOnlyCodeBlock
+                key={`code-${seg.index}`}
+                block={seg}
+                onChange={(patch) => saveCodeBlock(seg.index, patch)}
+              />
+            );
+          }
+          if (seg.kind === "table") {
+            // The table scrolls horizontally in the app's overlay ScrollArea when
+            // it's wider than the comment (the same component the editor uses).
+            return (
+              <ScrollArea key={`table-${i}`} orientation="horizontal" radius={0} style={{ margin: "0.4em 0" }}>
+                <div dangerouslySetInnerHTML={{ __html: seg.html }} />
+              </ScrollArea>
+            );
+          }
+          // A run of plain comment HTML. `display: contents` keeps the wrapper out
+          // of the layout so margins read as if these were direct children.
+          return (
+            <div
+              key={`html-${i}`}
+              style={{ display: "contents" }}
+              dangerouslySetInnerHTML={{ __html: seg.html }}
+            />
+          );
+        })}
+      </Box>
       <Group justify="space-between" wrap="nowrap" mt={4} gap={4}>
         <Text size="10px" c="dimmed">
           {formatTime(comment.createdAt)}

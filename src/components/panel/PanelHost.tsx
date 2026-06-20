@@ -20,6 +20,7 @@ import { Search } from "./Search";
 import { Settings } from "../settings";
 import { StatusPicker } from "./StatusPicker";
 import { UpdatePanel } from "../update/UpdatePanel";
+import { ScrollArea } from "../ui/ScrollArea";
 
 /** Round up the content's rendered size to whole logical pixels. */
 function measure(el: HTMLElement): { width: number; height: number } {
@@ -237,23 +238,19 @@ export function PanelHost() {
   }, []);
 
   return (
-    <Box
-      ref={ref}
-      p="md"
-      bg="var(--mantine-color-body)"
-      // Shrink-wrap to the content (each view sets its own width) so the
-      // measured size drives the window size. Cap the height to the screen's
-      // work area and scroll any overflow inside, so a tall panel (long lists,
-      // full settings) can't grow past the screen: the backend only repositions
-      // an over-tall window, it never shrinks it. `vh` is useless here since the
-      // webview viewport is itself the content-sized window, so use the screen.
-      style={{
-        width: "max-content",
-        maxHeight: window.screen.availHeight - 24,
-        overflowY: "auto",
-      }}
-    >
-      {renderView(request, pinned, togglePin)}
+    // Shrink-wrap to the content (each view sets its own width) so the measured
+    // size drives the window size; `width: max-content` reads through the
+    // ScrollArea to the inner content. The ScrollArea caps the height to the
+    // screen's work area and scrolls any overflow inside with the app's overlay
+    // scrollbar + fade shadows, so a tall panel (long lists, full settings) can't
+    // grow past the screen: the backend only repositions an over-tall window, it
+    // never shrinks it. `vh` is useless here since the webview viewport is itself
+    // the content-sized window, so use the screen. The padding lives inside the
+    // scroller so it scrolls with the content (as it did when the Box scrolled).
+    <Box ref={ref} bg="var(--mantine-color-body)" style={{ width: "max-content" }}>
+      <ScrollArea radius={0} maxHeight={window.screen.availHeight - 24}>
+        <Box p="md">{renderView(request, pinned, togglePin)}</Box>
+      </ScrollArea>
     </Box>
   );
 }

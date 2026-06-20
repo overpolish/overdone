@@ -20,7 +20,7 @@ import { type AssigneesSync, emitAssigneeAction } from "../../lib/panel";
 import { dangerBg, dangerFg } from "../../lib/styles";
 import { type Assignee } from "../../lib/todos";
 import { AssigneeAvatar } from "../ui/AssigneeAvatar";
-import { PickerOption } from "../ui/PickerOption";
+import { PickerOption, usePickerHighlight } from "../ui/PickerOption";
 import { ScrollArea } from "../ui/ScrollArea";
 
 /**
@@ -100,6 +100,10 @@ export function AssigneePicker({ roster, value, onChange, onCreate }: AssigneePi
   );
   const exists = roster.some((a) => a.name.trim().toLowerCase() === q);
   const showCreate = q.length > 0 && !exists;
+  // Arrow-key highlight over the suggestion rows (+ the optional create row).
+  const { highlight, setIndex, onArrowKey } = usePickerHighlight(
+    available.length + (showCreate ? 1 : 0),
+  );
 
   const add = (id: string) => {
     onChange([...value, id]);
@@ -124,13 +128,18 @@ export function AssigneePicker({ roster, value, onChange, onCreate }: AssigneePi
         onChange={(e) => {
           setSearch(e.currentTarget.value);
           setOpen(true);
+          setIndex(0);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          setIndex(0);
+        }}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => {
+          if (onArrowKey(e)) return;
           if (e.key === "Enter") {
             e.preventDefault();
-            if (available[0]) add(available[0].id);
+            if (highlight < available.length) add(available[highlight].id);
             else if (showCreate) create();
           } else if (e.key === "Backspace" && search === "" && selected.length) {
             remove(selected[selected.length - 1].id);
@@ -159,14 +168,23 @@ export function AssigneePicker({ roster, value, onChange, onCreate }: AssigneePi
               there's more). Each option row is roughly 30px. */}
           <ScrollArea maxHeight={76} radius={0}>
             <Box p={4}>
-              {available.map((a) => (
-                <PickerOption key={a.id} onSelect={() => add(a.id)}>
+              {available.map((a, i) => (
+                <PickerOption
+                  key={a.id}
+                  highlighted={i === highlight}
+                  onHover={() => setIndex(i)}
+                  onSelect={() => add(a.id)}
+                >
                   <AssigneeAvatar assignee={a} size={18} withTooltip={false} />
                   <Text size="xs">{a.name}</Text>
                 </PickerOption>
               ))}
               {showCreate && (
-                <PickerOption onSelect={create}>
+                <PickerOption
+                  highlighted={highlight === available.length}
+                  onHover={() => setIndex(available.length)}
+                  onSelect={create}
+                >
                   <IconPlus size={14} />
                   <Text size="xs">
                     Create “{search.trim()}”

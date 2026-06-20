@@ -22,6 +22,9 @@ interface IconButtonProps {
   /** A smaller variant for tight spots (e.g. a tab's close button), so it doesn't
    * inflate the row it sits in. */
   compact?: boolean;
+  /** Corner radius override. Floating toolbars (the link / table bubbles) want a
+   * tighter radius than their small container; defaults to md (sm when compact). */
+  radius?: "sm" | "md";
 }
 
 /**
@@ -38,6 +41,7 @@ export function IconButton({
   active,
   warning,
   compact,
+  radius,
 }: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const dark = useComputedColorScheme("light") === "dark";
@@ -78,7 +82,7 @@ export function IconButton({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: compact ? "var(--mantine-radius-sm)" : "var(--mantine-radius-md)",
+        borderRadius: `var(--mantine-radius-${radius ?? (compact ? "sm" : "md")})`,
         opacity: strong ? 1 : 0.5,
         color:
           danger && hovered

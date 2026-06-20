@@ -192,13 +192,15 @@ export function LinkBubble({ editor }: { editor: Editor }) {
             <IconButton
               label="Open link"
               icon={IconExternalLink}
+              radius="sm"
               onClick={() => void openExternal((editor.getAttributes("link").href as string) ?? "")}
             />
-            <IconButton label="Edit link" icon={IconPencil} onClick={startEdit} />
+            <IconButton label="Edit link" icon={IconPencil} radius="sm" onClick={startEdit} />
             <IconButton
               label="Remove link"
               icon={IconUnlink}
               danger
+              radius="sm"
               onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}
             />
           </Group>

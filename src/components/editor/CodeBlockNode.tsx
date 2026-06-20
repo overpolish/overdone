@@ -4,18 +4,15 @@
  */
 
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import { IconCheck, IconCopy, IconTextWrap } from "@tabler/icons-react";
 import {
   type NodeViewProps,
   NodeViewContent,
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
 
 import { lowlight } from "../../lib/highlight";
-import { CodeLanguageField } from "./CodeLanguageField";
-import { IconButton } from "../ui/IconButton";
+import { CodeBlockBar } from "./CodeBlockBar";
 import { ScrollArea } from "../ui/ScrollArea";
 
 /**
@@ -30,42 +27,16 @@ import { ScrollArea } from "../ui/ScrollArea";
 function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const language = (node.attrs.language as string | null) ?? "";
   const wrap = Boolean(node.attrs.wrap);
-  const [copied, setCopied] = useState(false);
-  const copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Copy the block's raw code (newlines included), with a brief check-mark cue.
-  const copy = () => {
-    void navigator.clipboard.writeText(node.textContent);
-    setCopied(true);
-    clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopied(false), 1200);
-  };
-  useEffect(() => () => clearTimeout(copyTimer.current), []);
 
   return (
     <NodeViewWrapper as="pre" data-wrap={wrap ? "true" : undefined}>
-      <div className="code-block-bar" contentEditable={false}>
-        <CodeLanguageField
-          value={language}
-          onChange={(lang) => updateAttributes({ language: lang || null })}
-        />
-        <span className="code-block-actions">
-          <IconButton
-            label={copied ? "Copied" : "Copy code"}
-            icon={copied ? IconCheck : IconCopy}
-            active={copied}
-            compact
-            onClick={copy}
-          />
-          <IconButton
-            label={wrap ? "Disable soft wrap" : "Soft wrap"}
-            icon={IconTextWrap}
-            active={wrap}
-            compact
-            onClick={() => updateAttributes({ wrap: !wrap })}
-          />
-        </span>
-      </div>
+      <CodeBlockBar
+        language={language}
+        wrap={wrap}
+        getCode={() => node.textContent}
+        onLanguageChange={(lang) => updateAttributes({ language: lang || null })}
+        onWrapChange={(w) => updateAttributes({ wrap: w })}
+      />
       {/* The static header above sits in normal flow, so this OverlayScrollbars
           horizontal scroller (and its edge shadows) belongs only to the code,
           never the header. NodeViewContent forces an inline white-space: pre-wrap;

@@ -70,6 +70,8 @@ function serializeNode(node: Node, indent: number): string {
     case "ul":
     case "ol":
       return `${serializeList(el, indent)}\n`;
+    case "table":
+      return `${serializeTable(el)}\n\n`;
     case "pre":
       // Code block (also covers stored mermaid diagrams) - keep the source.
       return `\`\`\`\n${(el.textContent ?? "").trim()}\n\`\`\`\n\n`;
@@ -85,6 +87,27 @@ function serializeNode(node: Node, indent: number): string {
 /** Wrap non-empty inner text with a Markdown marker (e.g. ** for bold). */
 function wrap(inner: string, marker: string): string {
   return inner ? `${marker}${inner}${marker}` : "";
+}
+
+/** Serialise a `<table>` to a GitHub-flavoured Markdown table. The first row is
+ * the header (GFM requires one), followed by the `---` separator, then the body.
+ * Cell content is flattened to one line - pipes escaped, newlines spaced - since
+ * a Markdown table cell can't hold block content. */
+function serializeTable(table: HTMLElement): string {
+  const rows = [...table.querySelectorAll("tr")].map((tr) =>
+    [...tr.querySelectorAll("th,td")].map((cell) =>
+      serializeChildren(cell, 0)
+        .replace(/\s*\n\s*/g, " ")
+        .replace(/\|/g, "\\|")
+        .trim(),
+    ),
+  );
+  if (rows.length === 0) return "";
+  const cols = Math.max(...rows.map((r) => r.length));
+  const line = (cells: string[]) =>
+    `| ${Array.from({ length: cols }, (_, i) => cells[i] ?? "").join(" | ")} |`;
+  const [header, ...body] = rows;
+  return [line(header), `| ${Array(cols).fill("---").join(" | ")} |`, ...body.map(line)].join("\n");
 }
 
 function serializeList(list: HTMLElement, indent: number): string {

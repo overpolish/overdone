@@ -40,6 +40,7 @@ import { CommentInput, FormatBar, useCommentEditor } from "../editor/CommentEdit
 import { DiagramModalHost } from "../diagram";
 import { IconButton } from "../ui/IconButton";
 import { ScratchpadConvertMenu } from "./ScratchpadConvertMenu";
+import { attachScrollShadows } from "../../lib/scroll-shadow";
 import { useMediaBusy } from "../details/useMediaBusy";
 
 /**
@@ -158,6 +159,16 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
   });
   editorRef.current = editor;
 
+  // The notes scroll with the app's overlay scrollbar + fade shadows, like every
+  // other scroll area. The editor's own `.comment-input` is the scroll container
+  // (it fills the window); attach once the editor has mounted it.
+  const editorHostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editor) return;
+    const el = editorHostRef.current?.querySelector<HTMLElement>(".comment-input");
+    return el ? attachScrollShadows(el, "vertical") : undefined;
+  }, [editor]);
+
   // Clear scratchpad attachments orphaned by a previous session, mirroring list
   // open (the edit-time cleanup only covers the current session).
   useEffect(() => {
@@ -246,7 +257,12 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
           onAddMedia={() => editor && run(() => pickAndInsert(editor, mediaId, mediaDir))}
         />
 
-        <div className="scratchpad-editor" onContextMenu={onContextMenu} style={{ flex: 1, minHeight: 0 }}>
+        <div
+          ref={editorHostRef}
+          className="scratchpad-editor"
+          onContextMenu={onContextMenu}
+          style={{ flex: 1, minHeight: 0 }}
+        >
           <CommentInput editor={editor} busy={busy} busyLabel={busyLabel} />
         </div>
 
