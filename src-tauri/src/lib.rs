@@ -16,7 +16,7 @@ mod window_state;
 
 use std::sync::atomic::Ordering;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use crate::panel::hide_panel;
 use crate::passthrough::apply_passthrough;
@@ -64,7 +64,8 @@ pub fn run() {
             panel::resize_panel,
             panel::set_panel_expanded,
             panel::close_panel,
-            panel::set_panel_pinned,
+            panel::set_panel_editing,
+            panel::set_panel_dirty,
             commands::set_always_on_top,
             passthrough::set_passthrough,
             commands::set_content_protected,
@@ -130,22 +131,20 @@ pub fn run() {
                 let win = window.clone();
                 window.on_window_event(move |event| match event {
                     tauri::WindowEvent::Focused(focused) => {
-                        handle
-                            .state::<WindowState>()
-                            .focused
-                            .store(*focused, Ordering::Relaxed);
+                        let state = handle.state::<WindowState>();
+                        state.focused.store(*focused, Ordering::Relaxed);
                         // Focus makes the window interactive even in passthrough.
                         apply_passthrough(&handle);
-                        if *focused
-                            && !handle
-                                .state::<WindowState>()
-                                .panel_pinned
-                                .load(Ordering::Relaxed)
-                        {
-                            // Clicking the main window dismisses the popover panel
-                            // - unless it's pinned, which keeps it up so clicking
-                            // another item just swaps its content in place.
-                            hide_panel(&handle);
+                        if *focused && state.panel_open.load(Ordering::Relaxed) {
+                            if state.panel_dirty.load(Ordering::Relaxed) {
+                                // Clicking the main window normally dismisses the
+                                // popover panel - but not out from under an unsaved
+                                // comment. Ask the panel to confirm (it shows a
+                                // save/discard prompt) and leave it visible.
+                                let _ = handle.emit("panel:confirm-close", ());
+                            } else {
+                                hide_panel(&handle);
+                            }
                         }
                     }
                     tauri::WindowEvent::CloseRequested { api, .. } => {
@@ -186,14 +185,14 @@ pub fn run() {
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {
-                        // A pinned panel stays put when focus leaves to another
-                        // app, so you can copy something into a comment without it
-                        // vanishing. Clicking the main window still dismisses it
-                        // (the main window's focus handler clears the pin too).
-                        if app_handle
-                            .state::<WindowState>()
-                            .panel_pinned
-                            .load(Ordering::Relaxed)
+                        // Switching to another app never throws away in-progress
+                        // work: a focused comment editor, or any unsaved draft,
+                        // keeps the panel open so you can click out to copy
+                        // something into the comment. Clicking the main window is
+                        // handled there (it confirms before discarding a draft).
+                        let state = app_handle.state::<WindowState>();
+                        if state.panel_editing.load(Ordering::Relaxed)
+                            || state.panel_dirty.load(Ordering::Relaxed)
                         {
                             return;
                         }
@@ -234,15 +233,18 @@ pub fn run() {
                     }
                     // Focusing the scratchpad dismisses the popover panel
                     // (settings, comments, …), the same way focusing the main
-                    // window does - unless it's pinned. The panel's own blur
-                    // handler can't do this: focus moving to a sibling window
-                    // keeps the app active, which it treats as "stay open".
+                    // window does. The panel's own blur handler can't do this:
+                    // focus moving to a sibling window keeps the app active, which
+                    // it treats as "stay open". An unsaved comment confirms first
+                    // (the panel shows a save/discard prompt) rather than vanishing.
                     tauri::WindowEvent::Focused(true) => {
-                        if !pad_handle
-                            .state::<WindowState>()
-                            .panel_pinned
-                            .load(Ordering::Relaxed)
-                        {
+                        let state = pad_handle.state::<WindowState>();
+                        if !state.panel_open.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        if state.panel_dirty.load(Ordering::Relaxed) {
+                            let _ = pad_handle.emit("panel:confirm-close", ());
+                        } else {
                             hide_panel(&pad_handle);
                         }
                     }

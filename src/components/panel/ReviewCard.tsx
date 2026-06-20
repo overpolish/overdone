@@ -89,6 +89,7 @@ export function ReviewCard({
   const composer = useCommentEditor({
     content: "",
     placeholder: "Add a quick comment…",
+    holdPanelOpen: true,
     onChange: setDraft,
     onSubmit: () => onCommit(gather()),
     onEscape: closePanel,

@@ -20,6 +20,7 @@ import {
   toDisplayHtml,
 } from "../../lib/media";
 import { renderMermaidInHtml } from "../../lib/mermaid";
+import { usePanelGuard } from "../../lib/panel-guard";
 import { type Comment } from "../../lib/todos";
 import { CommentInput, FormatBar, useCommentEditor } from "../editor/CommentEditor";
 import { useDiagramEditor } from "../diagram";
@@ -297,6 +298,7 @@ function CommentEditView({ comment, listId, mediaDir, onSave, onCancel }: Commen
   const editor = useCommentEditor({
     content: toDisplayHtml(comment.text, mediaDir),
     autoFocus: true,
+    holdPanelOpen: true,
     onChange: setDraft,
     onSubmit: () => onSave(draft),
     onEscape: onCancel,
@@ -307,31 +309,42 @@ function CommentEditView({ comment, listId, mediaDir, onSave, onCancel }: Commen
   });
   editorRef.current = editor;
 
+  // Report this inline edit to the guard (dirty once the text diverges from the
+  // saved comment, plus how to commit / cancel it) so a dismissal that would lose
+  // the changes prompts first. Every render so the closures stay fresh; cleared
+  // when the edit closes (save or cancel).
+  useEffect(() => {
+    usePanelGuard.getState().setInline({
+      dirty: draft !== comment.text,
+      save: () => onSave(draft),
+      discard: onCancel,
+    });
+  });
+  useEffect(() => () => usePanelGuard.getState().setInline(null), []);
+
   return (
     <Stack gap={6} ref={containerRef}>
+      <FormatBar
+        editor={editor}
+        onAddMedia={() => editor && run(() => pickAndInsert(editor, listId, mediaDir))}
+      />
       <CommentInput editor={editor} busy={busy} busyLabel={busyLabel} />
       {error && (
         <Text size="xs" c="red">
           {error}
         </Text>
       )}
-      <Group justify="space-between" wrap="nowrap">
-        <FormatBar
-          editor={editor}
-          onAddMedia={() => editor && run(() => pickAndInsert(editor, listId, mediaDir))}
-        />
-        <Group gap={6} wrap="nowrap">
-          <Button size="xs" variant="default" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            size="xs"
-            onClick={() => onSave(draft)}
-            leftSection={<IconCheck size={14} stroke={1.8} />}
-          >
-            Save
-          </Button>
-        </Group>
+      <Group justify="flex-end" gap={6} wrap="nowrap">
+        <Button size="xs" variant="default" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          size="xs"
+          onClick={() => onSave(draft)}
+          leftSection={<IconCheck size={14} stroke={1.8} />}
+        >
+          Save
+        </Button>
       </Group>
     </Stack>
   );

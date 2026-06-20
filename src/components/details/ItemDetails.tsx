@@ -4,13 +4,7 @@
  */
 
 import { Box, Button, Group, Stack, Text, Title } from "@mantine/core";
-import {
-  IconCheck,
-  IconGripHorizontal,
-  IconListDetails,
-  IconPin,
-  IconPinFilled,
-} from "@tabler/icons-react";
+import { IconCheck, IconGripHorizontal, IconListDetails } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -25,9 +19,9 @@ import {
   toStoredHtml,
 } from "../../lib/media";
 import { type CommentsSync, closePanel, emitDetailsAction } from "../../lib/panel";
+import { usePanelGuard } from "../../lib/panel-guard";
 import { type Assignee, type Comment, type Label } from "../../lib/todos";
 import { AssigneePicker, useAssigneeEditor } from "../panel/AssigneePicker";
-import { IconButton } from "../ui/IconButton";
 import { LabelPicker, useLabelEditor } from "../panel/LabelPicker";
 import {
   CommentInput,
@@ -65,11 +59,6 @@ interface ItemDetailsProps {
   createdAt?: number;
   /** Epoch ms of the last edit to the item itself (text/state/nesting). */
   updatedAt?: number;
-  /** Whether the panel is pinned (owned by PanelHost so it survives re-targeting
-   * to another item). */
-  pinned: boolean;
-  /** Toggle the pin (keeps the panel up across app switches; floats it on top). */
-  onTogglePin: () => void;
 }
 
 /** A cheap fingerprint of a comment log - changes on any add, delete, or edit -
@@ -110,8 +99,6 @@ export function ItemDetails({
   dueDate: initialDueDate,
   createdAt,
   updatedAt,
-  pinned,
-  onTogglePin,
 }: ItemDetailsProps) {
   const [comments, setComments] = useState<Comment[]>(initial);
   const [draft, setDraft] = useState("");
@@ -120,6 +107,9 @@ export function ItemDetails({
   const dates = useDatesEditor(itemId, initialNotifyAt, initialDueDate);
   // Which comment is being edited (single source of truth across rows).
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Whether a comment editor in the panel has focus, so the drag grip shows only
+  // while you're actually editing (and may want to slide the panel aside).
+  const editing = usePanelGuard((s) => s.editing);
   const { busy, busyLabel, error, run } = useMediaBusy();
   // The composer editor, via a ref so the once-created handlers can reach it.
   const composerRef = useRef<Editor | null>(null);
@@ -146,19 +136,49 @@ export function ItemDetails({
     setDraft("");
   };
 
+  const discardDraft = () => {
+    composerRef.current?.commands.clearContent();
+    setDraft("");
+  };
+
+  // Funnel the panel's own close gestures (Escape) through the guard so an
+  // unsaved draft prompts to save/discard instead of vanishing. Returns true if
+  // the close was parked behind the prompt.
+  const guardClose = () => usePanelGuard.getState().request({ type: "close" });
+
   const composer = useCommentEditor({
     content: "",
     placeholder: "Add a comment…",
-    autoFocus: true,
+    // Not focused on open: the panel should dismiss normally while you're just
+    // reading. Clicking into the composer is what holds it open (below) so you
+    // can click out to copy something in without it vanishing.
+    holdPanelOpen: true,
     onChange: setDraft,
     onSubmit: post,
-    onEscape: closePanel,
+    onEscape: () => {
+      if (!guardClose()) closePanel();
+    },
     onPasteFiles: (files) => {
       const ed = composerRef.current;
       if (ed) run(() => insertPastedFiles(ed, listId, mediaDir, files));
     },
   });
   composerRef.current = composer;
+
+  // Report the composer draft to the guard (whether it has content, plus how to
+  // commit / drop it) so a dismissal that would lose it prompts first. Every
+  // render so the closures see the latest draft and log; cleared on unmount.
+  useEffect(() => {
+    usePanelGuard.getState().setComposer({
+      dirty: !htmlIsEmpty(draft),
+      save: post,
+      discard: discardDraft,
+    });
+  });
+  useEffect(
+    () => () => usePanelGuard.getState().setComposer({ dirty: false, save: () => {}, discard: () => {} }),
+    [],
+  );
 
   // Adopt comment-log changes the main window broadcasts for this item (undo/redo,
   // or a delete made elsewhere). A ref holds the latest local log so the
@@ -235,16 +255,10 @@ export function ItemDetails({
         <Group gap={8} wrap="nowrap" align="center">
           <IconListDetails size={18} stroke={1.8} style={{ display: "block" }} />
           <Title order={5}>Details</Title>
-          <IconButton
-            label={pinned ? "Unpin panel" : "Pin panel (stays open while you copy from elsewhere)"}
-            icon={pinned ? IconPinFilled : IconPin}
-            active={pinned}
-            onClick={onTogglePin}
-          />
-          {/* While pinned, a small grab handle lets you slide the floating panel
+          {/* While editing, a small grab handle lets you slide the floating panel
               out of the way of whatever you're copying from. A leaf drag region
               (the grip is click-through) so the press always lands on it. */}
-          {pinned && (
+          {editing && (
             <Box
               data-tauri-drag-region
               style={{

@@ -158,11 +158,18 @@ export function closePanel() {
   void invoke("close_panel");
 }
 
-/** Pin/unpin the open details panel. While pinned it survives focus loss to
- * another app and floats on top, so you can copy something into a comment;
- * clicking the main window still dismisses it (and clears the pin). */
-export function setPanelPinned(value: boolean) {
-  void invoke("set_panel_pinned", { value });
+/** Hold the panel open while a comment editor in it has focus, so you can click
+ * out to another app to copy something into the comment without it dismissing.
+ * Driven by the editor's focus/blur, not a user toggle. */
+export function setPanelEditing(value: boolean) {
+  void invoke("set_panel_editing", { value });
+}
+
+/** Tell the backend whether the panel holds an unsaved comment draft. While set,
+ * clicking the main window (or focusing the scratchpad) confirms before
+ * discarding it instead of dismissing the panel silently. */
+export function setPanelDirty(value: boolean) {
+  void invoke("set_panel_dirty", { value });
 }
 
 /**

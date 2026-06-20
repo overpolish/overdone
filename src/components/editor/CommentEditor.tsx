@@ -23,6 +23,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef } from "react";
 
 import { Attachment } from "../../lib/attachment";
+import { usePanelGuard } from "../../lib/panel-guard";
 import { Mermaid } from "../../lib/mermaid-node";
 import { CodeBlock } from "./CodeBlockNode";
 import { LinkBubble, LinkButton } from "./LinkEditor";
@@ -34,6 +35,11 @@ interface UseCommentEditorOptions {
   content: string;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Hold the floating panel open while this editor has focus, so you can click
+   * out to another app to copy something into the comment without the panel
+   * dismissing (it also floats on top). Only for editors that live in the panel
+   * window; leave off for the scratchpad and other windows. */
+  holdPanelOpen?: boolean;
   /** Called with the editor's HTML on every change. */
   onChange: (html: string) => void;
   /** Triggered by ⌘/Ctrl+Enter (e.g. post / save). */
@@ -54,6 +60,7 @@ export function useCommentEditor({
   content,
   placeholder,
   autoFocus,
+  holdPanelOpen,
   onChange,
   onSubmit,
   onEscape,
@@ -68,7 +75,7 @@ export function useCommentEditor({
   const pasteRef = useRef(onPasteFiles);
   pasteRef.current = onPasteFiles;
 
-  return useEditor({
+  const editor = useEditor({
     extensions: [
       // Use our own link mark, not StarterKit's: the bundled one ties `inclusive`
       // to `autolink`, so enabling autolink makes the mark inclusive and typing
@@ -95,6 +102,17 @@ export function useCommentEditor({
     content,
     autofocus: autoFocus ? "end" : false,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    // While focused, hold the panel open (survives an app switch to copy
+    // something in) and show its drag grip. On blur, only release when focus
+    // stayed within the app - an app switch surfaces as a blur on some platforms
+    // but `hasFocus` is then false, so the hold persists until you come back and
+    // move focus in-panel.
+    onFocus: holdPanelOpen ? () => usePanelGuard.getState().setEditing(true) : undefined,
+    onBlur: holdPanelOpen
+      ? () => {
+          if (document.hasFocus()) usePanelGuard.getState().setEditing(false);
+        }
+      : undefined,
     editorProps: {
       handleKeyDown: (_view, event) => {
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -119,6 +137,16 @@ export function useCommentEditor({
       },
     },
   });
+
+  // Release the hold if this editor unmounts while still focused - an inline
+  // comment edit saved with ⌘Enter unmounts before any blur fires, which would
+  // otherwise leave the panel stuck open. Panel close clears it backend-side too.
+  useEffect(() => {
+    if (!holdPanelOpen) return;
+    return () => usePanelGuard.getState().setEditing(false);
+  }, [holdPanelOpen]);
+
+  return editor;
 }
 
 /** Bold / underline / bullet / ordered-list toggles for a comment editor. */

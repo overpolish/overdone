@@ -3,13 +3,15 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Box } from "@mantine/core";
+import { Box, Button, Group, Stack, Text } from "@mantine/core";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { emitEditAction, type PanelRequest, setPanelPinned } from "../../lib/panel";
+import { emitEditAction, type PanelRequest } from "../../lib/panel";
+import { type PanelAction, usePanelGuard } from "../../lib/panel-guard";
 import { AssigneePanel } from "./AssigneePanel";
 import { DailyReview } from "./DailyReview";
 import { closeDiagramModal, useDiagramModalOpen } from "../diagram";
@@ -28,11 +30,7 @@ function measure(el: HTMLElement): { width: number; height: number } {
   return { width: Math.ceil(r.width), height: Math.ceil(r.height) };
 }
 
-function renderView(
-  request: PanelRequest | null,
-  pinned: boolean,
-  onTogglePin: () => void,
-) {
+function renderView(request: PanelRequest | null) {
   if (!request) return null;
   switch (request.view) {
     case "lists":
@@ -79,8 +77,6 @@ function renderView(
           dueDate={request.dueDate}
           createdAt={request.createdAt}
           updatedAt={request.updatedAt}
-          pinned={pinned}
-          onTogglePin={onTogglePin}
         />
       ) : null;
     case "assignee":
@@ -127,33 +123,21 @@ function renderView(
 export function PanelHost() {
   const [request, setRequest] = useState<PanelRequest | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  // Pin lives here (not in ItemDetails) so it survives the per-nonce remount when
-  // a pinned panel re-targets to another item - that swap must keep the pin lit
-  // and the panel in place. A ref mirrors it for the once-registered listeners.
-  const [pinned, setPinned] = useState(false);
-  const pinnedRef = useRef(pinned);
-  pinnedRef.current = pinned;
-  const togglePin = () => {
-    setPinned((p) => {
-      const next = !p;
-      setPanelPinned(next);
-      return next;
-    });
-  };
+  // A parked dismissal (close / swap to another item) waiting on the
+  // unsaved-comment prompt; null when there's nothing to confirm.
+  const pending = usePanelGuard((s) => s.pending);
   // The in-panel diagram modal needs more room than the ~340px details panel; while
   // it's open, grow the panel window ~2x (centered) and restore it on close.
   const diagramOpen = useDiagramModalOpen();
   const wasExpanded = useRef(false);
 
-  // Receive open requests from the main window. Pin is a details-only notion, so
-  // opening any other view drops it (and tells the backend), leaving that view to
-  // behave normally.
+  // Receive open requests from the main window. If the current view has an
+  // unsaved comment, the guard parks the swap behind the prompt instead of
+  // letting it replace the draft; otherwise it's applied straight away.
   useEffect(() => {
     const unlisten = listen<PanelRequest>("panel:open", (e) => {
-      setRequest(e.payload);
-      if (e.payload.view !== "details" && pinnedRef.current) {
-        setPinned(false);
-        setPanelPinned(false);
+      if (!usePanelGuard.getState().request({ type: "open", request: e.payload })) {
+        setRequest(e.payload);
       }
     });
     return () => {
@@ -161,11 +145,24 @@ export function PanelHost() {
     };
   }, []);
 
-  // When the panel actually closes (blur-dismiss, Escape, clicking the main
-  // window while unpinned) the backend clears its pin flag; mirror that here so a
-  // later open starts unpinned.
+  // The backend asks to confirm before dismissing a panel with an unsaved comment
+  // (clicking the main window, focusing the scratchpad). The guard parks the
+  // close behind the prompt; if there's nothing unsaved, just close.
   useEffect(() => {
-    const unlisten = listen("panel:closed", () => setPinned(false));
+    const unlisten = listen("panel:confirm-close", () => {
+      if (!usePanelGuard.getState().request({ type: "close" })) {
+        void invoke("close_panel");
+      }
+    });
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
+
+  // The panel closed (blur-dismiss, Escape, status pick): clear any guard state
+  // so the next open starts clean.
+  useEffect(() => {
+    const unlisten = listen("panel:closed", () => usePanelGuard.getState().reset());
     return () => {
       void unlisten.then((off) => off());
     };
@@ -237,6 +234,26 @@ export function PanelHost() {
     return () => ro.disconnect();
   }, []);
 
+  // Resolve the unsaved-comment prompt. The active view registered how to save /
+  // discard its draft; once that's done, run whatever dismissal was parked.
+  const runPending = (action: PanelAction) => {
+    if (action.type === "close") void invoke("close_panel");
+    else setRequest(action.request);
+  };
+  const onCancel = () => usePanelGuard.getState().clearPending();
+  const onDiscard = () => {
+    const g = usePanelGuard.getState();
+    g.discard();
+    g.clearPending();
+    if (pending) runPending(pending);
+  };
+  const onSaveClose = () => {
+    const g = usePanelGuard.getState();
+    g.save();
+    g.clearPending();
+    if (pending) runPending(pending);
+  };
+
   return (
     // Shrink-wrap to the content (each view sets its own width) so the measured
     // size drives the window size; `width: max-content` reads through the
@@ -249,8 +266,61 @@ export function PanelHost() {
     // scroller so it scrolls with the content (as it did when the Box scrolled).
     <Box ref={ref} bg="var(--mantine-color-body)" style={{ width: "max-content" }}>
       <ScrollArea radius={0} maxHeight={window.screen.availHeight - 24}>
-        <Box p="md">{renderView(request, pinned, togglePin)}</Box>
+        <Box p="md">{renderView(request)}</Box>
       </ScrollArea>
+
+      {/* Unsaved-comment guard: clicking the main window or another item while a
+          comment is in progress parks the dismissal here and asks first, rather
+          than throwing the draft away. Fixed so it covers the whole panel; out of
+          flow so it doesn't perturb the content-fit measurement. */}
+      {pending && (
+        <Box
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "var(--mantine-spacing-md)",
+            background: "color-mix(in srgb, var(--mantine-color-body) 55%, transparent)",
+            backdropFilter: "blur(2px)",
+          }}
+        >
+          <Stack
+            gap="sm"
+            p="md"
+            style={{
+              maxWidth: 320,
+              borderRadius: "var(--mantine-radius-md)",
+              background: "var(--mantine-color-body)",
+              border: "1px solid var(--mantine-color-default-border)",
+              boxShadow: "var(--mantine-shadow-md)",
+            }}
+          >
+            <Group gap={8} wrap="nowrap" align="flex-start">
+              <IconAlertTriangle
+                size={18}
+                stroke={1.8}
+                color="var(--mantine-color-yellow-6)"
+                style={{ flexShrink: 0, marginTop: 1 }}
+              />
+              <Text size="sm">You have unsaved changes. Closing will discard them.</Text>
+            </Group>
+            <Group justify="flex-end" gap={8} wrap="nowrap">
+              <Button size="xs" variant="default" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button size="xs" variant="subtle" color="red" onClick={onDiscard}>
+                Discard
+              </Button>
+              <Button size="xs" onClick={onSaveClose}>
+                Save &amp; close
+              </Button>
+            </Group>
+          </Stack>
+        </Box>
+      )}
     </Box>
   );
 }
