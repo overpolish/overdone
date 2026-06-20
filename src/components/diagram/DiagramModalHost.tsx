@@ -8,7 +8,7 @@ import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { useRenderedSvg } from "../../lib/use-mermaid";
-import { IconButton } from "../IconButton";
+import { IconButton } from "../ui/IconButton";
 import { PanZoom } from "./PanZoom";
 import { type OpenDiagram, useDiagramStore } from "./store";
 

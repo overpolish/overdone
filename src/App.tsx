@@ -7,13 +7,10 @@ import { Stack, Text } from "@mantine/core";
 import { IconFilter, IconKeyboard, IconListCheck } from "@tabler/icons-react";
 import { useEffect } from "react";
 
-import { DailyReviewBanner } from "./components/DailyReviewBanner";
-import { Footer } from "./components/Footer";
+import { DailyReviewBanner, Footer, TabBar, Titlebar } from "./components/chrome";
 import { ItemContextMenu } from "./components/item-menu";
-import { ScrollArea } from "./components/ScrollArea";
-import { TabBar } from "./components/TabBar";
+import { ScrollArea } from "./components/ui";
 import { TodoItem } from "./components/todo-item";
-import { Titlebar } from "./components/Titlebar";
 import { useVisibleItems } from "./lib/filters";
 import {
   useGlobalKeyboard,

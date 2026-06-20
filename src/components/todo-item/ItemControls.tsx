@@ -10,7 +10,7 @@ import { useRef } from "react";
 
 import { openAssigneePanel, openDetailsPanel } from "../../lib/panel";
 import { type Assignee, type TodoData, useTodos } from "../../lib/todos";
-import { AddAssigneeButton, AssigneeAvatars } from "../AssigneeAvatar";
+import { AddAssigneeButton, AssigneeAvatars } from "../ui/AssigneeAvatar";
 import { type DueState, LINE_HEIGHT, STATUS_COLOR } from "./itemStatus";
 
 interface ItemControlsProps {

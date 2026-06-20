@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 
 import { linkLabel, openExternal, scanCommentLinks } from "../../lib/links";
 import { type Comment } from "../../lib/todos";
-import { ScrollArea } from "../ScrollArea";
+import { ScrollArea } from "../ui/ScrollArea";
 
 /** The site's favicon (via Google's service), falling back to a generic globe
  * if the host has none or the fetch fails. Decorative, so it carries no alt. */

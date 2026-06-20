@@ -11,7 +11,7 @@ import { resolveLabels } from "../../lib/label";
 import { dangerBg, dangerFg } from "../../lib/styles";
 import { TODO_STATES, type TodoState } from "../../lib/todo";
 import { type TodoData } from "../../lib/todos";
-import { StateBox } from "../StateBox";
+import { StateBox } from "../ui/StateBox";
 
 export const MENU_WIDTH = 194;
 export const ROW_HEIGHT = 30;

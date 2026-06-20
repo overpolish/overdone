@@ -10,9 +10,9 @@ import { useState } from "react";
 import { randomLabelColor } from "../../lib/label";
 import { emitLabelRosterAction } from "../../lib/panel";
 import { type Label } from "../../lib/todos";
-import { IconButton } from "../IconButton";
-import { LabelBadge } from "../LabelBadge";
-import { ScrollArea } from "../ScrollArea";
+import { IconButton } from "../ui/IconButton";
+import { LabelBadge } from "../ui/LabelBadge";
+import { ScrollArea } from "../ui/ScrollArea";
 
 /**
  * Per-list label roster management - the mirror of {@link AssigneeSettings} for

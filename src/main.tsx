@@ -14,8 +14,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
-import { PanelHost } from "./components/PanelHost";
-import { ScratchpadWindow } from "./components/ScratchpadWindow";
+import { PanelHost } from "./components/panel";
+import { ScratchpadWindow } from "./components/scratchpad";
 import { zustandColorSchemeManager } from "./lib/color-scheme";
 import { theme } from "./theme";
 

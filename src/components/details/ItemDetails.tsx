@@ -26,17 +26,17 @@ import {
 } from "../../lib/media";
 import { type CommentsSync, closePanel, emitDetailsAction } from "../../lib/panel";
 import { type Assignee, type Comment, type Label } from "../../lib/todos";
-import { AssigneePicker, useAssigneeEditor } from "../AssigneePicker";
-import { IconButton } from "../IconButton";
-import { LabelPicker, useLabelEditor } from "../LabelPicker";
+import { AssigneePicker, useAssigneeEditor } from "../panel/AssigneePicker";
+import { IconButton } from "../ui/IconButton";
+import { LabelPicker, useLabelEditor } from "../panel/LabelPicker";
 import {
   CommentInput,
   FormatBar,
   htmlIsEmpty,
   useCommentEditor,
-} from "../CommentEditor";
+} from "../editor/CommentEditor";
 import { DiagramModalHost } from "../diagram";
-import { ScrollArea } from "../ScrollArea";
+import { ScrollArea } from "../ui/ScrollArea";
 import { CommentRow } from "./CommentRow";
 import { DatesSection, useDatesEditor } from "./DatesSection";
 import { LinksSection } from "./LinksSection";

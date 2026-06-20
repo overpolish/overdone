@@ -19,9 +19,9 @@ import {
 } from "../../lib/media";
 import { renderMermaidInHtml } from "../../lib/mermaid";
 import { type Comment } from "../../lib/todos";
-import { CommentInput, FormatBar, useCommentEditor } from "../CommentEditor";
+import { CommentInput, FormatBar, useCommentEditor } from "../editor/CommentEditor";
 import { useDiagramEditor } from "../diagram";
-import { IconButton } from "../IconButton";
+import { IconButton } from "../ui/IconButton";
 import { useMediaBusy } from "./useMediaBusy";
 
 /** The tag of the nearest list enclosing the selection's anchor, so a re-wrapped
