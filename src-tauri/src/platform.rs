@@ -327,3 +327,50 @@ pub fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn set_window_alpha(_window: &tauri::WebviewWindow, _alpha: f64) {}
+
+/// Clear the blank composited frame a `visible: false` secondary window (panel /
+/// scratchpad) can be left showing on Windows. Such a window gets a stale
+/// DirectComposition surface (it uses `WS_EX_NOREDIRECTIONBITMAP`): it reads as
+/// hidden (`IsWindowVisible` is false) yet DWM keeps painting its blank surface,
+/// and a plain `hide()` can't drop it because nothing actually changed. The cure
+/// is to let it genuinely show and paint one real frame, then hide it - that's
+/// what a real open/close does. We do it fully transparent (alpha 0) and without
+/// activating, so nothing flashes on screen and the main window keeps focus: drop
+/// the alpha, show non-activating, give the webview a moment to paint, then hide
+/// and restore opacity for when it's later opened for real. If it was opened for
+/// real in that window (it then has focus), leave it shown. No-op off Windows,
+/// where these windows start correctly hidden.
+#[cfg(target_os = "windows")]
+pub fn clear_stale_frame(window: &tauri::WebviewWindow) {
+    use std::ffi::c_void;
+    const SW_HIDE: i32 = 0;
+    const SW_SHOWNOACTIVATE: i32 = 4;
+    #[link(name = "user32")]
+    extern "system" {
+        fn ShowWindow(hwnd: *mut c_void, n_cmd_show: i32) -> i32;
+    }
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    set_window_alpha(window, 0.0);
+    unsafe {
+        ShowWindow(hwnd.0 as *mut c_void, SW_SHOWNOACTIVATE);
+    }
+
+    let win = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(450));
+        set_window_alpha(&win, 1.0);
+        if !win.is_focused().unwrap_or(false) {
+            if let Ok(hwnd) = win.hwnd() {
+                unsafe {
+                    ShowWindow(hwnd.0 as *mut c_void, SW_HIDE);
+                }
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn clear_stale_frame(_window: &tauri::WebviewWindow) {}

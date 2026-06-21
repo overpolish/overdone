@@ -24,6 +24,10 @@ import { StatusPicker } from "./StatusPicker";
 import { UpdatePanel } from "../update/UpdatePanel";
 import { ScrollArea } from "../ui/ScrollArea";
 
+/** Set once we've asked the backend to clear this window's launch ghost frame
+ * (Windows), so StrictMode's double-mount doesn't run it twice. */
+let resyncedFrame = false;
+
 /** Round up the content's rendered size to whole logical pixels. */
 function measure(el: HTMLElement): { width: number; height: number } {
   const r = el.getBoundingClientRect();
@@ -131,6 +135,16 @@ export function PanelHost() {
   // it's open, grow the panel window ~2x (centered) and restore it on close.
   const diagramOpen = useDiagramModalOpen();
   const wasExpanded = useRef(false);
+
+  // On Windows a `visible: false` window can be left showing a blank ghost frame
+  // once its webview initializes; clear it once we've mounted so the panel starts
+  // hidden until actually opened. Guarded so StrictMode's double-mount only fires
+  // it once.
+  useEffect(() => {
+    if (resyncedFrame) return;
+    resyncedFrame = true;
+    void invoke("resync_hidden");
+  }, []);
 
   // Receive open requests from the main window. If the current view has an
   // unsaved comment, the guard parks the swap behind the prompt instead of

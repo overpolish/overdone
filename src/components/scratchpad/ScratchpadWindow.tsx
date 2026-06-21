@@ -47,10 +47,9 @@ import { ScratchpadConvertMenu } from "./ScratchpadConvertMenu";
 import { ScrollArea } from "../ui/ScrollArea";
 import { useMediaBusy } from "../details/useMediaBusy";
 
-// TEMP(demo): example note shown when a list's scratchpad is empty, so it isn't
-// blank for screenshots. Dev-only. Remove this constant and its use below once
-// the screenshots are captured.
-const DEMO_SCRATCHPAD_NOTE = `<h2>Launch week standup</h2><p>Quick notes pad - tables and code render here just like in item comments.</p><ul><li>Embargo lifts <strong>09:00 PT</strong> Thursday</li><li>Firefox pricing bug is the last <em>P1</em> blocker</li><li>Re-scan booked for Friday AM</li></ul><p>Capacity this week:</p><table><colgroup><col style="width: 40%"><col style="width: 30%"><col style="width: 30%"></colgroup><tr><th>Owner</th><th>Focus</th><th>Status</th></tr><tr><td>Alice</td><td>Landing page</td><td data-cell-bg="#fff3bf">in progress</td></tr><tr><td>Bob</td><td>Analytics + security</td><td data-cell-bg="#ffc9c9">blocked</td></tr><tr><td>Cara</td><td>Pricing table</td><td data-cell-bg="#d3f9d8">on track</td></tr></table><p>One-liner to tail the collector while testing:</p><pre><code class="language-bash">wrangler tail launch-collector --format pretty | grep -i signup</code></pre><p>Paste anything here while you work; it is saved per list automatically.</p>`;
+/** Set once we've asked the backend to clear this window's launch ghost frame
+ * (Windows), so StrictMode's double-mount doesn't run it twice. */
+let resyncedFrame = false;
 
 /**
  * The scratchpad's own window: a persistent, freely-resizable rich-text pad for
@@ -69,6 +68,17 @@ const DEMO_SCRATCHPAD_NOTE = `<h2>Launch week standup</h2><p>Quick notes pad - t
 export function ScratchpadWindow() {
   const activeId = useLists((s) => s.activeId);
   const [mediaDir, setMediaDir] = useState<string | null>(null);
+
+  // On Windows a `visible: false` window can be left showing a blank ghost frame
+  // once its webview initializes; clear it once we've mounted so the scratchpad
+  // starts hidden until actually opened. Guarded so StrictMode's double-mount only
+  // fires it once.
+  useEffect(() => {
+    if (resyncedFrame) return;
+    resyncedFrame = true;
+    void invoke("resync_hidden");
+  }, []);
+
   useEffect(() => {
     setMediaDir(null);
     if (!activeId) return;
@@ -219,12 +229,7 @@ function ScratchpadBody({ listId, mediaDir }: { listId: string; mediaDir: string
   };
 
   const editor = useCommentEditor({
-    // TEMP(demo): fall back to an example note when empty (dev only) for
-    // screenshots. Restore to `scratchpadText(listId)` after capturing them.
-    content: toDisplayHtml(
-      scratchpadText(listId) || (import.meta.env.DEV ? DEMO_SCRATCHPAD_NOTE : ""),
-      mediaDir,
-    ),
+    content: toDisplayHtml(scratchpadText(listId), mediaDir),
     placeholder: "Jot quick notes here…",
     autoFocus: true,
     onChange,

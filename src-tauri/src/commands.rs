@@ -66,6 +66,17 @@ pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
     }
 }
 
+/// Clear the blank "ghost" frame a secondary window (panel / scratchpad) can be
+/// left showing at launch on Windows. Though declared `visible: false`, these
+/// windows can end up with a stale composited surface that DWM keeps painting even
+/// though the window reads as hidden (see `platform::clear_stale_frame` for the
+/// why and the fix). Each secondary webview calls this once as it mounts - after
+/// its webview is up, which is what leaves the ghost. No-op off Windows.
+#[tauri::command]
+pub fn resync_hidden(window: tauri::WebviewWindow) {
+    crate::platform::clear_stale_frame(&window);
+}
+
 /// Apply the always-on-top preference to the main window. Called from any
 /// window (the setting lives in the panel) so it goes through the app handle.
 #[tauri::command]

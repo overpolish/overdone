@@ -68,6 +68,7 @@ pub fn run() {
             commands::flag_attention,
             commands::set_tray_alert,
             commands::background_app,
+            commands::resync_hidden,
             panel::open_panel,
             panel::resize_panel,
             panel::set_panel_expanded,
