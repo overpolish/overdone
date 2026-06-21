@@ -312,7 +312,7 @@ export function ItemDetails({
         )}
       </Group>
 
-      <Group gap="lg" align="flex-start" wrap="nowrap">
+      <Group gap="lg" align="stretch" wrap="nowrap">
         {/* Left column: the comment log + composer. */}
         <Stack gap="xs" style={{ flex: 1, minWidth: 0 }}>
           {/* Heading + composer kept in their own tight stack (gap=6) so the
@@ -349,35 +349,46 @@ export function ItemDetails({
           </Group>
 
           {comments.length > 0 && (
-            <ScrollArea
-              maxHeight={300}
-              style={{ border: "1px solid var(--mantine-color-default-border)" }}
-            >
-              {/* Newest first; storage stays chronological (new posts append).
-                  Padding keeps the comment tiles clear of the bordered, clipped
-                  container edges and rounded corners. */}
-              <Stack gap={8} p={4}>
-                {comments
-                  .slice()
-                  .reverse()
-                  .map((c) => (
-                    <CommentRow
-                      key={c.id}
-                      comment={c}
-                      listId={listId}
-                      mediaDir={mediaDir}
-                      editing={editingId === c.id}
-                      onStartEdit={() => setEditingId(c.id)}
-                      onSave={(html) => {
-                        saveEdit(c.id, html);
-                        setEditingId(null);
-                      }}
-                      onCancel={() => setEditingId(null)}
-                      onDelete={() => remove(c.id)}
-                    />
-                  ))}
-              </Stack>
-            </ScrollArea>
+            // Fill the column down to the panel's bottom rather than stopping at a
+            // fixed height, so the log doesn't dead-end above the sidebar's LINKS
+            // section. minHeight is the floor for items whose sidebar is short;
+            // flex grows it to meet a taller sidebar. The scroller is absolutely
+            // filled so a long thread scrolls inside here instead of stretching
+            // the whole panel taller.
+            <Box style={{ flex: 1, minHeight: 300, position: "relative" }}>
+              <ScrollArea
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  border: "1px solid var(--mantine-color-default-border)",
+                }}
+              >
+                {/* Newest first; storage stays chronological (new posts append).
+                    Padding keeps the comment tiles clear of the bordered, clipped
+                    container edges and rounded corners. */}
+                <Stack gap={8} p={4}>
+                  {comments
+                    .slice()
+                    .reverse()
+                    .map((c) => (
+                      <CommentRow
+                        key={c.id}
+                        comment={c}
+                        listId={listId}
+                        mediaDir={mediaDir}
+                        editing={editingId === c.id}
+                        onStartEdit={() => setEditingId(c.id)}
+                        onSave={(html) => {
+                          saveEdit(c.id, html);
+                          setEditingId(null);
+                        }}
+                        onCancel={() => setEditingId(null)}
+                        onDelete={() => remove(c.id)}
+                      />
+                    ))}
+                </Stack>
+              </ScrollArea>
+            </Box>
           )}
         </Stack>
 

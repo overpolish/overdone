@@ -2625,7 +2625,7 @@ dependencies = [
 
 [[package]]
 name = "overdone"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ffmpeg-sidecar",
  "objc2",

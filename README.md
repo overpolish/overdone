@@ -20,7 +20,7 @@
 <br />
 
 <div align="center">
-	<img width="540" alt="Overdone - capture fast, forget nothing" src="./assets/marketing/overdone-header.png" />
+	<img width="540" alt="Overdone - capture fast, forget nothing" src="./assets/marketing/overdone-header-v1.1.0.png" />
 </div>
 
 <br />
@@ -39,6 +39,7 @@ It floats above whatever you're working on, so capturing something never means s
   - [Type To Capture](#type-to-capture)
   - [Daily Review](#daily-review)
   - [Rich Comments](#rich-comments)
+  - [Scratchpad](#scratchpad)
   - [Built To Float](#built-to-float)
   - [Lists, Search & Filter](#lists-search--filter)
   - [Entirely Local](#entirely-local)
@@ -72,7 +73,7 @@ Start typing anywhere and a new item appears at the top of the list. No buttons,
 Items move through five states (Todo, In Progress, On Hold, Done, Cancelled) and nest one level deep for sub-tasks. Everything is keyboard-driven, with full undo/redo that coalesces consecutive edits into single steps. Only labels and assignees are yours to customize; everything else is set, so you spend your time doing instead of tweaking.
 
 <div align="center">
-	<img width="480" alt="Focused - tweak less, do more" src="./assets/marketing/overdone-focused.png" />
+	<img width="480" alt="Focused - tweak less, do more" src="./assets/marketing/overdone-focused-v1.1.0.png" />
 </div>
 
 ## Daily Review
@@ -80,7 +81,7 @@ Items move through five states (Todo, In Progress, On Hold, Done, Cancelled) and
 The whole point of the name. Overdone surfaces what slipped. A daily catch-up stack gathers everything that's overdue, due today, or quietly gone stale, then walks you through it card by card.
 
 <div align="center">
-	<img width="480" alt="Catchup - nothing left behind" src="./assets/marketing/overdone-catchup.png" />
+	<img width="480" alt="Catchup - nothing left behind" src="./assets/marketing/overdone-catchup-v1.1.0.png" />
 </div>
 
 ## Rich Comments
@@ -90,7 +91,17 @@ Every item carries a timestamped comment log with proper rich text, not just a n
 Because the log is kept in full, months later it still tells you why a task exists and what happened to it. That's the context most todo apps throw away the moment you tick a box.
 
 <div align="center">
-	<img width="480" alt="Traceability - comments that never clutter" src="./assets/marketing/overdone-traceability.png" />
+	<img width="480" alt="Traceability - comments that never clutter" src="./assets/marketing/overdone-traceability-v1.1.0.png" />
+</div>
+
+## Scratchpad
+
+Not everything starts as a task. The scratchpad is a freeform notes pad in its own window that floats beside your work, so you can dump a thought, a meeting's worth of notes, or a half-formed idea without forcing it into a list first. It's the same editor as comments, so tables, code blocks, images, and diagrams all render inline, and every keystroke saves as you go. Each list keeps its own pad.
+
+When a note earns its place as a task, select the lines, right-click, and convert: the first line becomes the item and everything after it, extra lines and any images included, lands as its first comment. The scratchpad clears the part you promoted.
+
+<div align="center">
+	<img width="480" alt="Scratchpad - think first, file later" src="./assets/marketing/overdone-scratchpad-v1.1.0.png" />
 </div>
 
 ## Built To Float
@@ -108,7 +119,7 @@ Everything lives on your machine. No account, no sign-in, no cloud sync, no tele
 This is built for one person: you. There's no shared workspace and nothing to maintain for anyone else's benefit. Just your work.
 
 <div align="center">
-	<img width="480" alt="Private - no cloud, just you" src="./assets/marketing/overdone-private.png" />
+	<img width="480" alt="Private - no cloud, just you" src="./assets/marketing/overdone-private-v1.1.0.png" />
 </div>
 
 <br />
