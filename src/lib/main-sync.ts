@@ -5,7 +5,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-import { broadcastListsChanged, setRenameWriter, useLists } from "./lists";
+import { broadcastListsChanged, hasPersistedTabs, setRenameWriter, useLists } from "./lists";
 import { serializeList, setMarkdownTitle } from "./markdown";
 import {
   closePanel,
@@ -177,8 +177,15 @@ async function init() {
   // no tabs) is honoured - the bar and view start empty.
   const openIds = lists.openIds.filter((id) => available.some((l) => l.id === id));
   const persisted = lists.activeId;
-  const active =
+  let active =
     persisted && available.some((l) => l.id === persisted) ? persisted : (openIds[0] ?? null);
+  // First run, or upgrading from a build without tabs (and a fresh install has
+  // its own empty localStorage): no tab state saved yet, so open an existing
+  // list rather than show an empty bar. A saved "all tabs closed" state (the key
+  // exists but is empty) is still honoured.
+  if (active === null && !hasPersistedTabs()) {
+    active = available[0]?.id ?? null;
+  }
   // The active list is always one of the open tabs.
   const tabs = active && !openIds.includes(active) ? [...openIds, active] : openIds;
 
