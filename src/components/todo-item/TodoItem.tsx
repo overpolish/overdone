@@ -14,8 +14,9 @@ import { parseQuickAdd } from "../../lib/quick-add";
 import { selectByModifier, useDrag } from "../../lib/reorder";
 import { useSelection } from "../../lib/selection";
 import { type TodoData, useTodos } from "../../lib/todos";
-import { LabelBadges } from "../ui/LabelBadge";
+import { LabelBadge } from "../ui/LabelBadge";
 import { StateCheckbox } from "../ui/StateCheckbox";
+import { DueBadge } from "./DueBadge";
 import { ItemControls } from "./ItemControls";
 import { RowWash } from "./RowWash";
 import { INDENT, LINE_HEIGHT, rowStatus } from "./itemStatus";
@@ -176,9 +177,9 @@ export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemPro
       >
         <StateCheckbox value={item.state} itemId={item.id} />
       </Box>
-      {/* Text column: any labels render as badges stacked above the title, like
-          GitHub. The column owns the row's flexible width so wrapped badges and
-          title share one left edge. */}
+      {/* Text column: any labels (and the due date, if set) render as badges
+          stacked above the title, like GitHub. The column owns the row's
+          flexible width so wrapped badges and title share one left edge. */}
       <Box
         style={{ flex: 1, minWidth: 0 }}
         onMouseDown={(e) => {
@@ -194,9 +195,16 @@ export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemPro
           useSelection.getState().clear();
         }}
       >
-        {labels.length > 0 && (
-          <Box pt={3} pb={1}>
-            <LabelBadges labels={labels} />
+        {(labels.length > 0 || item.dueDate != null) && (
+          <Box
+            pt={3}
+            pb={1}
+            style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}
+          >
+            {labels.map((l) => (
+              <LabelBadge key={l.id} label={l} size={15} />
+            ))}
+            {item.dueDate != null && <DueBadge dueDate={item.dueDate} dueState={dueState} />}
           </Box>
         )}
         <Textarea
@@ -291,7 +299,6 @@ export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemPro
         rowRef={rowRef}
         hovered={revealed}
         assignees={assignees}
-        dueState={dueState}
         needsAction={needsAction}
         pendingNotify={pendingNotify}
         hasComments={hasComments}
