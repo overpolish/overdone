@@ -6,7 +6,7 @@
 import { IconZoomIn, IconZoomOut, IconZoomReset } from "@tabler/icons-react";
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { IconButton } from "../IconButton";
+import { IconButton } from "../ui/IconButton";
 
 /** WebKit-only pinch gesture event (not in the standard DOM lib). `scale` is the
  * cumulative magnification since the gesture began (1 at start). */

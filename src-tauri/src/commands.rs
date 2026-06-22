@@ -55,10 +55,26 @@ pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
     if let Some(panel) = app.get_webview_window("panel") {
         let _ = panel.hide();
     }
+    // The scratchpad is a sibling floating window; hide it with the app so it
+    // doesn't linger on screen with no main window behind it.
+    if let Some(pad) = app.get_webview_window("scratchpad") {
+        let _ = pad.hide();
+    }
     state.panel_open.store(false, Ordering::Relaxed);
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.hide();
     }
+}
+
+/// Clear the blank "ghost" frame a secondary window (panel / scratchpad) can be
+/// left showing at launch on Windows. Though declared `visible: false`, these
+/// windows can end up with a stale composited surface that DWM keeps painting even
+/// though the window reads as hidden (see `platform::clear_stale_frame` for the
+/// why and the fix). Each secondary webview calls this once as it mounts - after
+/// its webview is up, which is what leaves the ghost. No-op off Windows.
+#[tauri::command]
+pub fn resync_hidden(window: tauri::WebviewWindow) {
+    crate::platform::clear_stale_frame(&window);
 }
 
 /// Apply the always-on-top preference to the main window. Called from any
@@ -66,16 +82,30 @@ pub fn hide_to_tray(app: tauri::AppHandle, state: tauri::State<WindowState>) {
 #[tauri::command]
 pub fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
     state.always_on_top.store(value, Ordering::Relaxed);
-    // Applied directly even with the panel open. Raising the main window's level
-    // could leave the open panel (set just above the main window's *previous*
-    // level) behind it, so re-raise the panel above the new level - the setting
-    // lives in the panel, so it can be toggled while the panel is showing.
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_always_on_top(value);
-        if state.panel_open.load(Ordering::Relaxed) {
-            if let Some(panel) = app.get_webview_window("panel") {
-                crate::platform::raise_panel_above(&panel, &window);
-            }
+    // On macOS we own the window level natively (see `set_float_across_spaces`):
+    // it sets a menu-bar-class level + all-Spaces collection behavior so the
+    // window renders above other apps' full-screen windows. We deliberately do
+    // NOT also call Tauri's `set_always_on_top` there - tao applies that a runloop
+    // late at the *floating* level, which would clobber our higher level back down
+    // and sink the window behind full-screen apps again. On Windows there's no
+    // such native path, so Tauri's always-on-top is the mechanism (a topmost
+    // window already floats over borderless full-screen apps).
+    for label in ["main", "panel", "scratchpad"] {
+        if let Some(window) = app.get_webview_window(label) {
+            crate::platform::set_float_across_spaces(&window, value);
+            #[cfg(not(target_os = "macos"))]
+            let _ = window.set_always_on_top(value);
+        }
+    }
+    // Re-raise the open panel above the main window: changing the main window's
+    // level could otherwise leave the panel (seated one level above the main
+    // window's *previous* level) behind it. The setting lives in the panel, so it
+    // can be toggled while the panel is showing.
+    if state.panel_open.load(Ordering::Relaxed) {
+        if let (Some(main), Some(panel)) =
+            (app.get_webview_window("main"), app.get_webview_window("panel"))
+        {
+            crate::platform::raise_panel_above(&panel, &main);
         }
     }
 }
@@ -87,7 +117,7 @@ pub fn set_always_on_top(app: tauri::AppHandle, value: bool, state: tauri::State
 #[tauri::command]
 pub fn set_content_protected(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
     state.content_protected.store(value, Ordering::Relaxed);
-    for label in ["main", "panel"] {
+    for label in ["main", "panel", "scratchpad"] {
         if let Some(window) = app.get_webview_window(label) {
             let _ = window.set_content_protected(value);
         }

@@ -23,12 +23,10 @@ pub fn hide_panel(app: &tauri::AppHandle) {
     let state = app.state::<WindowState>();
     if let Some(panel) = app.get_webview_window("panel") {
         let _ = panel.hide();
-        // Pinning floats the panel on top of other apps; drop that here so a
-        // later (unpinned) open doesn't inherit it. Pin resets on every close.
-        let _ = panel.set_always_on_top(false);
     }
     state.panel_open.store(false, Ordering::Relaxed);
-    state.panel_pinned.store(false, Ordering::Relaxed);
+    state.panel_editing.store(false, Ordering::Relaxed);
+    state.panel_dirty.store(false, Ordering::Relaxed);
     // Tell the main window to drop its "item being edited" row highlight.
     let _ = app.emit("panel:closed", ());
     // The panel no longer counts as "interacting", so re-evaluate passthrough.
@@ -121,14 +119,7 @@ pub fn open_panel(
 
     let _ = panel.set_size(LogicalSize::new(width, height));
 
-    // A pinned panel stays where the user left it: re-targeting to another item
-    // just swaps content, so keep the current position instead of re-anchoring
-    // under the newly clicked row (`panel_anchored` is left as-is so resizes keep
-    // the top-left too).
-    let pinned = state.panel_pinned.load(Ordering::Relaxed);
-
     match (anchor_x, anchor_y) {
-        _ if pinned => {}
         (Some(x), Some(y)) => {
             // The anchor + size are logical (CSS px in the main window's space);
             // convert to physical to compare against the monitor's work area, and
@@ -266,23 +257,28 @@ pub fn close_panel(app: tauri::AppHandle) {
     hide_panel(&app);
 }
 
-/// Pin/unpin the open details panel. A pinned panel survives focus loss to
-/// another app (the blur handler skips its dismiss) and floats above other apps
-/// so it stays visible while you copy something into a comment; the in-panel
-/// drag strip lets you slide it out of the way. Clicking the main window still
-/// dismisses it (and `hide_panel` clears the pin). No-op without an open panel.
+/// Mark the panel as actively being edited (a comment editor in it has focus).
+/// While set, the panel survives focus loss to another app, so you can click out
+/// to copy something into a comment without it vanishing. The editor sets it on
+/// focus and clears it on blur.
+///
+/// This only flips the flag - it deliberately leaves the window level alone. The
+/// panel already sits one level above the main window (set in `open_panel`), and
+/// macOS orders window levels globally across apps, so it already floats above
+/// other apps you switch to. Toggling `set_always_on_top` here would *lower* it:
+/// that change is applied a runloop later, landing after `raise_panel_above` and
+/// clobbering the panel's level back to normal, sinking it under the main window.
 #[tauri::command]
-pub fn set_panel_pinned(app: tauri::AppHandle, value: bool, state: tauri::State<WindowState>) {
-    state.panel_pinned.store(value, Ordering::Relaxed);
-    let (Some(main), Some(panel)) = (
-        app.get_webview_window("main"),
-        app.get_webview_window("panel"),
-    ) else {
-        return;
-    };
-    // Float above every app while pinned so it isn't covered by the app you
-    // switch to; unpinning drops back to the level-stepping that keeps it just
-    // above the main window without an always-on-top level.
-    let _ = panel.set_always_on_top(value);
-    crate::platform::raise_panel_above(&panel, &main);
+pub fn set_panel_editing(value: bool, state: tauri::State<WindowState>) {
+    state.panel_editing.store(value, Ordering::Relaxed);
+}
+
+/// Mark whether the panel holds an unsaved comment draft. While set, a focus loss
+/// that would otherwise dismiss the panel (clicking the main window, focusing the
+/// scratchpad) instead asks the panel to confirm first, so an in-progress comment
+/// isn't thrown away silently; a plain switch to another app keeps it open too.
+/// Reset on close. Set by the panel as its draft gains/loses content.
+#[tauri::command]
+pub fn set_panel_dirty(value: bool, state: tauri::State<WindowState>) {
+    state.panel_dirty.store(value, Ordering::Relaxed);
 }

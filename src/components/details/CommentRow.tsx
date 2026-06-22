@@ -6,9 +6,12 @@
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import { IconCheck, IconPencil, IconTrash } from "@tabler/icons-react";
 import { type Editor } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { setCodeBlockAttr, splitComment } from "../../lib/code-blocks";
+import { highlightCodeInHtml } from "../../lib/highlight";
 import { openExternal } from "../../lib/links";
+import { applyTableColumns } from "../../lib/table-layout";
 import { fragmentToMarkdown } from "../../lib/markdown";
 import {
   insertPastedFiles,
@@ -17,10 +20,13 @@ import {
   toDisplayHtml,
 } from "../../lib/media";
 import { renderMermaidInHtml } from "../../lib/mermaid";
+import { usePanelGuard } from "../../lib/panel-guard";
 import { type Comment } from "../../lib/todos";
-import { CommentInput, FormatBar, useCommentEditor } from "../CommentEditor";
+import { CommentInput, FormatBar, useCommentEditor } from "../editor/CommentEditor";
 import { useDiagramEditor } from "../diagram";
-import { IconButton } from "../IconButton";
+import { IconButton } from "../ui/IconButton";
+import { ScrollArea } from "../ui/ScrollArea";
+import { ReadOnlyCodeBlock } from "./ReadOnlyCodeBlock";
 import { useMediaBusy } from "./useMediaBusy";
 
 /** The tag of the nearest list enclosing the selection's anchor, so a re-wrapped
@@ -105,24 +111,38 @@ export function CommentRow({
     onSave(doc.body.innerHTML);
   };
 
-  // Comment HTML with attachment refs resolved to asset URLs. Diagrams are then
-  // rendered into it asynchronously (below); until that resolves we show the raw
-  // HTML, so non-diagram comments render immediately.
+  // Comment HTML with attachment refs resolved to asset URLs, then code blocks
+  // syntax-highlighted (stored plain; see highlightCodeInHtml). Diagrams are
+  // rendered into it asynchronously (below); until that resolves we show the
+  // highlighted HTML, so non-diagram comments render immediately.
   const displayHtml = toDisplayHtml(comment.text, mediaDir);
-  const [rendered, setRendered] = useState(displayHtml);
+  const highlighted = useMemo(
+    () => applyTableColumns(highlightCodeInHtml(displayHtml)),
+    [displayHtml],
+  );
+  const [rendered, setRendered] = useState(highlighted);
   useEffect(() => {
-    if (!displayHtml.includes("data-mermaid")) {
-      setRendered(displayHtml);
+    if (!highlighted.includes("data-mermaid")) {
+      setRendered(highlighted);
       return;
     }
     let cancelled = false;
-    void renderMermaidInHtml(displayHtml).then((html) => {
+    void renderMermaidInHtml(highlighted).then((html) => {
       if (!cancelled) setRendered(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [displayHtml]);
+  }, [highlighted]);
+
+  // Split the rendered HTML into plain-HTML runs, code blocks, and tables, so each
+  // code block renders as the interactive React component and each table in a
+  // horizontal ScrollArea (the rest stays raw HTML). A code block's language/wrap
+  // change saves back to the stored comment, keyed by index.
+  const segments = useMemo(() => splitComment(rendered), [rendered]);
+  const saveCodeBlock = (index: number, patch: { language?: string | null; wrap?: boolean }) => {
+    onSave(setCodeBlockAttr(comment.text, index, patch));
+  };
 
   if (editing) {
     return (
@@ -202,8 +222,37 @@ export function CommentRow({
             void openFullSize(el.getAttribute("src") ?? "", mediaDir);
           }
         }}
-        dangerouslySetInnerHTML={{ __html: rendered }}
-      />
+      >
+        {segments.map((seg, i) => {
+          if (seg.kind === "code") {
+            return (
+              <ReadOnlyCodeBlock
+                key={`code-${seg.index}`}
+                block={seg}
+                onChange={(patch) => saveCodeBlock(seg.index, patch)}
+              />
+            );
+          }
+          if (seg.kind === "table") {
+            // The table scrolls horizontally in the app's overlay ScrollArea when
+            // it's wider than the comment (the same component the editor uses).
+            return (
+              <ScrollArea key={`table-${i}`} orientation="horizontal" radius={0} style={{ margin: "0.4em 0" }}>
+                <div dangerouslySetInnerHTML={{ __html: seg.html }} />
+              </ScrollArea>
+            );
+          }
+          // A run of plain comment HTML. `display: contents` keeps the wrapper out
+          // of the layout so margins read as if these were direct children.
+          return (
+            <div
+              key={`html-${i}`}
+              style={{ display: "contents" }}
+              dangerouslySetInnerHTML={{ __html: seg.html }}
+            />
+          );
+        })}
+      </Box>
       <Group justify="space-between" wrap="nowrap" mt={4} gap={4}>
         <Text size="10px" c="dimmed">
           {formatTime(comment.createdAt)}
@@ -249,6 +298,7 @@ function CommentEditView({ comment, listId, mediaDir, onSave, onCancel }: Commen
   const editor = useCommentEditor({
     content: toDisplayHtml(comment.text, mediaDir),
     autoFocus: true,
+    holdPanelOpen: true,
     onChange: setDraft,
     onSubmit: () => onSave(draft),
     onEscape: onCancel,
@@ -259,31 +309,42 @@ function CommentEditView({ comment, listId, mediaDir, onSave, onCancel }: Commen
   });
   editorRef.current = editor;
 
+  // Report this inline edit to the guard (dirty once the text diverges from the
+  // saved comment, plus how to commit / cancel it) so a dismissal that would lose
+  // the changes prompts first. Every render so the closures stay fresh; cleared
+  // when the edit closes (save or cancel).
+  useEffect(() => {
+    usePanelGuard.getState().setInline({
+      dirty: draft !== comment.text,
+      save: () => onSave(draft),
+      discard: onCancel,
+    });
+  });
+  useEffect(() => () => usePanelGuard.getState().setInline(null), []);
+
   return (
     <Stack gap={6} ref={containerRef}>
+      <FormatBar
+        editor={editor}
+        onAddMedia={() => editor && run(() => pickAndInsert(editor, listId, mediaDir))}
+      />
       <CommentInput editor={editor} busy={busy} busyLabel={busyLabel} />
       {error && (
         <Text size="xs" c="red">
           {error}
         </Text>
       )}
-      <Group justify="space-between" wrap="nowrap">
-        <FormatBar
-          editor={editor}
-          onAddMedia={() => editor && run(() => pickAndInsert(editor, listId, mediaDir))}
-        />
-        <Group gap={6} wrap="nowrap">
-          <Button size="xs" variant="default" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            size="xs"
-            onClick={() => onSave(draft)}
-            leftSection={<IconCheck size={14} stroke={1.8} />}
-          >
-            Save
-          </Button>
-        </Group>
+      <Group justify="flex-end" gap={6} wrap="nowrap">
+        <Button size="xs" variant="default" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          size="xs"
+          onClick={() => onSave(draft)}
+          leftSection={<IconCheck size={14} stroke={1.8} />}
+        >
+          Save
+        </Button>
       </Group>
     </Stack>
   );

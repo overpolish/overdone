@@ -146,6 +146,10 @@ export function matchesCriteria(
  * - When sorting, only top blocks are reordered (by the parent's field);
  *   children stay attached, in their stored order. Missing values sort last.
  *
+ * A pinned (top-level) item is always shown, even when the filter would hide it:
+ * pinning means "keep this important item in view no matter the current filter".
+ * It still floats to the top like any pin.
+ *
  * `revealId` pins one item past the filter: it (and, for a child, its parent for
  * context) is kept visible even when it doesn't match, so jumping to a search
  * hit doesn't land on a hidden row. It rides along the normal block flow, so a
@@ -160,8 +164,10 @@ export function applyFilter(
 ): TodoData[] {
   if (!hasActiveCriteria(c) && c.sort === "manual") return items;
   const bounds = dueBounds();
-  // A filtered-out item still shows when it's the one pinned from search.
-  const match = (it: TodoData) => it.id === revealId || matchesCriteria(it, c, bounds);
+  // A pinned item always shows (that's the point of pinning - keep it visible no
+  // matter the filter), as does the one item pinned from search.
+  const match = (it: TodoData) =>
+    it.pinned || it.id === revealId || matchesCriteria(it, c, bounds);
 
   interface Block {
     parent: TodoData;
@@ -193,6 +199,13 @@ export function applyFilter(
       if (bv == null) return -1;
       return (av - bv) * dir;
     });
+    // Pins stay on top regardless of the view-sort: a stable partition keeps the
+    // just-sorted order within the pinned and unpinned groups. (Manual order
+    // already carries pins first from the store, so it needs no extra pass.)
+    visible = [
+      ...visible.filter((b) => b.parent.pinned),
+      ...visible.filter((b) => !b.parent.pinned),
+    ];
   }
 
   return visible.flatMap((b) => [b.parent, ...b.children]);
@@ -202,9 +215,9 @@ const STORAGE_NAME = "overdone-filters";
 const CHANNEL_NAME = "overdone:filters";
 
 interface FiltersState {
-  /** Active criteria keyed by list id. In-memory only (not persisted), so a
-   * fresh launch starts unfiltered; survives list switches within a session and
-   * syncs across windows. */
+  /** Active criteria keyed by list id. Persisted, so each list reopens with the
+   * filter it last had; survives list switches within a session and syncs across
+   * windows. */
   active: Record<string, FilterCriteria>;
   /** Saved filters (persisted). */
   saved: SavedFilter[];
@@ -259,8 +272,9 @@ export const useFilters = create<FiltersState>()(
     {
       name: STORAGE_NAME,
       storage: createJSONStorage(() => localStorage),
-      // Only saved filters persist; active filters reset on launch.
-      partialize: (state) => ({ saved: state.saved }),
+      // Persist both the saved filters and the per-list active criteria, so a
+      // list reopens with the filter it last had instead of resetting.
+      partialize: (state) => ({ saved: state.saved, active: state.active }),
     },
   ),
 );

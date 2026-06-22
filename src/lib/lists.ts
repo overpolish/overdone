@@ -4,10 +4,18 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import {
+  open as openDialog,
+  save as saveDialog,
+} from "@tauri-apps/plugin-dialog";
 import { create } from "zustand";
 
-import { importMarkdown, parseList, renderMarkdown, serializeList } from "./markdown";
+import {
+  importMarkdown,
+  parseList,
+  renderMarkdown,
+  serializeList,
+} from "./markdown";
 
 /** One stored list as surfaced in the lists picker. */
 export interface ListMeta {
@@ -29,36 +37,78 @@ interface ListsState {
   lists: ListMeta[];
   /** Id of the active list, mirrored across windows. */
   activeId: string | null;
+  /** Ids of the open lists shown as tabs, in tab order. Opening a list adds it
+   * here; closing its tab removes it. Persisted and mirrored across windows. */
+  openIds: string[];
   /** Re-scan the lists directory. */
   refresh: () => Promise<void>;
-  /** Switch the active list (persisted + broadcast to the other window). */
+  /** Open a list (adding it as a tab if needed) and make it active. Persisted +
+   * broadcast. */
   setActive: (id: string) => void;
+  /** Clear the active list - no list open (closed the last tab). */
+  closeActive: () => void;
+  /** Close a list's tab. If it was active, switch to a neighbouring tab, or clear
+   * the active list when it was the last one. */
+  closeTab: (id: string) => void;
+  /** Reorder the open tabs: move `id` to just before `beforeId`, or to the end
+   * when null. Persisted + broadcast like the other tab mutations. */
+  moveTab: (id: string, beforeId: string | null) => void;
   /** Create a new untitled list, make it active, and return its id. */
   create: () => Promise<string>;
-  /** Delete a list; if it was active, fall back to another (or none). */
+  /** Delete a list; if open/active, close its tab and switch away. */
   remove: (id: string) => Promise<void>;
   /** Rename a list. The actual file write is performed by the main window. */
   rename: (id: string, title: string) => void;
 }
 
 const ACTIVE_KEY = "overdone-active-list";
+const OPEN_KEY = "overdone-open-lists";
+/** Legacy key (lists pinned to the tab bar), read once to migrate into OPEN_KEY. */
+const LEGACY_PINNED_KEY = "overdone-pinned-lists";
 const CHANNEL_NAME = "overdone:lists";
 
-function loadActiveId(): string | null {
+/** localStorage read that never throws (private-mode / disabled storage). */
+function lsGet(key: string): string | null {
   try {
-    return localStorage.getItem(ACTIVE_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function persistActiveId(id: string | null) {
+/** localStorage write that never throws; a null value removes the key. */
+function lsSet(key: string, value: string | null) {
   try {
-    if (id) localStorage.setItem(ACTIVE_KEY, id);
-    else localStorage.removeItem(ACTIVE_KEY);
+    if (value == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
   } catch {
     // ignore
   }
+}
+
+const loadActiveId = (): string | null => lsGet(ACTIVE_KEY);
+const persistActiveId = (id: string | null) => lsSet(ACTIVE_KEY, id);
+
+function loadOpenIds(): string[] {
+  // Migrate the old "pinned" tab set into the new "open" tab set.
+  const raw = lsGet(OPEN_KEY) ?? lsGet(LEGACY_PINNED_KEY);
+  try {
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+const persistOpenIds = (ids: string[]) => lsSet(OPEN_KEY, JSON.stringify(ids));
+
+/** Whether tab state has ever been saved. Distinguishes a first run / upgrade
+ * from a pre-tabs build (no key yet - open an existing list) from a deliberately
+ * emptied tab bar (key present but empty - honour the empty state). */
+export function hasPersistedTabs(): boolean {
+  return lsGet(OPEN_KEY) != null;
 }
 
 // Cross-window channel. `applyingRemote` breaks the received -> set -> broadcast
@@ -71,7 +121,8 @@ let applyingRemote = false;
 
 type ListsMessage =
   | { type: "refresh" }
-  | { type: "active"; id: string }
+  | { type: "active"; id: string | null }
+  | { type: "open"; ids: string[] }
   | { type: "rename"; id: string; title: string };
 
 function broadcast(message: ListsMessage) {
@@ -93,49 +144,95 @@ function applyTitle(id: string, title: string) {
   }));
 }
 
-export const useLists = create<ListsState>((set, get) => ({
-  lists: [],
-  activeId: loadActiveId(),
-
-  refresh: async () => {
-    const lists = await invoke<ListMeta[]>("list_lists");
-    set({ lists });
-  },
-
-  setActive: (id) => {
-    if (get().activeId === id) return;
+export const useLists = create<ListsState>((set, get) => {
+  // Each mutation of the cross-window state (the active list, the open tabs) is
+  // the same trio: update the store, persist it, and broadcast it to the other
+  // windows. These keep that contract in one place.
+  const commitActive = (id: string | null) => {
     set({ activeId: id });
     persistActiveId(id);
     broadcast({ type: "active", id });
-  },
+  };
+  const commitOpen = (ids: string[]) => {
+    set({ openIds: ids });
+    persistOpenIds(ids);
+    broadcast({ type: "open", ids });
+  };
 
-  create: async () => {
-    const id = crypto.randomUUID();
-    // Empty title so the active list opens with its title field focused.
-    await invoke("write_list", { id, content: "# \n" });
-    await get().refresh();
-    broadcast({ type: "refresh" });
-    get().setActive(id);
-    return id;
-  },
+  return {
+    lists: [],
+    activeId: loadActiveId(),
+    openIds: loadOpenIds(),
 
-  remove: async (id) => {
-    await invoke("delete_list", { id });
-    await get().refresh();
-    broadcast({ type: "refresh" });
-    if (get().activeId === id) {
-      get().setActive(get().lists[0]?.id ?? "");
-    }
-  },
+    refresh: async () => {
+      const lists = await invoke<ListMeta[]>("list_lists");
+      set({ lists });
+    },
 
-  rename: (id, title) => {
-    applyTitle(id, title);
-    broadcast({ type: "rename", id, title });
-    // If this is the main window, write immediately; otherwise the broadcast
-    // reaches the main window, which writes.
-    renameWriter?.(id, title);
-  },
-}));
+    setActive: (id) => {
+      const { activeId, openIds } = get();
+      // Opening a list adds it as a tab (at the end) if it isn't one already.
+      if (!openIds.includes(id)) commitOpen([...openIds, id]);
+      if (activeId !== id) commitActive(id);
+    },
+
+    closeActive: () => {
+      if (get().activeId !== null) commitActive(null);
+    },
+
+    closeTab: (id) => {
+      const { openIds, activeId } = get();
+      const idx = openIds.indexOf(id);
+      if (idx === -1) return;
+      const ids = openIds.filter((x) => x !== id);
+      commitOpen(ids);
+      // Closing the active tab activates a neighbour (the next tab, else the
+      // previous); with none left, no list is open.
+      if (activeId === id) {
+        const neighbour = ids[idx] ?? ids[idx - 1];
+        if (neighbour) get().setActive(neighbour);
+        else get().closeActive();
+      }
+    },
+
+    moveTab: (id, beforeId) => {
+      const { openIds } = get();
+      if (!openIds.includes(id) || id === beforeId) return;
+      const next = openIds.filter((x) => x !== id);
+      const at = beforeId ? next.indexOf(beforeId) : next.length;
+      next.splice(at === -1 ? next.length : at, 0, id);
+      // Skip a no-op reorder so we don't persist/broadcast needlessly.
+      if (next.length === openIds.length && next.every((x, i) => x === openIds[i])) return;
+      commitOpen(next);
+    },
+
+    create: async () => {
+      const id = crypto.randomUUID();
+      // Empty title so the active list opens with its title field focused.
+      await invoke("write_list", { id, content: "# \n" });
+      await get().refresh();
+      broadcast({ type: "refresh" });
+      get().setActive(id);
+      return id;
+    },
+
+    remove: async (id) => {
+      await invoke("delete_list", { id });
+      // Close its tab (switching away if it was active), then re-scan.
+      get().closeTab(id);
+      await get().refresh();
+      broadcast({ type: "refresh" });
+    },
+
+    rename: (id, title) => {
+      applyTitle(id, title);
+      broadcast({ type: "rename", id, title });
+      // If this is the main window, write immediately; otherwise the broadcast
+      // reaches the main window, which writes.
+      renameWriter?.(id, title);
+    },
+  };
+});
 
 /** Notify other windows that a list's contents changed (e.g. after autosave). */
 export function broadcastListsChanged() {
@@ -216,7 +313,12 @@ export async function importList(): Promise<string | null> {
   const base = file.split(/[/\\]/).pop() ?? "";
   const title = parsed.title || base.replace(/\.(md|markdown|txt)$/i, "");
   const id = crypto.randomUUID();
-  const markdown = serializeList(title, parsed.items, parsed.assignees, parsed.labels);
+  const markdown = serializeList(
+    title,
+    parsed.items,
+    parsed.assignees,
+    parsed.labels,
+  );
   await invoke("write_list", { id, content: markdown });
   await useLists.getState().refresh();
   broadcast({ type: "refresh" });
@@ -234,6 +336,9 @@ if (channel) {
       } else if (message.type === "active") {
         useLists.setState({ activeId: message.id });
         persistActiveId(message.id);
+      } else if (message.type === "open") {
+        useLists.setState({ openIds: message.ids });
+        persistOpenIds(message.ids);
       } else if (message.type === "rename") {
         applyTitle(message.id, message.title);
         // Only the main window has a writer registered; it performs the write.

@@ -44,6 +44,15 @@ function serializeMeta(item: TodoData): string {
   if (item.comments?.length) {
     parts.push(`comments=${encodeURIComponent(JSON.stringify(item.comments))}`);
   }
+  // The comment-derived reminder body, URL-encoded so its spaces/newlines can't
+  // break the space-separated key=value list.
+  if (item.notifyMessage) {
+    parts.push(`notifyMessage=${encodeURIComponent(item.notifyMessage)}`);
+  }
+  // A boolean flag; only written when set.
+  if (item.pinned) {
+    parts.push("pinned=1");
+  }
   return parts.length ? ` <!-- ${parts.join(" ")} -->` : "";
 }
 
@@ -78,6 +87,15 @@ function parseMeta(text: string): { text: string; meta: Partial<TodoData> } {
     if (key === "labels") {
       const ids = raw.split(",").filter(Boolean);
       if (ids.length) meta.labels = ids;
+      continue;
+    }
+    if (key === "notifyMessage") {
+      const decoded = decodeURIComponent(raw);
+      if (decoded) meta.notifyMessage = decoded;
+      continue;
+    }
+    if (key === "pinned") {
+      meta.pinned = raw === "1" || raw === "true";
       continue;
     }
     if (key === "comment") {

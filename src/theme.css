@@ -15,11 +15,33 @@
 :root[data-mantine-color-scheme="light"],
 :host([data-mantine-color-scheme="light"]) {
   --mantine-primary-color-contrast: var(--mantine-color-white);
+  /* highlight.js token palette (GitHub-ish), used by code blocks. */
+  --hljs-comment: #6e7781;
+  --hljs-keyword: #cf222e;
+  --hljs-string: #0a3069;
+  --hljs-number: #0550ae;
+  --hljs-function: #8250df;
+  --hljs-attr: #0550ae;
+  --hljs-type: #953800;
+  --hljs-tag: #116329;
+  --hljs-symbol: #e36209;
+  /* Horizontal scroll-shadow strength for code blocks (matches ScrollArea). */
+  --code-scroll-shadow: rgba(0, 0, 0, 0.14);
 }
 
 :root[data-mantine-color-scheme="dark"],
 :host([data-mantine-color-scheme="dark"]) {
   --mantine-primary-color-contrast: var(--mantine-color-black);
+  --hljs-comment: #8b949e;
+  --hljs-keyword: #ff7b72;
+  --hljs-string: #a5d6ff;
+  --hljs-number: #79c0ff;
+  --hljs-function: #d2a8ff;
+  --hljs-attr: #79c0ff;
+  --hljs-type: #ffa657;
+  --hljs-tag: #7ee787;
+  --hljs-symbol: #ffa657;
+  --code-scroll-shadow: rgba(0, 0, 0, 0.4);
 }
 
 /*
@@ -84,6 +106,43 @@ img,
 video {
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Scratchpad editor: fills the resizable window and carries the border/focus-ring,
+ * so the nested comment editor drops its own chrome and just scrolls inside it. */
+.scratchpad-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  transition: border-color 120ms ease;
+}
+.scratchpad-editor:focus-within {
+  border-color: var(--mantine-primary-color-filled);
+}
+.scratchpad-editor .comment-input {
+  /* The notes scroll via the wrapping <ScrollArea>, not the editor box itself, so
+   * this just drops its own chrome and fills the scroll viewport: filling makes
+   * clicking anywhere (not only the first line) focus the editor, by stretching
+   * the EditorContent wrapper and the ProseMirror surface to the full height. */
+  min-height: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+}
+.scratchpad-editor .comment-input > div:first-child {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.scratchpad-editor .comment-input .ProseMirror {
+  flex: 1;
 }
 
 /* Comment rich-text editor, styled to read like a plain text input: a bordered
@@ -465,4 +524,378 @@ video {
    whole panel). Applies to every OverlayScrollbars viewport in the app. */
 [data-overlayscrollbars-viewport] {
   overscroll-behavior: none;
+}
+
+/* Code: inline `code` and `pre > code` blocks, shared by the comment editor
+   (live, highlighted via CodeBlockLowlight decorations) and the read-only
+   comment body (highlighted on render via highlightCodeInHtml). */
+.comment-body code,
+.comment-input .ProseMirror code {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.88em;
+  padding: 0.05em 0.3em;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+.comment-body pre,
+.comment-input .ProseMirror pre {
+  margin: 0.4em 0;
+  /* Only top padding (above the header). No side or bottom padding: the scroller
+     runs flush to those edges so the scrollbar and edge shadows reach right into
+     them. The 9px sides + 7px bottom live on the code (and the header's sides)
+     instead, riding the scroll as leading/trailing space. */
+  padding: 7px 0 0;
+  /* Clip the inner scroll (and its shadows) to the block's rounded corners. */
+  overflow: hidden;
+  background: var(--mantine-color-default);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  font-size: 0.88em;
+  line-height: 1.45;
+}
+/* Inside a block the <code> is bare - the <pre> carries the surface. It's the
+   horizontal scroll surface; in the editor it sits in an OverlayScrollbars area,
+   in the read-only body it scrolls natively with a CSS scroll-shadow. */
+.comment-body pre code,
+.comment-input .ProseMirror pre code {
+  display: block;
+  /* Side + bottom padding live here (not the <pre>) so they sit inside the scroll
+     viewport: content reaches the flush edges, and the scrollbar/shadows extend
+     into the bottom space rather than stopping above a container pad. */
+  padding: 0 9px 7px;
+  background: none;
+  border: none;
+  font-size: 1em;
+}
+/* No wrap (default): the code is as wide as its longest line so the surrounding
+   ScrollArea can scroll it; soft wrap breaks long lines to the block width. The
+   editor and the read-only body both render the block through a ScrollArea now,
+   so they share these rules (white-space is set inline by each). */
+.comment-body pre:not([data-wrap="true"]) code,
+.comment-input .ProseMirror pre:not([data-wrap="true"]) code {
+  width: max-content;
+  min-width: 100%;
+}
+.comment-body pre[data-wrap="true"] code,
+.comment-input .ProseMirror pre[data-wrap="true"] code {
+  overflow-wrap: anywhere;
+}
+
+/* The code block's top bar: language field (left) and copy + soft-wrap toggles
+   (right). Now in both the editor and the read-only body (same component). It
+   sits in normal flow above the scroller, so it stays put while the code scrolls
+   beneath it. */
+.comment-body pre .code-block-bar,
+.comment-input .ProseMirror pre .code-block-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Match the code's side padding so the header aligns with the code text. */
+  padding: 0 9px;
+  margin-bottom: 4px;
+}
+/* The copy + wrap toggles, grouped tightly on the right of the header. */
+.comment-body pre .code-block-actions,
+.comment-input .ProseMirror pre .code-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.comment-body pre .code-block-lang,
+.comment-input .ProseMirror pre .code-block-lang {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.85em;
+  color: var(--mantine-color-dimmed);
+}
+.comment-body pre .code-block-lang::placeholder,
+.comment-input .ProseMirror pre .code-block-lang::placeholder {
+  color: var(--mantine-color-dimmed);
+  opacity: 0.6;
+}
+
+/* highlight.js token colours (see the --hljs-* vars above). Scoped to the code
+   contexts so the classes can't leak elsewhere. */
+.comment-body .hljs-comment,
+.comment-body .hljs-quote,
+.comment-input .ProseMirror .hljs-comment,
+.comment-input .ProseMirror .hljs-quote {
+  color: var(--hljs-comment);
+  font-style: italic;
+}
+.comment-body .hljs-keyword,
+.comment-body .hljs-selector-tag,
+.comment-body .hljs-literal,
+.comment-body .hljs-section,
+.comment-input .ProseMirror .hljs-keyword,
+.comment-input .ProseMirror .hljs-selector-tag,
+.comment-input .ProseMirror .hljs-literal,
+.comment-input .ProseMirror .hljs-section {
+  color: var(--hljs-keyword);
+}
+.comment-body .hljs-string,
+.comment-body .hljs-regexp,
+.comment-body .hljs-addition,
+.comment-input .ProseMirror .hljs-string,
+.comment-input .ProseMirror .hljs-regexp,
+.comment-input .ProseMirror .hljs-addition {
+  color: var(--hljs-string);
+}
+.comment-body .hljs-number,
+.comment-input .ProseMirror .hljs-number {
+  color: var(--hljs-number);
+}
+.comment-body .hljs-title,
+.comment-body .hljs-title.function_,
+.comment-input .ProseMirror .hljs-title,
+.comment-input .ProseMirror .hljs-title.function_ {
+  color: var(--hljs-function);
+}
+.comment-body .hljs-attr,
+.comment-body .hljs-attribute,
+.comment-body .hljs-variable,
+.comment-body .hljs-template-variable,
+.comment-body .hljs-property,
+.comment-input .ProseMirror .hljs-attr,
+.comment-input .ProseMirror .hljs-attribute,
+.comment-input .ProseMirror .hljs-variable,
+.comment-input .ProseMirror .hljs-template-variable,
+.comment-input .ProseMirror .hljs-property {
+  color: var(--hljs-attr);
+}
+.comment-body .hljs-type,
+.comment-body .hljs-built_in,
+.comment-body .hljs-title.class_,
+.comment-input .ProseMirror .hljs-type,
+.comment-input .ProseMirror .hljs-built_in,
+.comment-input .ProseMirror .hljs-title.class_ {
+  color: var(--hljs-type);
+}
+.comment-body .hljs-tag,
+.comment-body .hljs-name,
+.comment-body .hljs-selector-id,
+.comment-body .hljs-selector-class,
+.comment-input .ProseMirror .hljs-tag,
+.comment-input .ProseMirror .hljs-name,
+.comment-input .ProseMirror .hljs-selector-id,
+.comment-input .ProseMirror .hljs-selector-class {
+  color: var(--hljs-tag);
+}
+.comment-body .hljs-symbol,
+.comment-body .hljs-bullet,
+.comment-body .hljs-meta,
+.comment-input .ProseMirror .hljs-symbol,
+.comment-input .ProseMirror .hljs-bullet,
+.comment-input .ProseMirror .hljs-meta {
+  color: var(--hljs-symbol);
+}
+.comment-body .hljs-emphasis,
+.comment-input .ProseMirror .hljs-emphasis {
+  font-style: italic;
+}
+.comment-body .hljs-strong,
+.comment-input .ProseMirror .hljs-strong {
+  font-weight: 600;
+}
+
+/* Tables (rendered comments and the editor), styled identically. Minimal look:
+   horizontal row rules only, no outer frame or vertical lines. A fresh table's
+   columns are given equal widths (see insertDefaultTable) so it fills the width
+   evenly; dragging a column's edge resizes it, and dragging the last column's
+   edge resizes the whole table. The read-only view rebuilds the stored widths
+   into a `<colgroup>` (see applyTableColumns). The first row, toggled to a
+   header, gets a subtle fill. */
+.comment-body table,
+.comment-input .ProseMirror table {
+  /* Separate (not collapsed) borders so the corner cells can round - collapsed
+     tables ignore border-radius. Spacing 0 keeps the row rules reading as single
+     hairlines, same as a collapsed table would. */
+  border-collapse: separate;
+  border-spacing: 0;
+  /* The scroll wrapper carries the block margin (see below). */
+  margin: 0;
+  /* Width comes from the columns' own widths (not pinned to 100%), so dragging
+     the last column can grow or shrink the table itself. */
+  table-layout: fixed;
+  font-size: 0.95em;
+}
+/* A table wider than the panel scrolls horizontally with the app's overlay
+   scrollbar + fade shadows. The editor's prosemirror `.tableWrapper` gets them
+   attached imperatively (attachScrollShadows); the read-only view renders each
+   table inside the React ScrollArea component (see CommentRow). The `overflow-x:
+   auto` is just a fallback for before OverlayScrollbars attaches. */
+.comment-input .ProseMirror .tableWrapper {
+  position: relative;
+  overflow-x: auto;
+  margin: 0.4em 0;
+}
+.comment-body th,
+.comment-body td,
+.comment-input .ProseMirror th,
+.comment-input .ProseMirror td {
+  /* Row rule only: a hairline under each row, no sides or outer border. Same
+     border token as the code block frame so dividers read consistently. */
+  border: none;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  /* `position: relative` anchors the column-resize handle. */
+  position: relative;
+  word-break: break-word;
+}
+/* The final row needs no underline - it's the table's bottom edge. */
+.comment-body tr:last-child > th,
+.comment-body tr:last-child > td,
+.comment-input .ProseMirror tr:last-child > th,
+.comment-input .ProseMirror tr:last-child > td {
+  border-bottom: none;
+}
+/* Header row: bold over a subtle fill (and the cell colour, if set, still shows
+   on top via the data-cell-bg rules below). */
+.comment-body th,
+.comment-input .ProseMirror th {
+  font-weight: 600;
+  /* A hair darker than the hover fill so the header reads in light mode. */
+  background: color-mix(in srgb, var(--mantine-color-text) 7%, transparent);
+}
+/* Soften the table's outer corners to the app's standard row/box radius, so the
+   header fill and any corner cell colour aren't sharp rectangles. */
+.comment-body tr:first-child > :first-child,
+.comment-input .ProseMirror tr:first-child > :first-child {
+  border-top-left-radius: var(--mantine-radius-sm);
+}
+.comment-body tr:first-child > :last-child,
+.comment-input .ProseMirror tr:first-child > :last-child {
+  border-top-right-radius: var(--mantine-radius-sm);
+}
+.comment-body tr:last-child > :first-child,
+.comment-input .ProseMirror tr:last-child > :first-child {
+  border-bottom-left-radius: var(--mantine-radius-sm);
+}
+.comment-body tr:last-child > :last-child,
+.comment-input .ProseMirror tr:last-child > :last-child {
+  border-bottom-right-radius: var(--mantine-radius-sm);
+}
+/* Cells hold paragraphs; drop their margins so rows stay compact. */
+.comment-body td > :first-child,
+.comment-body th > :first-child,
+.comment-input .ProseMirror td > p,
+.comment-input .ProseMirror th > p {
+  margin: 0;
+}
+
+/* The column-resize handle prosemirror-tables paints on a cell's right edge, and
+   the col-resize cursor it flags on the editor while dragging. */
+.comment-input .ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -1px;
+  top: 0;
+  bottom: -1px;
+  width: 2px;
+  background: var(--mantine-primary-color-filled);
+  pointer-events: none;
+}
+.comment-input .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+/* The cell(s) under an active cell-selection (prosemirror-tables marks them
+   `.selectedCell`): a faint neutral wash, the same idea as the todo rows' select
+   highlight. A low-alpha overlay so it layers over a coloured cell and never
+   hides the text beneath it. */
+.comment-input .ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--mantine-color-text) 13%, transparent);
+  pointer-events: none;
+}
+
+/* Preset cell highlights (the toolbar's colour picker writes `data-cell-bg`).
+   Each is the label-badge tint - a translucent hue over the surface - computed
+   per scheme so it reads in light and dark. Keep the hue/saturation in step with
+   CELL_COLORS in table/TableControls.tsx. */
+:root[data-mantine-color-scheme="light"] .comment-body [data-cell-bg="red"],
+:root[data-mantine-color-scheme="light"] .comment-input .ProseMirror [data-cell-bg="red"] {
+  background: hsla(0, 75%, 45%, 0.13);
+  color: hsl(0, 75%, 32%);
+}
+:root[data-mantine-color-scheme="dark"] .comment-body [data-cell-bg="red"],
+:root[data-mantine-color-scheme="dark"] .comment-input .ProseMirror [data-cell-bg="red"] {
+  background: hsla(0, 75%, 55%, 0.2);
+  color: hsl(0, 75%, 78%);
+}
+:root[data-mantine-color-scheme="light"] .comment-body [data-cell-bg="amber"],
+:root[data-mantine-color-scheme="light"] .comment-input .ProseMirror [data-cell-bg="amber"] {
+  background: hsla(38, 92%, 45%, 0.13);
+  color: hsl(38, 92%, 30%);
+}
+:root[data-mantine-color-scheme="dark"] .comment-body [data-cell-bg="amber"],
+:root[data-mantine-color-scheme="dark"] .comment-input .ProseMirror [data-cell-bg="amber"] {
+  background: hsla(38, 92%, 55%, 0.2);
+  color: hsl(38, 92%, 75%);
+}
+:root[data-mantine-color-scheme="light"] .comment-body [data-cell-bg="green"],
+:root[data-mantine-color-scheme="light"] .comment-input .ProseMirror [data-cell-bg="green"] {
+  background: hsla(140, 55%, 45%, 0.13);
+  color: hsl(140, 55%, 28%);
+}
+:root[data-mantine-color-scheme="dark"] .comment-body [data-cell-bg="green"],
+:root[data-mantine-color-scheme="dark"] .comment-input .ProseMirror [data-cell-bg="green"] {
+  background: hsla(140, 55%, 55%, 0.2);
+  color: hsl(140, 55%, 75%);
+}
+:root[data-mantine-color-scheme="light"] .comment-body [data-cell-bg="blue"],
+:root[data-mantine-color-scheme="light"] .comment-input .ProseMirror [data-cell-bg="blue"] {
+  background: hsla(210, 80%, 45%, 0.13);
+  color: hsl(210, 80%, 35%);
+}
+:root[data-mantine-color-scheme="dark"] .comment-body [data-cell-bg="blue"],
+:root[data-mantine-color-scheme="dark"] .comment-input .ProseMirror [data-cell-bg="blue"] {
+  background: hsla(210, 80%, 55%, 0.2);
+  color: hsl(210, 80%, 78%);
+}
+:root[data-mantine-color-scheme="light"] .comment-body [data-cell-bg="purple"],
+:root[data-mantine-color-scheme="light"] .comment-input .ProseMirror [data-cell-bg="purple"] {
+  background: hsla(265, 70%, 45%, 0.13);
+  color: hsl(265, 70%, 45%);
+}
+:root[data-mantine-color-scheme="dark"] .comment-body [data-cell-bg="purple"],
+:root[data-mantine-color-scheme="dark"] .comment-input .ProseMirror [data-cell-bg="purple"] {
+  background: hsla(265, 70%, 55%, 0.2);
+  color: hsl(265, 70%, 80%);
+}
+
+/* The gap cursor: prosemirror-gapcursor's caret for spots where no text cursor
+   fits - between two block nodes (e.g. a code block butted against a table) or
+   above a leading block. Without this it's invisible, so those gaps feel
+   unreachable; styled, it blinks there and Enter / typing drops in a paragraph. */
+.comment-input .ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+}
+.comment-input .ProseMirror-gapcursor::after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 1.2em;
+  border-top: 1px solid var(--mantine-color-text);
+  animation: comment-gapcursor-blink 1.1s steps(2, start) infinite;
+}
+@keyframes comment-gapcursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.comment-input .ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
 }

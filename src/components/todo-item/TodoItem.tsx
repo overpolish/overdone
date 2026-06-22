@@ -4,30 +4,37 @@
  */
 
 import { Box, Group, Textarea } from "@mantine/core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { resolveAssignees } from "../../lib/assignee";
 import { caretEdges } from "../../lib/caret";
 import { useItemMenu } from "../../lib/context-menu";
 import { resolveLabels } from "../../lib/label";
 import { parseQuickAdd } from "../../lib/quick-add";
-import { useDrag } from "../../lib/reorder";
+import { selectByModifier, useDrag } from "../../lib/reorder";
+import { useSelection } from "../../lib/selection";
 import { type TodoData, useTodos } from "../../lib/todos";
-import { LabelBadge } from "../LabelBadge";
-import { StateCheckbox } from "../StateCheckbox";
+import { LabelBadge } from "../ui/LabelBadge";
+import { StateCheckbox } from "../ui/StateCheckbox";
 import { DueBadge } from "./DueBadge";
 import { ItemControls } from "./ItemControls";
+import { RowWash } from "./RowWash";
 import { INDENT, LINE_HEIGHT, rowStatus } from "./itemStatus";
 
 interface TodoItemProps {
   item: TodoData;
+  /** Whether the visible row above is also selected (drives the contiguous
+   * highlight: a run of selected rows merges by dropping the shared edge). */
+  selPrev?: boolean;
+  /** Whether the visible row below is also selected. */
+  selNext?: boolean;
 }
 
 /**
  * A single todo row: the custom status checkbox plus an inline, unstyled text
  * field. Reads/writes through the todos store so edits flow through undo/redo.
  */
-export function TodoItem({ item }: TodoItemProps) {
+export function TodoItem({ item, selPrev = false, selNext = false }: TodoItemProps) {
   const setItemText = useTodos((s) => s.setItemText);
   const dismissNotification = useTodos((s) => s.dismissNotification);
   const deleteItemFocusNeighbor = useTodos((s) => s.deleteItemFocusNeighbor);
@@ -36,7 +43,11 @@ export function TodoItem({ item }: TodoItemProps) {
   const focusId = useTodos((s) => s.focusId);
   const focusCaret = useTodos((s) => s.focusCaret);
   const clearFocus = useTodos((s) => s.clearFocus);
-  const dragging = useDrag((s) => s.id === item.id);
+  // Selected as part of a multi-selection (drives the highlight, and dimming the
+  // whole selection while any of it is being dragged).
+  const selected = useSelection((s) => s.ids.has(item.id));
+  const dragId = useDrag((s) => s.id);
+  const dragging = dragId === item.id || (dragId !== null && selected);
   const child = item.depth === 1;
   const { done, needsAction, pendingNotify, dueState, statusColor } = rowStatus(item);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -63,6 +74,40 @@ export function TodoItem({ item }: TodoItemProps) {
   // place the caret per the hint, and scroll the row into view - the custom
   // scroll container doesn't always follow focus on its own.
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow/shrink the field to fit its text. Driven off the real textarea's
+  // scrollHeight (reset to auto first so it can shrink) rather than Mantine's
+  // `autosize`: that measures a hidden shadow textarea, and when its width is
+  // read stale the wrapped lines measure as a single row, collapsing the field
+  // to one line and sticking there. The real element always wraps at the right
+  // width, so this can't undercount.
+  const autosize = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // Skip while hidden (scrollHeight 0) so the row isn't pinned to zero; the
+    // width observer below re-fits it when it's shown again.
+    if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  // Re-fit whenever the text changes (typing, deleting, quick-add stripping it).
+  useLayoutEffect(autosize, [item.text, autosize]);
+
+  // Re-fit when the available width changes (resizing the window rewraps lines).
+  // Guarded on width so our own height changes don't re-trigger it into a loop.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    let lastWidth = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === lastWidth) return;
+      lastWidth = el.clientWidth;
+      autosize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [autosize]);
+
   useEffect(() => {
     if (focusId !== item.id) return;
     const el = inputRef.current;
@@ -89,6 +134,9 @@ export function TodoItem({ item }: TodoItemProps) {
       onBlurCapture={() => setFocusWithin(false)}
       onContextMenu={(e) => {
         e.preventDefault();
+        // Right-clicking an unselected row drops the selection so the menu acts
+        // on just this item; right-clicking within a selection keeps it (bulk).
+        if (!useSelection.getState().ids.has(item.id)) useSelection.getState().clear();
         useItemMenu.getState().show(item.id, e.clientX, e.clientY);
       }}
       style={{
@@ -98,42 +146,13 @@ export function TodoItem({ item }: TodoItemProps) {
         transition: "opacity 120ms ease",
       }}
     >
-      {/* Status wash backing the row (red overdue / amber notification / orange
-          due-today, by priority), matching the tinted text + icon. Bleeds only
-          horizontally - rows are flush (Stack gap 0), so a vertical bleed would
-          overlap the neighbour's wash and double up into a dark seam. */}
-      {statusColor && (
-        <Box
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            marginInline: -8,
-            borderRadius: "var(--mantine-radius-sm)",
-            background: `color-mix(in srgb, ${statusColor} 14%, transparent)`,
-            pointerEvents: "none",
-            zIndex: -1,
-          }}
-        />
-      )}
-      {/* Highlight backing the row while its editing panel is open. Behind the
-          content (zIndex -1). Bleeds only horizontally (like the status wash
-          above) - a vertical bleed would overlap the neighbouring rows. */}
-      {editing && (
-        <Box
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            marginInline: -8,
-            borderRadius: "var(--mantine-radius-sm)",
-            background: "var(--mantine-color-default-hover)",
-            boxShadow: "inset 0 0 0 1px var(--mantine-color-default-border)",
-            pointerEvents: "none",
-            zIndex: -1,
-          }}
-        />
-      )}
+      <RowWash
+        statusColor={statusColor}
+        selected={selected}
+        selPrev={selPrev}
+        selNext={selNext}
+        editing={editing}
+      />
       {/* Nesting guide: a faint vertical line under the parent's checkbox. */}
       {child && (
         <div
@@ -161,7 +180,21 @@ export function TodoItem({ item }: TodoItemProps) {
       {/* Text column: any labels (and the due date, if set) render as badges
           stacked above the title, like GitHub. The column owns the row's
           flexible width so wrapped badges and title share one left edge. */}
-      <Box style={{ flex: 1, minWidth: 0 }}>
+      <Box
+        style={{ flex: 1, minWidth: 0 }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          // Shift/Cmd/Ctrl is a selection shortcut, so run the selection gesture
+          // and suppress the default (no caret move, no native text-select).
+          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            e.preventDefault();
+            selectByModifier(item.id, e);
+            return;
+          }
+          // A plain click here starts a single-item edit: drop any selection.
+          useSelection.getState().clear();
+        }}
+      >
         {(labels.length > 0 || item.dueDate != null) && (
           <Box
             pt={3}
@@ -228,9 +261,9 @@ export function TodoItem({ item }: TodoItemProps) {
               }
             }
           }}
-          // Grow with content and wrap instead of overflowing the narrow window.
-          autosize
-          minRows={1}
+          // Wrap instead of overflowing the narrow window; height is driven by the
+          // scrollHeight effect above (not Mantine's autosize, which can collapse).
+          rows={1}
           style={{ width: "100%" }}
           styles={{
             input: {
@@ -241,6 +274,10 @@ export function TodoItem({ item }: TodoItemProps) {
               // the gap after them.
               padding: 0,
               minHeight: 0,
+              // The effect sets an exact pixel height; hide overflow so there's no
+              // scrollbar flash mid-resize, and lock manual resizing.
+              overflow: "hidden",
+              resize: "none",
               fontSize: "13px",
               lineHeight: `${LINE_HEIGHT}px`,
               // The text sits a hair low in the line box; nudge it up 1px to

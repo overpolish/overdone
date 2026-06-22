@@ -8,7 +8,7 @@ import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 
 import { useDiagramEditor } from "../components/diagram";
-import { IconButton } from "../components/IconButton";
+import { IconButton } from "../components/ui";
 import { useRenderedSvg } from "./use-mermaid";
 
 /** Starter source inserted when adding a fresh diagram. */

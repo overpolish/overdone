@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text, TextInput } from "@mantine/core";
 import { DatePickerInput, DateTimePicker } from "@mantine/dates";
 import { IconBell, IconCalendar } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
@@ -27,27 +27,37 @@ const fromStr = (s: string | null) => (s ? dayjs(s).valueOf() : undefined);
 const todayStr = () => dayjs().startOf("day").format(DATE_FMT);
 
 /**
- * Controller for editing one item's notification time and due date. Holds the
- * working pair locally and streams each change back to the main window (the
- * list owner) which persists it. Both values are sent together so clearing one
- * is unambiguous. Mirrors the comment editor's fire-and-forget flow (no
- * back-sync), so it stays simple - the panel re-seeds from the store on reopen.
+ * Controller for editing one item's notification time, reminder body, and due
+ * date. Holds the working set locally and streams each change back to the main
+ * window (the list owner) which persists it. All values are sent together so
+ * clearing one is unambiguous. A back-sync keeps an open panel live, so a
+ * comment that sets a reminder shows up here without a reopen.
  */
 export function useDatesEditor(
   itemId: string,
   initialNotifyAt: number | undefined,
   initialDueDate: number | undefined,
+  initialNotifyMessage: string | undefined,
 ) {
   const [notifyAt, setNotifyAtState] = useState(initialNotifyAt);
   const [dueDate, setDueDateState] = useState(initialDueDate);
+  const [notifyMessage, setNotifyMessageState] = useState(initialNotifyMessage);
 
   const setNotifyAt = (ms: number | undefined) => {
+    // Clearing the reminder drops its message too - there's nothing left to
+    // attach it to (and a stale body shouldn't ride a future reminder).
+    const msg = ms == null ? undefined : notifyMessage;
     setNotifyAtState(ms);
-    emitDatesAction({ itemId, notifyAt: ms, dueDate });
+    setNotifyMessageState(msg);
+    emitDatesAction({ itemId, notifyAt: ms, dueDate, notifyMessage: msg });
   };
   const setDueDate = (ms: number | undefined) => {
     setDueDateState(ms);
-    emitDatesAction({ itemId, notifyAt, dueDate: ms });
+    emitDatesAction({ itemId, notifyAt, dueDate: ms, notifyMessage });
+  };
+  const setNotifyMessage = (msg: string | undefined) => {
+    setNotifyMessageState(msg);
+    emitDatesAction({ itemId, notifyAt, dueDate, notifyMessage: msg });
   };
 
   // Adopt date changes the main window broadcasts for this item (a comment that
@@ -59,21 +69,29 @@ export function useDatesEditor(
       if (!d) return;
       setNotifyAtState(d.notifyAt);
       setDueDateState(d.dueDate);
+      setNotifyMessageState(d.notifyMessage);
     });
     return () => {
       void un.then((off) => off());
     };
   }, [itemId]);
 
-  return { notifyAt, dueDate, setNotifyAt, setDueDate };
+  return {
+    notifyAt,
+    dueDate,
+    notifyMessage,
+    setNotifyAt,
+    setDueDate,
+    setNotifyMessage,
+  };
 }
 
 /**
  * Notification time + due date, stacked in the panel's right column. Each opens
  * a Mantine picker in a popover (floats over the panel rather than growing it);
- * both are floored to today so nothing can be scheduled in the past. Floating
- * (vs. the old in-flow picker) keeps the panel from ballooning when a field is
- * open; the popover shifts to stay within the window.
+ * both are floored to today so nothing can be scheduled in the past. When a
+ * notify time is set, an optional message field appears under it: that text is
+ * what the reminder shows instead of the item's own text.
  */
 export function DatesSection({ dates }: { dates: ReturnType<typeof useDatesEditor> }) {
   const min = todayStr();
@@ -118,6 +136,15 @@ export function DatesSection({ dates }: { dates: ReturnType<typeof useDatesEdito
           // closes on outside-click.
           timePickerProps={{ withDropdown: false, format: "12h" }}
           submitButtonProps={{ style: { display: "none" } }}
+        />
+        {/* The reminder's custom body: when set, this is what the notification
+            shows instead of the item's text. Live like the rest of the panel -
+            no submit; an empty field clears it back to the item-text default. */}
+        <TextInput
+          size="xs"
+          placeholder="Message (optional)..."
+          value={dates.notifyMessage ?? ""}
+          onChange={(e) => dates.setNotifyMessage(e.currentTarget.value || undefined)}
         />
       </Stack>
       <Stack gap={6}>

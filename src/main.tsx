@@ -14,7 +14,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
-import { PanelHost } from "./components/PanelHost";
+import { PanelHost } from "./components/panel";
+import { ScratchpadWindow } from "./components/scratchpad";
 import { zustandColorSchemeManager } from "./lib/color-scheme";
 import { theme } from "./theme";
 
@@ -29,7 +30,17 @@ function currentLabel(): string {
   }
 }
 
-const isPanel = currentLabel() === "panel";
+/** Each OS window loads the same bundle; render its view by window label. */
+function Root() {
+  switch (currentLabel()) {
+    case "panel":
+      return <PanelHost />;
+    case "scratchpad":
+      return <ScratchpadWindow />;
+    default:
+      return <App />;
+  }
+}
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -39,7 +50,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       defaultColorScheme="auto"
       colorSchemeManager={colorSchemeManager}
     >
-      {isPanel ? <PanelHost /> : <App />}
+      <Root />
     </MantineProvider>
   </React.StrictMode>,
 );

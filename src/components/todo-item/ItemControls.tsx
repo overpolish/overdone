@@ -4,13 +4,13 @@
  */
 
 import { ActionIcon, Box, Group, UnstyledButton } from "@mantine/core";
-import { IconBell, IconMessage } from "@tabler/icons-react";
+import { IconBell, IconMessage, IconPinned, IconPinnedFilled } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useRef } from "react";
 
 import { openAssigneePanel, openDetailsPanel } from "../../lib/panel";
-import { type Assignee, type TodoData } from "../../lib/todos";
-import { AddAssigneeButton, AssigneeAvatars } from "../AssigneeAvatar";
+import { type Assignee, type TodoData, useTodos } from "../../lib/todos";
+import { AddAssigneeButton, AssigneeAvatars } from "../ui/AssigneeAvatar";
 import { LINE_HEIGHT } from "./itemStatus";
 
 interface ItemControlsProps {
@@ -27,9 +27,9 @@ interface ItemControlsProps {
 }
 
 /**
- * Right-side row controls in fixed order: notification bell, due indicator,
- * assignees, and details. They sit in their own tight group so they stay close
- * together, while the row's wider gap separates them from the text.
+ * Right-side row controls in fixed order: notification bell, assignees, and
+ * details. They sit in their own tight group so they stay close together, while
+ * the row's wider gap separates them from the text.
  */
 export function ItemControls({
   item,
@@ -45,6 +45,32 @@ export function ItemControls({
 
   return (
     <Group gap={2} wrap="nowrap" align="flex-start">
+      {/* Pin toggle. A pinned item shows the filled pin always (so it's obvious);
+          an unpinned one shows an outline pin on hover, so pinning is a single
+          click without the right-click menu. The slot is always reserved so
+          revealing it on hover doesn't reflow the other controls. */}
+      <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
+        <ActionIcon
+          aria-label={item.pinned ? "Unpin" : "Pin"}
+          title={item.pinned ? "Pinned - click to unpin" : "Pin"}
+          variant="subtle"
+          color="gray"
+          size={20}
+          onClick={() => useTodos.getState().togglePin(item.id)}
+          style={{
+            flexShrink: 0,
+            opacity: item.pinned || hovered ? 1 : 0,
+            pointerEvents: item.pinned || hovered ? "auto" : "none",
+            transition: "opacity 120ms ease",
+          }}
+        >
+          {item.pinned ? (
+            <IconPinnedFilled size={14} stroke={1.8} />
+          ) : (
+            <IconPinned size={14} stroke={1.8} />
+          )}
+        </ActionIcon>
+      </Box>
       {/* Pending reminder: a quiet, dimmed bell while a reminder is scheduled but
           hasn't fired (distinct from the amber fired bell below, and not
           dismissable). Gives setting a reminder - including from a comment -

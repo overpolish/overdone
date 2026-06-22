@@ -18,9 +18,9 @@ import { useState } from "react";
 import { pickColor, randomColor } from "../../lib/assignee";
 import { emitRosterAction } from "../../lib/panel";
 import { type Assignee } from "../../lib/todos";
-import { AssigneeAvatar } from "../AssigneeAvatar";
-import { IconButton } from "../IconButton";
-import { ScrollArea } from "../ScrollArea";
+import { AssigneeAvatar } from "../ui/AssigneeAvatar";
+import { IconButton } from "../ui/IconButton";
+import { ScrollArea } from "../ui/ScrollArea";
 
 /**
  * Per-list assignee roster management. Rename, recolor, or remove people, or add

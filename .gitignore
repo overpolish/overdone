@@ -31,3 +31,6 @@ assets/.temp-icons/
 *.njsproj
 *.sln
 *.sw?
+
+.env
+distribution/*

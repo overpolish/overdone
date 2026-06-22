@@ -5,9 +5,15 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-import { broadcastListsChanged, setRenameWriter, useLists } from "./lists";
+import { broadcastListsChanged, hasPersistedTabs, setRenameWriter, useLists } from "./lists";
 import { serializeList, setMarkdownTitle } from "./markdown";
-import { emitAssigneesSync, emitCommentsSync, emitDatesSync, emitLabelsSync } from "./panel";
+import {
+  closePanel,
+  emitAssigneesSync,
+  emitCommentsSync,
+  emitDatesSync,
+  emitLabelsSync,
+} from "./panel";
 import { useTodos } from "./todos";
 
 /**
@@ -29,12 +35,12 @@ export function bindMainWindow() {
   if (bound) return;
   bound = true;
 
-  // Active list changed (panel switch / create / delete) -> load it, or clear
-  // the editor when nothing's active (the last list was deleted).
+  // Active list changed (panel switch / create / close) -> load it, or clear the
+  // store to the no-list-open state when the last tab is closed.
   useLists.subscribe((state, prev) => {
     if (state.activeId === prev.activeId) return;
     if (state.activeId) void useTodos.getState().open(state.activeId);
-    else useTodos.getState().close();
+    else useTodos.getState().closeList();
   });
 
   // Autosave: persist edits to the loaded list, debounced. The pending write is
@@ -60,6 +66,10 @@ export function bindMainWindow() {
     // list's pending write, then wait for the next edit.
     if (state.activeId !== prev.activeId) {
       flush();
+      // An item-scoped panel (details/assignee/status) was editing an item from
+      // the list we just left, so dismiss it. Non-item panels (lists, settings,
+      // filter, search) don't set editingId and stay open.
+      if (prev.editingId) closePanel();
       return;
     }
     if (!state.activeId) return;
@@ -84,7 +94,10 @@ export function bindMainWindow() {
     if (state.items !== prev.items) {
       emitDatesSync({
         byItem: Object.fromEntries(
-          state.items.map((i) => [i.id, { notifyAt: i.notifyAt, dueDate: i.dueDate }]),
+          state.items.map((i) => [
+            i.id,
+            { notifyAt: i.notifyAt, dueDate: i.dueDate, notifyMessage: i.notifyMessage },
+          ]),
         ),
       });
     }
@@ -145,55 +158,38 @@ export function bindMainWindow() {
   void init();
 }
 
-// Set once the app has resolved a list state at least once, so we can tell a
-// genuine first run (seed a default list) from a user who deleted every list
-// (leave it empty rather than re-seeding behind their back).
-const INITIALIZED_KEY = "overdone-initialized";
-
-function wasInitialized(): boolean {
-  try {
-    return localStorage.getItem(INITIALIZED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markInitialized() {
-  try {
-    localStorage.setItem(INITIALIZED_KEY, "1");
-  } catch {
-    // ignore
-  }
-}
-
-/** Resolve which list to show on launch, seeding a default only on first run. */
+/** Restore the open tabs and active list on launch, creating a default list when
+ * none exist. */
 async function init() {
   const lists = useLists.getState();
   await lists.refresh();
-
-  const persisted = lists.activeId;
   const available = useLists.getState().lists;
-  const active =
-    available.find((l) => l.id === persisted)?.id ?? available[0]?.id ?? null;
 
-  if (active) {
-    markInitialized();
-    useLists.setState({ activeId: active });
-    await useTodos.getState().open(active);
-    return;
-  }
-
-  // No lists. On the very first run, seed a default; if the user emptied their
-  // lists deliberately, respect that and show the empty state.
-  if (!wasInitialized()) {
-    markInitialized();
-    // `create` sets the new list active, which the subscription turns into an
-    // `open`.
+  if (available.length === 0) {
+    // First run: create a default list. `create` opens it as a tab and makes it
+    // active, which the subscription above turns into an `open`.
     await lists.create();
     return;
   }
 
-  // Drop any stale active pointer so the editor clears to the empty state.
-  useLists.setState({ activeId: "" });
-  useTodos.getState().close();
+  // Restore the persisted tabs (dropping any lists that vanished) and the active
+  // one, falling back to the first tab. A persisted "no list open" (active null,
+  // no tabs) is honoured - the bar and view start empty.
+  const openIds = lists.openIds.filter((id) => available.some((l) => l.id === id));
+  const persisted = lists.activeId;
+  let active =
+    persisted && available.some((l) => l.id === persisted) ? persisted : (openIds[0] ?? null);
+  // First run, or upgrading from a build without tabs (and a fresh install has
+  // its own empty localStorage): no tab state saved yet, so open an existing
+  // list rather than show an empty bar. A saved "all tabs closed" state (the key
+  // exists but is empty) is still honoured.
+  if (active === null && !hasPersistedTabs()) {
+    active = available[0]?.id ?? null;
+  }
+  // The active list is always one of the open tabs.
+  const tabs = active && !openIds.includes(active) ? [...openIds, active] : openIds;
+
+  useLists.setState({ openIds: tabs, activeId: active });
+  if (active) await useTodos.getState().open(active);
+  else useTodos.getState().closeList();
 }

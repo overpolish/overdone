@@ -8,6 +8,7 @@ mod commands;
 mod panel;
 mod passthrough;
 mod platform;
+mod scratchpad;
 mod storage;
 mod transcode;
 mod tray;
@@ -15,7 +16,7 @@ mod window_state;
 
 use std::sync::atomic::Ordering;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use crate::panel::hide_panel;
 use crate::passthrough::apply_passthrough;
@@ -43,6 +44,14 @@ pub fn run() {
                 .build(),
         );
 
+    // Lets us convert the floating windows into non-activating NSPanels so they
+    // draw over other apps' full-screen Spaces. macOS-only; must be registered
+    // before the windows are converted in `setup`.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     // Launch-at-startup support. Desktop-only (the plugin has no mobile impl),
     // and the actual enable/disable is driven from the settings UI via the
     // plugin's JS API.
@@ -59,15 +68,19 @@ pub fn run() {
             commands::flag_attention,
             commands::set_tray_alert,
             commands::background_app,
+            commands::resync_hidden,
             panel::open_panel,
             panel::resize_panel,
             panel::set_panel_expanded,
             panel::close_panel,
-            panel::set_panel_pinned,
+            panel::set_panel_editing,
+            panel::set_panel_dirty,
             commands::set_always_on_top,
             passthrough::set_passthrough,
             commands::set_content_protected,
             commands::hide_to_tray,
+            scratchpad::show_scratchpad,
+            scratchpad::hide_scratchpad,
             storage::list_lists,
             storage::read_list,
             storage::read_text_file,
@@ -124,6 +137,14 @@ pub fn run() {
                 // out.
                 let _ = window.set_content_protected(true);
 
+                // Make it a non-activating panel so it can draw over other apps'
+                // full-screen Spaces even while our app is in the background, then
+                // float it across all Spaces. Always-on-top defaults on (see the
+                // window config + WindowState); the JS startup sync flips the
+                // floating off via `set_always_on_top` if the user opted out.
+                platform::convert_to_panel(&window);
+                platform::set_float_across_spaces(&window, true);
+
                 // Window starts hidden in the config to avoid a flash of the
                 // native frame; reveal it once it's configured.
                 let _ = window.show();
@@ -136,30 +157,31 @@ pub fn run() {
                 let win = window.clone();
                 window.on_window_event(move |event| match event {
                     tauri::WindowEvent::Focused(focused) => {
-                        handle
-                            .state::<WindowState>()
-                            .focused
-                            .store(*focused, Ordering::Relaxed);
+                        let state = handle.state::<WindowState>();
+                        state.focused.store(*focused, Ordering::Relaxed);
                         // Focus makes the window interactive even in passthrough.
                         apply_passthrough(&handle);
-                        if *focused
-                            && !handle
-                                .state::<WindowState>()
-                                .panel_pinned
-                                .load(Ordering::Relaxed)
-                        {
-                            // Clicking the main window dismisses the popover panel
-                            // - unless it's pinned, which keeps it up so clicking
-                            // another item just swaps its content in place.
-                            hide_panel(&handle);
+                        if *focused && state.panel_open.load(Ordering::Relaxed) {
+                            if state.panel_dirty.load(Ordering::Relaxed) {
+                                // Clicking the main window normally dismisses the
+                                // popover panel - but not out from under an unsaved
+                                // comment. Ask the panel to confirm (it shows a
+                                // save/discard prompt) and leave it visible.
+                                let _ = handle.emit("panel:confirm-close", ());
+                            } else {
+                                hide_panel(&handle);
+                            }
                         }
                     }
                     tauri::WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
                         let _ = win.hide();
-                        // Hide the secondary panel alongside the main window so it
-                        // doesn't linger on screen with no main window behind it.
+                        // Hide the secondary panel and the scratchpad alongside the
+                        // main window so neither lingers with no main window behind it.
                         hide_panel(&handle);
+                        if let Some(pad) = handle.get_webview_window("scratchpad") {
+                            let _ = pad.hide();
+                        }
                     }
                     _ => {}
                 });
@@ -186,17 +208,23 @@ pub fn run() {
                 // popover's contents aren't captured either.
                 let _ = panel.set_content_protected(true);
 
+                // Non-activating panel + float across all Spaces, so the popover
+                // stays above a full-screen app alongside the main window (matches
+                // always-on-top defaulting on).
+                platform::convert_to_panel(&panel);
+                platform::set_float_across_spaces(&panel, true);
+
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {
-                        // A pinned panel stays put when focus leaves to another
-                        // app, so you can copy something into a comment without it
-                        // vanishing. Clicking the main window still dismisses it
-                        // (the main window's focus handler clears the pin too).
-                        if app_handle
-                            .state::<WindowState>()
-                            .panel_pinned
-                            .load(Ordering::Relaxed)
+                        // Switching to another app never throws away in-progress
+                        // work: a focused comment editor, or any unsaved draft,
+                        // keeps the panel open so you can click out to copy
+                        // something into the comment. Clicking the main window is
+                        // handled there (it confirms before discarding a draft).
+                        let state = app_handle.state::<WindowState>();
+                        if state.panel_editing.load(Ordering::Relaxed)
+                            || state.panel_dirty.load(Ordering::Relaxed)
                         {
                             return;
                         }
@@ -211,6 +239,54 @@ pub fn run() {
                         }
                         hide_panel(&app_handle);
                     }
+                });
+            }
+
+            // The scratchpad is its own persistent window (not a popover): it
+            // matches the panel's chrome-free overlay look, but it never dismisses
+            // on blur, so it stays visible alongside the panel. Closing it just
+            // hides it (contents + size are kept and restored).
+            if let Some(pad) = app.get_webview_window("scratchpad") {
+                #[cfg(target_os = "windows")]
+                let _ = pad.set_decorations(false);
+
+                #[cfg(target_os = "macos")]
+                platform::hide_traffic_lights(&pad);
+
+                let _ = pad.set_content_protected(true);
+
+                // Non-activating panel + float across all Spaces, so the scratchpad
+                // stays visible over a full-screen app too (matches always-on-top
+                // defaulting on).
+                platform::convert_to_panel(&pad);
+                platform::set_float_across_spaces(&pad, true);
+
+                let pad_handle = app.handle().clone();
+                pad.on_window_event(move |event| match event {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        if let Some(win) = pad_handle.get_webview_window("scratchpad") {
+                            let _ = win.hide();
+                        }
+                    }
+                    // Focusing the scratchpad dismisses the popover panel
+                    // (settings, comments, …), the same way focusing the main
+                    // window does. The panel's own blur handler can't do this:
+                    // focus moving to a sibling window keeps the app active, which
+                    // it treats as "stay open". An unsaved comment confirms first
+                    // (the panel shows a save/discard prompt) rather than vanishing.
+                    tauri::WindowEvent::Focused(true) => {
+                        let state = pad_handle.state::<WindowState>();
+                        if !state.panel_open.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        if state.panel_dirty.load(Ordering::Relaxed) {
+                            let _ = pad_handle.emit("panel:confirm-close", ());
+                        } else {
+                            hide_panel(&pad_handle);
+                        }
+                    }
+                    _ => {}
                 });
             }
 

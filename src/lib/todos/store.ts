@@ -11,7 +11,10 @@ import { randomLabelColor } from "../label";
 import { parseList } from "../markdown";
 import { referencedMedia } from "../media";
 import { type QuickAddParse } from "../quick-add";
-import { applyState, normalizeDepths, removeItem } from "./operations";
+import { isStruck } from "../todo";
+import { createItemActions } from "./items-store";
+import { applyState, floatPinned, normalizeDepths, removeItem } from "./operations";
+import { createRosterActions } from "./roster-store";
 import {
   type Assignee,
   type Comment,
@@ -58,7 +61,6 @@ export const useTodos = create<TodosState>((set, get) => {
     lastKey: null,
     focusId: null,
     focusCaret: "end",
-    focusTitle: false,
     editingId: null,
     revealedId: null,
 
@@ -67,7 +69,14 @@ export const useTodos = create<TodosState>((set, get) => {
         const i = items.findIndex((x) => x.id === id);
         if (i === -1) return items;
         const t = now();
-        const next = items.map((it, idx) => (idx === i ? applyState(it, state, t) : it));
+        const struck = isStruck(state);
+        const next = items.map((it, idx) => {
+          if (idx !== i) return it;
+          const applied = applyState(it, state, t);
+          // A resolved item (done/cancelled) leaves the pinned region: a pin
+          // holds only while the item is still open.
+          return struck && applied.pinned ? { ...applied, pinned: undefined } : applied;
+        });
         // Cancelling a parent cancels its sub-items too - except any already
         // done (a finished sub-task stays done). No other state cascades, and
         // nothing rolls up: completion is per-item and explicit, since a parent's
@@ -77,7 +86,9 @@ export const useTodos = create<TodosState>((set, get) => {
             if (next[j].state !== "done") next[j] = applyState(next[j], "cancelled", t);
           }
         }
-        return next;
+        // Dropping a pin re-floats so the now-unpinned item falls below any pins
+        // still in play.
+        return floatPinned(next);
       }, null),
 
     setItemText: (id, text) =>
@@ -136,7 +147,9 @@ export const useTodos = create<TodosState>((set, get) => {
     markNotified: (id) =>
       set((s) => ({
         items: s.items.map((i) =>
-          i.id === id ? { ...i, notifyAt: undefined, notifiedAt: now() } : i,
+          i.id === id
+            ? { ...i, notifyAt: undefined, notifyMessage: undefined, notifiedAt: now() }
+            : i,
         ),
       })),
 
@@ -147,73 +160,9 @@ export const useTodos = create<TodosState>((set, get) => {
         ),
       })),
 
-    // Roster ops live outside the items undo history (like `title`): a single
-    // list-level field that autosaves with the rest of the list.
-    addAssignee: (assignee) =>
-      set((s) =>
-        // Idempotent by id: the details panel may re-send a freshly created
-        // entry alongside later edits, so guard against duplicates.
-        s.assignees.some((a) => a.id === assignee.id)
-          ? s
-          : { assignees: [...s.assignees, assignee] },
-      ),
-
-    renameAssignee: (id, name) =>
-      set((s) => ({
-        assignees: s.assignees.map((a) => (a.id === id ? { ...a, name } : a)),
-      })),
-
-    setAssigneeColor: (id, color) =>
-      set((s) => ({
-        assignees: s.assignees.map((a) => (a.id === id ? { ...a, color } : a)),
-      })),
-
-    removeAssignee: (id) => {
-      set((s) => ({ assignees: s.assignees.filter((a) => a.id !== id) }));
-      // Strip the id from every item that referenced it (one undo step).
-      commit(
-        (items) =>
-          items.map((i) =>
-            i.assignees?.includes(id)
-              ? { ...i, assignees: i.assignees.filter((x) => x !== id), updatedAt: now() }
-              : i,
-          ),
-        null,
-      );
-    },
-
-    // Label roster ops mirror the assignee ones: list-level state outside the
-    // items undo history, autosaved with the rest of the list.
-    addLabel: (label) =>
-      set((s) =>
-        s.labels.some((l) => l.id === label.id)
-          ? s
-          : { labels: [...s.labels, label] },
-      ),
-
-    renameLabel: (id, name) =>
-      set((s) => ({
-        labels: s.labels.map((l) => (l.id === id ? { ...l, name } : l)),
-      })),
-
-    setLabelColor: (id, color) =>
-      set((s) => ({
-        labels: s.labels.map((l) => (l.id === id ? { ...l, color } : l)),
-      })),
-
-    removeLabel: (id) => {
-      set((s) => ({ labels: s.labels.filter((l) => l.id !== id) }));
-      // Strip the id from every item that referenced it (one undo step).
-      commit(
-        (items) =>
-          items.map((i) =>
-            i.labels?.includes(id)
-              ? { ...i, labels: i.labels.filter((x) => x !== id), updatedAt: now() }
-              : i,
-          ),
-        null,
-      );
-    },
+    // Roster (assignee + label) management actions. Split into roster-store.ts
+    // to keep this file lean; they keep their public method names on the store.
+    ...createRosterActions(set, commit, now),
 
     // Title lives outside the items undo history; it's a single field that
     // autosaves like the rest of the list.
@@ -233,51 +182,12 @@ export const useTodos = create<TodosState>((set, get) => {
       set({ focusId: neighbor ? neighbor.id : null });
     },
 
-    moveItem: (id, dropIndex) =>
-      commit((items) => {
-        const from = items.findIndex((i) => i.id === id);
-        if (from === -1) return items;
-        // Drag a parent and its sub-items move together as one block.
-        let blockLen = 1;
-        if (items[from].depth === 0) {
-          while (from + blockLen < items.length && items[from + blockLen].depth === 1) {
-            blockLen++;
-          }
-        }
-        const block = items.slice(from, from + blockLen);
-        const without = [
-          ...items.slice(0, from),
-          ...items.slice(from + blockLen),
-        ];
-        // `dropIndex` is in the original coordinates; shift past the removed block.
-        let to = dropIndex > from ? dropIndex - blockLen : dropIndex;
-        to = Math.max(0, Math.min(to, without.length));
-        const next = [...without.slice(0, to), ...block, ...without.slice(to)];
-        return normalizeDepths(next);
-      }, null),
+    deleteItems: (ids) =>
+      commit((items) => ids.reduce((acc, id) => removeItem(acc, id), items), null),
 
-    indentItem: (id) =>
-      commit((items) => {
-        const i = items.findIndex((x) => x.id === id);
-        // Need a top item above to nest under (guaranteed once `i > 0`, since the
-        // first item is always depth 0). Indenting a parent flattens its
-        // sub-items into siblings under the new parent (one level only).
-        if (i <= 0 || items[i].depth !== 0) return items;
-        const next = items.map((it, idx) =>
-          idx === i ? { ...it, depth: 1, updatedAt: now() } : it,
-        );
-        return next;
-      }, null),
-
-    outdentItem: (id) =>
-      commit((items) => {
-        const i = items.findIndex((x) => x.id === id);
-        if (i === -1 || items[i].depth !== 1) return items;
-        const next = items.map((it, idx) =>
-          idx === i ? { ...it, depth: 0, updatedAt: now() } : it,
-        );
-        return next;
-      }, null),
+    // Structural item actions (reorder / pin / indent / bulk state). Split into
+    // items-store.ts to keep this file lean; they keep their public method names.
+    ...createItemActions(commit, now),
 
     addSubItem: (parentId) => {
       const id = crypto.randomUUID();
@@ -303,18 +213,36 @@ export const useTodos = create<TodosState>((set, get) => {
     },
 
     addItem: (initialText = "") => {
-      // No active list (e.g. all lists deleted): nothing to add to.
-      if (!get().activeId) return;
+      if (!get().activeId) return; // no list open - nowhere to add
       const id = crypto.randomUUID();
       // Coalesce under the same key the text field uses, so creating an item
       // and typing its first words collapse into a single undo step.
       commit((items) => {
         const t = now();
-        return [
+        // Prepend, then float: the new (unpinned) item lands at the top of the
+        // unpinned region, i.e. just below any pinned items.
+        return floatPinned([
           { id, text: initialText, state: "todo", depth: 0, createdAt: t, updatedAt: t },
           ...items,
-        ];
+        ]);
       }, `text:${id}`);
+      set({ focusId: id });
+    },
+
+    addItemWithComment: (text, commentHtml) => {
+      if (!get().activeId) return; // no list open - nowhere to add
+      const id = crypto.randomUUID();
+      commit((items) => {
+        const t = now();
+        const comments = commentHtml
+          ? [{ id: crypto.randomUUID(), text: commentHtml, createdAt: t }]
+          : undefined;
+        // Float so the new item sits below any pins (see `addItem`).
+        return floatPinned([
+          { id, text, state: "todo", depth: 0, createdAt: t, updatedAt: t, comments },
+          ...items,
+        ]);
+      }, null);
       set({ focusId: id });
     },
 
@@ -357,6 +285,9 @@ export const useTodos = create<TodosState>((set, get) => {
           assignees: assignees.length ? assignees : undefined,
           labels: labels.length ? labels : undefined,
           notifyAt: parsed.notifyAt ?? it.notifyAt,
+          // A title-parsed reminder has no custom body; drop any stale one a
+          // prior comment left so the fired notification falls back to the text.
+          notifyMessage: parsed.notifyAt != null ? undefined : it.notifyMessage,
           dueDate: parsed.dueDate ?? it.dueDate,
           updatedAt: now(),
         };
@@ -367,8 +298,6 @@ export const useTodos = create<TodosState>((set, get) => {
     // Reset the caret hint to its default as focus is consumed, so a one-off
     // `start` (arrow-down) doesn't leak into the next focus.
     clearFocus: () => set({ focusId: null, focusCaret: "end" }),
-
-    clearFocusTitle: () => set({ focusTitle: false }),
 
     setEditingId: (id) => set({ editingId: id }),
 
@@ -389,16 +318,19 @@ export const useTodos = create<TodosState>((set, get) => {
         title,
         assignees,
         labels,
-        // Fix any structural quirks (item states are taken as-is - no rollup).
-        items: normalizeDepths(items),
+        // Fix any structural quirks (item states are taken as-is - no rollup),
+        // then float pins to the top in case the file was hand-edited.
+        items: floatPinned(normalizeDepths(items)),
         past: [],
         future: [],
         lastKey: null,
         focusId: null,
+        // An item-scoped panel (details/assignee/status) belonged to the old
+        // list, so its highlight clears on switch (the panel itself is closed by
+        // the main-window sync).
+        editingId: null,
         // A search-pinned item doesn't carry across lists.
         revealedId: null,
-        // A fresh, untitled list opens with its title field focused for naming.
-        focusTitle: title === "",
       });
       // Clear orphaned attachments (no unsaved drafts exist at load time, so any
       // unreferenced media file is genuinely stale).
@@ -408,7 +340,8 @@ export const useTodos = create<TodosState>((set, get) => {
       void invoke("prune_media", { listId: id, keep });
     },
 
-    close: () => {
+    // No list open: wipe the loaded list to a blank slate (closing the last tab).
+    closeList: () =>
       set({
         activeId: null,
         title: "",
@@ -419,10 +352,9 @@ export const useTodos = create<TodosState>((set, get) => {
         future: [],
         lastKey: null,
         focusId: null,
+        editingId: null,
         revealedId: null,
-        focusTitle: false,
-      });
-    },
+      }),
 
     undo: () => {
       const { past, future, items } = get();

@@ -3,15 +3,14 @@
  * SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
  */
 
-import { Button, Stack, Text } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
 import { IconFilter, IconKeyboard, IconListCheck } from "@tabler/icons-react";
+import { useEffect } from "react";
 
-import { DailyReviewBanner } from "./components/DailyReviewBanner";
-import { Footer } from "./components/Footer";
-import { ItemContextMenu } from "./components/ItemContextMenu";
-import { ScrollArea } from "./components/ScrollArea";
+import { DailyReviewBanner, Footer, TabBar, Titlebar } from "./components/chrome";
+import { ItemContextMenu } from "./components/item-menu";
+import { ScrollArea } from "./components/ui";
 import { TodoItem } from "./components/todo-item";
-import { Titlebar } from "./components/Titlebar";
 import { useVisibleItems } from "./lib/filters";
 import {
   useGlobalKeyboard,
@@ -20,8 +19,8 @@ import {
   usePanelActionListeners,
   useTrayAlert,
 } from "./lib/main-events";
-import { useLists } from "./lib/lists";
 import { useDrag } from "./lib/reorder";
+import { useSelection } from "./lib/selection";
 import { useTodos } from "./lib/todos";
 import { useUpdateCheck } from "./lib/update";
 
@@ -49,12 +48,15 @@ function DropIndicator() {
 
 function App() {
   const items = useTodos((s) => s.items);
-  // Null when every list has been deleted: nothing's loaded, so the items area
-  // gives way to a "create a list" prompt.
-  const activeId = useTodos((s) => s.activeId);
+  // Null when the last tab was closed: no list is open (a distinct empty state
+  // from an open-but-empty list).
+  const noList = useTodos((s) => s.activeId === null);
   // The list as displayed: the active filter hides non-matches and view-sorts.
   // Schedulers/tray still track the full item set, not the visible subset.
   const visible = useVisibleItems();
+  // Drives the contiguous selection highlight: each row needs to know whether its
+  // visible neighbours are also selected so a run of them merges into one region.
+  const selectedIds = useSelection((s) => s.ids);
 
   useMainWindowStartup();
   usePanelActionListeners();
@@ -62,6 +64,16 @@ function App() {
   useTrayAlert(items);
   useGlobalKeyboard();
   useUpdateCheck();
+
+  // Escape clears a multi-selection (the menu's own Escape handler closes it
+  // first, so this only fires once the menu is gone).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") useSelection.getState().clear();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <div
@@ -75,23 +87,21 @@ function App() {
     >
       <Titlebar />
 
+      <TabBar />
+
       <DailyReviewBanner />
 
       <ScrollArea radius={0} style={{ flex: 1 }}>
         <Stack gap={0} p="sm" pos="relative">
-          {activeId === null ? (
-            <Stack align="center" gap={10} pt="xl" c="dimmed">
+          {noList ? (
+            <Stack align="center" gap={6} pt="xl" c="dimmed">
               <IconListCheck size={40} stroke={1.5} opacity={0.5} />
               <Text size="sm" ta="center">
                 No list open
               </Text>
-              <Button
-                size="xs"
-                variant="default"
-                onClick={() => void useLists.getState().create()}
-              >
-                Create a list
-              </Button>
+              <Text size="xs" ta="center" opacity={0.7}>
+                Open one from Lists (⌘L)
+              </Text>
             </Stack>
           ) : items.length === 0 ? (
             <Stack align="center" gap={6} pt="xl" c="dimmed">
@@ -108,13 +118,20 @@ function App() {
               </Text>
             </Stack>
           ) : (
-            visible.map((item) => <TodoItem key={item.id} item={item} />)
+            visible.map((item, i) => (
+              <TodoItem
+                key={item.id}
+                item={item}
+                selPrev={i > 0 && selectedIds.has(visible[i - 1].id)}
+                selNext={i < visible.length - 1 && selectedIds.has(visible[i + 1].id)}
+              />
+            ))
           )}
           <DropIndicator />
         </Stack>
       </ScrollArea>
 
-      <Footer />
+      {!noList && <Footer />}
       <ItemContextMenu />
     </div>
   );

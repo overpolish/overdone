@@ -7,42 +7,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import dayjs from "dayjs";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
-import { dayKey } from "./daily-review";
-import { useDailyReviewState } from "./daily-review-state";
 import { bindMainWindow } from "./main-sync";
-import { notify } from "./notifications";
-import {
-  type AssigneeAction,
-  type DatesAction,
-  type DetailsAction,
-  type EditActionType,
-  type LabelAction,
-  type LabelRosterAction,
-  openFilterPanel,
-  openListsPanel,
-  openReviewPanel,
-  openSearchPanel,
-  openSettingsPanel,
-  type ReviewAction,
-  type RosterAction,
-  type StatusAction,
-} from "./panel";
-import { datesFromNewComments } from "./quick-add";
 import { useSettings } from "./settings";
-import { isStruck } from "./todo";
-import { type TodoData, useTodos } from "./todos";
 
-/** Plain text of a comment's stored HTML, for date parsing (the comment itself
- * is left untouched - only its text is read). */
-function htmlToText(html: string): string {
-  return new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
-}
+export { useGlobalKeyboard } from "./keyboard";
+export { useNotificationScheduler, useTrayAlert } from "./notifications-scheduler";
+export { usePanelActionListeners } from "./panel-listeners";
 
 /** Subscribe to a Tauri event for the component's lifetime. */
-function useTauriEvent<T>(event: string, handler: (payload: T) => void) {
+export function useTauriEvent<T>(event: string, handler: (payload: T) => void) {
   useEffect(() => {
     const unlisten = listen<T>(event, (e) => handler(e.payload));
     return () => {
@@ -52,187 +27,6 @@ function useTauriEvent<T>(event: string, handler: (payload: T) => void) {
     // pure store dispatch - capturing the first is fine (matches the original).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-}
-
-/**
- * Wire the floating panel windows (and Settings) back into the store. Each panel
- * runs in its own webview and can't reach the store directly, so it emits an
- * event the main window applies here.
- */
-export function usePanelActionListeners() {
-  // Apply status picks made in the floating panel back to the store.
-  useTauriEvent<StatusAction>("status:action", ({ itemId, type, state }) => {
-    const todos = useTodos.getState();
-    if (type === "delete") todos.deleteItem(itemId);
-    else if (state) todos.setItemState(itemId, state);
-  });
-
-  // Jump to an item picked from search: pin it past any active filter (so it
-  // renders even when hidden), focus it, and bring the window forward.
-  useTauriEvent<string>("search:focus", (id) => {
-    const todos = useTodos.getState();
-    todos.revealItem(id);
-    todos.focusItem(id);
-    void getCurrentWindow().setFocus();
-  });
-
-  // Clear the search pin from the panel's "Clear" control: the item drops back
-  // under the active filter (hidden again if it doesn't match).
-  useTauriEvent("search:reveal-clear", () => {
-    useTodos.getState().revealItem(null);
-  });
-
-  // Apply comment-log changes made in the details panel back to the store. A
-  // newly added or edited comment also feeds the date parser ("remind me tomorrow
-  // at 15:00" / "due friday"): the comment text is left exactly as written, but a
-  // recognized date sets the item's reminder / due date. Only freshly changed
-  // comments are scanned, so reopening the panel doesn't re-derive old dates.
-  useTauriEvent<DetailsAction>("details:action", ({ itemId, comments }) => {
-    const todos = useTodos.getState();
-    const item = todos.items.find((i) => i.id === itemId);
-    const prevById = new Map((item?.comments ?? []).map((c) => [c.id, c.text]));
-    const dates = datesFromNewComments(prevById, comments, htmlToText);
-    todos.setItemComments(itemId, comments);
-    // Merge onto the item: only overwrite the field a comment actually set.
-    if (dates.notifyAt != null || dates.dueDate != null) {
-      todos.setItemDates(itemId, {
-        notifyAt: dates.notifyAt ?? item?.notifyAt,
-        dueDate: dates.dueDate ?? item?.dueDate,
-      });
-    }
-  });
-
-  // Apply assignee changes made in the details panel: register any newly created
-  // roster members first, then set the item's assignee list.
-  useTauriEvent<AssigneeAction>("assignee:action", ({ itemId, assigneeIds, newAssignees }) => {
-    const todos = useTodos.getState();
-    newAssignees?.forEach((a) => todos.addAssignee(a));
-    todos.setItemAssignees(itemId, assigneeIds);
-  });
-
-  // Apply label changes made in the details panel: register any newly created
-  // roster members first, then set the item's label list.
-  useTauriEvent<LabelAction>("label:action", ({ itemId, labelIds, newLabels }) => {
-    const todos = useTodos.getState();
-    newLabels?.forEach((l) => todos.addLabel(l));
-    todos.setItemLabels(itemId, labelIds);
-  });
-
-  // Apply notification-time / due-date changes made in the details panel.
-  useTauriEvent<DatesAction>("dates:action", ({ itemId, notifyAt, dueDate }) => {
-    useTodos.getState().setItemDates(itemId, { notifyAt, dueDate });
-  });
-
-  // Snooze from the daily review: defer the item by `days`, so it drops off
-  // today's queue and resurfaces later. "Defer", not "+days": an item overdue by
-  // a week snoozes to tomorrow, not to one day past its (already-past) date - we
-  // anchor to the later of its date and now, so the move is always forward. Due
-  // dates are local-midnight date-only (kept that way); a fired reminder re-arms
-  // (keeping its time of day) and its fired flag is cleared.
-  useTauriEvent<ReviewAction>("review:action", ({ itemId, days }) => {
-    const todos = useTodos.getState();
-    const it = todos.items.find((i) => i.id === itemId);
-    if (!it) return;
-    const now = dayjs();
-    const deferDay = (ms: number) => {
-      const base = Math.max(dayjs(ms).startOf("day").valueOf(), now.startOf("day").valueOf());
-      return dayjs(base).add(days, "day").startOf("day").valueOf();
-    };
-    const deferTime = (ms: number) =>
-      dayjs(Math.max(ms, now.valueOf())).add(days, "day").valueOf();
-    const reminder = it.notifyAt ?? it.notifiedAt;
-    todos.setItemDates(itemId, {
-      dueDate: it.dueDate != null ? deferDay(it.dueDate) : undefined,
-      notifyAt: reminder != null ? deferTime(reminder) : undefined,
-    });
-    if (it.notifiedAt != null) todos.dismissNotification(itemId);
-  });
-
-  // Manual "Start now" from Settings (which runs in the panel webview and can't
-  // reach the list store): open the review here, forced so it opens even with
-  // nothing pending. Counts as engaging today, so the daily banner won't also nag.
-  useTauriEvent("review:open", () => {
-    useDailyReviewState.getState().markSeen(dayKey(Date.now()));
-    void openReviewPanel({ force: true });
-  });
-
-  // Clear the "item being edited" row highlight when the panel hides (blur,
-  // Escape, status pick, etc.). Opening a panel sets it; this is the close side.
-  useTauriEvent("panel:closed", () => {
-    useTodos.getState().setEditingId(null);
-  });
-
-  // Undo/redo forwarded from a focused panel window (which can't reach the
-  // store itself).
-  useTauriEvent<EditActionType>("edit:action", (type) => {
-    const todos = useTodos.getState();
-    if (type === "redo") todos.redo();
-    else todos.undo();
-  });
-
-  // Apply roster management changes made in Settings back to the store.
-  useTauriEvent<RosterAction>("roster:action", (a) => {
-    const todos = useTodos.getState();
-    if (a.type === "add") todos.addAssignee(a.assignee);
-    else if (a.type === "rename") todos.renameAssignee(a.id, a.name);
-    else if (a.type === "recolor") todos.setAssigneeColor(a.id, a.color);
-    else if (a.type === "remove") todos.removeAssignee(a.id);
-  });
-
-  // Apply label-roster management changes made in Settings back to the store.
-  useTauriEvent<LabelRosterAction>("labelRoster:action", (a) => {
-    const todos = useTodos.getState();
-    if (a.type === "add") todos.addLabel(a.label);
-    else if (a.type === "rename") todos.renameLabel(a.id, a.name);
-    else if (a.type === "recolor") todos.setLabelColor(a.id, a.color);
-    else if (a.type === "remove") todos.removeLabel(a.id);
-  });
-}
-
-/**
- * Fire a desktop reminder when an item's notification time arrives. We re-arm a
- * timer per item whenever the item set changes; a past-due time fires at once.
- * Firing flags the item as "needs action" (markNotified clears notifyAt and sets
- * notifiedAt), so it's one-shot - it won't re-fire on the next change or a
- * restart, and stays amber + belled in the list until dismissed.
- */
-export function useNotificationScheduler(items: TodoData[]) {
-  useEffect(() => {
-    // setTimeout overflows past the 32-bit ms range and would fire instantly;
-    // skip far-future reminders here - they re-arm once the time is in range
-    // (on the next item change or app restart).
-    const MAX_DELAY = 2 ** 31 - 1;
-    const fire = (item: TodoData) => {
-      void notify("Item needs action", item.text);
-      useTodos.getState().markNotified(item.id);
-    };
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (const item of items) {
-      // A resolved (done/cancelled) item never notifies; reopening re-arms it.
-      if (item.notifyAt == null || isStruck(item.state)) continue;
-      const delay = item.notifyAt - Date.now();
-      if (delay <= 0) fire(item);
-      else if (delay <= MAX_DELAY) timers.push(setTimeout(() => fire(item), delay));
-    }
-    return () => timers.forEach((t) => clearTimeout(t));
-  }, [items]);
-}
-
-/**
- * Keep the red tray badge lit while any item has an unacknowledged notification,
- * and clear it once they're all dismissed. The badge tracks pending
- * notifications (not window focus), so it survives focusing the app and persists
- * across restarts (notifiedAt is saved). Only toggle on change to avoid
- * re-setting the tray icon on every keystroke.
- */
-export function useTrayAlert(items: TodoData[]) {
-  const trayAlertRef = useRef(false);
-  useEffect(() => {
-    const pending = items.some((i) => i.notifiedAt != null);
-    if (pending === trayAlertRef.current) return;
-    trayAlertRef.current = pending;
-    void invoke("set_tray_alert", { on: pending });
-  }, [items]);
 }
 
 /**
@@ -268,69 +62,5 @@ export function useMainWindowStartup() {
     void isAutostartEnabled()
       .then((on) => useSettings.setState({ launchAtStartup: on }))
       .catch(() => {});
-  }, []);
-}
-
-/** Whether focus is currently in a text field (input/textarea/contenteditable). */
-function isEditableFocused() {
-  const el = document.activeElement as HTMLElement | null;
-  if (!el) return false;
-  return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
-}
-
-/**
- * Global keyboard handling. Shortcuts (Cmd/Ctrl+Z / Shift / Y) take priority;
- * otherwise, typing a printable character while no field is focused starts a new
- * item at the top, seeded with that character.
- */
-export function useGlobalKeyboard() {
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-
-      if (mod) {
-        const key = e.key.toLowerCase();
-        if (key === "z") {
-          e.preventDefault();
-          if (e.shiftKey) useTodos.getState().redo();
-          else useTodos.getState().undo();
-        } else if (key === "y") {
-          e.preventDefault();
-          useTodos.getState().redo();
-        } else if (key === "f") {
-          e.preventDefault();
-          // Shift opens the filter panel; plain ⌘/Ctrl+F is search.
-          if (e.shiftKey) openFilterPanel();
-          else openSearchPanel();
-        } else if (key === "l") {
-          e.preventDefault();
-          openListsPanel();
-        } else if (key === ",") {
-          e.preventDefault();
-          openSettingsPanel();
-        } else if (key === "n") {
-          e.preventDefault();
-          useTodos.getState().addItem();
-        }
-        return;
-      }
-
-      // Escape drops focus out of the current field, so you can esc then type
-      // to start a fresh item.
-      if (e.key === "Escape") {
-        if (isEditableFocused()) (document.activeElement as HTMLElement).blur();
-        return;
-      }
-
-      // Type-to-create. Skip when a field is already being edited, when Alt is
-      // held (Option produces special glyphs), and for non-printable keys
-      // (Enter, arrows… all report multi-character `key` names).
-      if (e.altKey || e.key.length !== 1) return;
-      if (isEditableFocused()) return;
-      e.preventDefault();
-      useTodos.getState().addItem(e.key);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 }

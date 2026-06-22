@@ -59,11 +59,20 @@ export interface TodoData {
   labels?: string[];
   /** Epoch ms for a scheduled notification (date AND time), set in details. */
   notifyAt?: number;
+  /** Custom reminder body, captured from the comment whose NLP set `notifyAt`
+   * ("remind me to email Sarah tomorrow"). Shown as the notification's body when
+   * the reminder fires; absent for manually-picked or quick-add reminders, which
+   * fall back to the item's text. Cleared once the reminder fires. */
+  notifyMessage?: string;
   /** Epoch ms when a scheduled notification fired - the item "needs action"
    * (shown amber, with a bell) until the user dismisses it. */
   notifiedAt?: number;
   /** Epoch ms (UTC midnight) of the item's due date - date only, no time. */
   dueDate?: number;
+  /** Pinned items (top-level only) float to the top of the list and stay there
+   * under manual order, until the item is resolved (done/cancelled), which drops
+   * the pin. Absent/false = a normal, unpinned item. */
+  pinned?: boolean;
 }
 
 export interface TodosState {
@@ -103,11 +112,6 @@ export interface TodosState {
    */
   focusCaret: "start" | "end";
   /**
-   * When true, the list title field should grab focus and select its contents
-   * on the next render (set when a freshly-created, untitled list is opened).
-   */
-  focusTitle: boolean;
-  /**
    * Id of the item whose editing panel (details / assignees / status) is
    * currently open, so its row can be highlighted as "being edited". Null when
    * no item-scoped panel is open. Transient - not part of undo history.
@@ -140,7 +144,7 @@ export interface TodosState {
    */
   setItemDates: (
     id: string,
-    dates: { notifyAt?: number; dueDate?: number },
+    dates: { notifyAt?: number; dueDate?: number; notifyMessage?: string },
   ) => void;
   /** A scheduled notification fired: clear notifyAt and flag the item as needing
    * action (amber + bell in the list) until dismissed. */
@@ -172,6 +176,24 @@ export interface TodosState {
    * 0..length (as computed from the drop indicator).
    */
   moveItem: (id: string, dropIndex: number) => void;
+  /**
+   * Move a multi-selection as one contiguous block to `dropIndex` (a gap in the
+   * full-list coordinates, like {@link moveItem}). Selected items keep their
+   * relative order; a selected parent carries its sub-items along. One undo step.
+   */
+  moveItems: (ids: string[], dropIndex: number) => void;
+  /** Delete every selected item in one undo step (a deleted parent promotes its
+   * surviving sub-items, like {@link deleteItem}). */
+  deleteItems: (ids: string[]) => void;
+  /** Set the state of every selected item at once (one undo step). Mirrors the
+   * single-item {@link setItemState}, including the cancel cascade onto a
+   * cancelled parent's open sub-items. */
+  setItemsState: (ids: string[], state: TodoState) => void;
+  /** Pin or unpin every selected top-level item at once (one undo step). */
+  setItemsPinned: (ids: string[], pinned: boolean) => void;
+  /** Toggle a top-level item's pinned flag, re-floating pinned items to the top.
+   * No-op on sub-items (only top-level items pin). */
+  togglePin: (id: string) => void;
   /** Make an item a sub-item of the item above it (one level only). */
   indentItem: (id: string) => void;
   /** Promote a sub-item back to a top item. */
@@ -180,6 +202,13 @@ export interface TodosState {
   addSubItem: (parentId: string) => void;
   /** Insert a new (empty by default) item at the top and focus it. */
   addItem: (initialText?: string) => void;
+  /**
+   * Insert a new item at the top with `text`, optionally seeding its first
+   * comment with `commentHtml` (stored HTML). Used by the scratchpad's convert
+   * action: the note's first line becomes the item, the rest its first comment.
+   * One undo step; focuses the new item.
+   */
+  addItemWithComment: (text: string, commentHtml?: string) => void;
   /**
    * Apply a parsed quick-add result to an item in one undo step: mint any new
    * roster people/labels, then merge the extracted assignees, labels, and dates
@@ -190,7 +219,6 @@ export interface TodosState {
    */
   applyQuickAdd: (id: string, parsed: QuickAddParse) => void;
   clearFocus: () => void;
-  clearFocusTitle: () => void;
   /** Set (or clear, with null) the item whose editing panel is open. */
   setEditingId: (id: string | null) => void;
   /** Focus an item's text field (e.g. when picked from search). */
@@ -201,8 +229,8 @@ export interface TodosState {
   revealItem: (id: string | null) => void;
   /** Load a list's markdown from disk into the store, resetting undo history. */
   open: (id: string) => Promise<void>;
-  /** Clear the loaded list (no list active, e.g. the last one was deleted). */
-  close: () => void;
+  /** Clear the store to the no-list-open state (closing the last tab). */
+  closeList: () => void;
   undo: () => void;
   redo: () => void;
 }
