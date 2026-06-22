@@ -9,9 +9,9 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 /** The media-folder id for a list's scratchpad attachments
- * (`media/scratchpad-<listId>/…`). Kept separate from the list's own media
- * (`media/<listId>`), and the `scratchpad-` prefix can't collide with a list's
- * UUID folder. */
+ * (`lists/scratchpad-<listId>/media/…`). Kept separate from the list's own media
+ * (`lists/<listId>/media`), and the `scratchpad-` prefix can't collide with a
+ * list's UUID folder. */
 export function scratchpadMediaId(listId: string): string {
   return `scratchpad-${listId}`;
 }

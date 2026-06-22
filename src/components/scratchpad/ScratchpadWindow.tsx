@@ -84,7 +84,9 @@ export function ScratchpadWindow() {
     if (!activeId) return;
     void (async () => {
       try {
-        setMediaDir(await join(await appDataDir(), "media", scratchpadMediaId(activeId)));
+        setMediaDir(
+          await join(await appDataDir(), "lists", scratchpadMediaId(activeId), "media"),
+        );
       } catch {
         setMediaDir("");
       }
