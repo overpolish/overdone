@@ -50,6 +50,9 @@ interface ListsState {
   /** Close a list's tab. If it was active, switch to a neighbouring tab, or clear
    * the active list when it was the last one. */
   closeTab: (id: string) => void;
+  /** Reorder the open tabs: move `id` to just before `beforeId`, or to the end
+   * when null. Persisted + broadcast like the other tab mutations. */
+  moveTab: (id: string, beforeId: string | null) => void;
   /** Create a new untitled list, make it active, and return its id. */
   create: () => Promise<string>;
   /** Delete a list; if open/active, close its tab and switch away. */
@@ -183,6 +186,17 @@ export const useLists = create<ListsState>((set, get) => {
         if (neighbour) get().setActive(neighbour);
         else get().closeActive();
       }
+    },
+
+    moveTab: (id, beforeId) => {
+      const { openIds } = get();
+      if (!openIds.includes(id) || id === beforeId) return;
+      const next = openIds.filter((x) => x !== id);
+      const at = beforeId ? next.indexOf(beforeId) : next.length;
+      next.splice(at === -1 ? next.length : at, 0, id);
+      // Skip a no-op reorder so we don't persist/broadcast needlessly.
+      if (next.length === openIds.length && next.every((x, i) => x === openIds[i])) return;
+      commitOpen(next);
     },
 
     create: async () => {
