@@ -118,7 +118,17 @@ export function ScrollArea({
           },
         }}
         events={{ scroll: update, updated: update }}
-        style={horizontal ? { width: "100%" } : { maxHeight: maxHeight ?? "100%" }}
+        // Vertical: cap at `maxHeight` when given, otherwise fill the parent
+        // (`height: 100%`, not `maxHeight`, so a short content still stretches the
+        // viewport - which is what lets a click anywhere in a fill scroller, e.g.
+        // the scratchpad editor, land rather than only on the content's own box).
+        style={
+          horizontal
+            ? { width: "100%" }
+            : maxHeight != null
+              ? { maxHeight }
+              : { height: "100%" }
+        }
       >
         {children}
       </OverlayScrollbarsComponent>
