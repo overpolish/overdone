@@ -1,5 +1,5 @@
 <div align="center">
-	<img height="75px" alt="overdone logo" src="./public/icon.svg" />
+	<img width="100px" alt="overdone logo" src="./assets/icon.png" />
 </div>
 
 <h1 align="center">Overdone</h1>

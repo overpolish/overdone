@@ -85,12 +85,9 @@ export function LinksSection({ comments }: { comments: Comment[] }) {
       </Text>
 
       {links.length > 0 ? (
-        <ScrollArea
-          maxHeight={180}
-          style={{ border: "1px solid var(--mantine-color-default-border)" }}
-        >
-          {/* Padding keeps the rows clear of the bordered, clipped container
-              edges and rounded corners. */}
+        <ScrollArea maxHeight={180}>
+          {/* Padding keeps the rows clear of the clipped container's edges and
+              rounded corners. */}
           <Stack gap={2} px={4} py={4}>
             {links.map((l) => (
               <Group key={l.url} gap={6} wrap="nowrap" style={{ minWidth: 0, padding: "2px 4px" }}>

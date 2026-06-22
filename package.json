@@ -12,8 +12,10 @@
     "tauri": "tauri",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "generate-tray-icons": "tsx scripts/generate-tray-icons.ts",
-    "build:mac": "tauri build --bundles app,dmg",
-    "build:win": "tauri build --bundles nsis,msi",
+    "build:mac": "./scripts/build-and-sign-mac.sh",
+    "build:mac:unsigned": "tauri build --bundles app,dmg",
+    "build:win": "powershell -ExecutionPolicy Bypass -File ./scripts/build-win.ps1",
+    "build:win:installers": "tauri build --bundles nsis,msi",
     "build:debug": "tauri build --debug"
   },
   "dependencies": {

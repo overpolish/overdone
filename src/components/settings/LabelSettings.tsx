@@ -88,11 +88,7 @@ export function LabelSettings({ initial }: { initial: Label[] }) {
       </Group>
 
       {sorted.length > 0 && (
-        <ScrollArea
-          maxHeight={76}
-          hideScrollbar
-          style={{ border: "1px solid var(--mantine-color-default-border)" }}
-        >
+        <ScrollArea maxHeight={76} hideScrollbar>
           <Stack gap={4} p={8}>
             {sorted.map((l) => (
               <Group key={l.id} gap={6} wrap="nowrap">

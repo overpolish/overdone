@@ -12,7 +12,7 @@ import { useSettings } from "./settings";
 
 /**
  * Comment attachments (images / videos). Files live on disk under
- * `<app data>/media/<listId>/<uuid>.<ext>`; comment HTML stores a portable
+ * `<app data>/lists/<listId>/media/<uuid>.<ext>`; comment HTML stores a portable
  * `media/<uuid>.<ext>` reference (so it survives export to a folder). The webview
  * can't load that relative path, so for display we rewrite it to a Tauri asset
  * URL, and rewrite it back before persisting.

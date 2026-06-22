@@ -86,6 +86,9 @@ pub fn run() {
             storage::read_text_file,
             storage::write_list,
             storage::delete_list,
+            storage::list_trash,
+            storage::restore_list,
+            storage::purge_list,
             storage::export_list_to_dir,
             attachments::import_attachment,
             attachments::write_attachment,
@@ -98,6 +101,12 @@ pub fn run() {
             transcode::download_ffmpeg
         ])
         .setup(|app| {
+            // Upgrade any old flat list layout to the folder-per-list layout, and
+            // sweep trashed lists past their 30-day retention. Best-effort: a
+            // failure here shouldn't block startup.
+            let _ = storage::migrate_layout(app.handle());
+            let _ = storage::prune_trash(app.handle());
+
             // Tray-only app on macOS: no dock icon and no Cmd+Tab entry, so the
             // tray icon is the sole entry point (show/hide via click, quit via
             // its menu). Set before any window shows to avoid a dock flash.

@@ -25,6 +25,13 @@ export interface ListMeta {
   bytes: number;
 }
 
+/** One trashed (soft-deleted) list, as surfaced in the Trash view. */
+export interface TrashMeta extends ListMeta {
+  /** Epoch ms when the list was deleted (drives the "deleted X ago" label and
+   * the 30-day auto-purge). */
+  deletedAt: number;
+}
+
 interface ListsState {
   /** All stored lists, sorted by title (as returned by the backend). */
   lists: ListMeta[];
@@ -209,6 +216,24 @@ export const useLists = create<ListsState>((set, get) => {
 /** Notify other windows that a list's contents changed (e.g. after autosave). */
 export function broadcastListsChanged() {
   broadcast({ type: "refresh" });
+}
+
+/** The trashed lists, newest-deleted first (auto-purged after 30 days). */
+export function listTrash(): Promise<TrashMeta[]> {
+  return invoke<TrashMeta[]>("list_trash");
+}
+
+/** Restore a trashed list, then make it the active list. */
+export async function restoreList(id: string): Promise<void> {
+  await invoke("restore_list", { id });
+  await useLists.getState().refresh();
+  broadcast({ type: "refresh" });
+  useLists.getState().setActive(id);
+}
+
+/** Permanently delete a trashed list (the "delete forever" action). */
+export async function purgeList(id: string): Promise<void> {
+  await invoke("purge_list", { id });
 }
 
 /**
