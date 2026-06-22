@@ -4,7 +4,7 @@
  */
 
 import { ActionIcon, Box, Group, UnstyledButton } from "@mantine/core";
-import { IconBell, IconMessage, IconPinnedFilled } from "@tabler/icons-react";
+import { IconBell, IconMessage, IconPinned, IconPinnedFilled } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useRef } from "react";
 
@@ -45,23 +45,32 @@ export function ItemControls({
 
   return (
     <Group gap={2} wrap="nowrap" align="flex-start">
-      {/* Pinned indicator: always visible (not hover-gated) so a pinned item is
-          obvious; clicking it unpins, the quick inverse of the right-click pin. */}
-      {item.pinned && (
-        <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
-          <ActionIcon
-            aria-label="Unpin"
-            title="Pinned - click to unpin"
-            variant="subtle"
-            color="gray"
-            size={20}
-            onClick={() => useTodos.getState().togglePin(item.id)}
-            style={{ flexShrink: 0 }}
-          >
+      {/* Pin toggle. A pinned item shows the filled pin always (so it's obvious);
+          an unpinned one shows an outline pin on hover, so pinning is a single
+          click without the right-click menu. The slot is always reserved so
+          revealing it on hover doesn't reflow the other controls. */}
+      <Box style={{ display: "flex", alignItems: "center", height: LINE_HEIGHT }}>
+        <ActionIcon
+          aria-label={item.pinned ? "Unpin" : "Pin"}
+          title={item.pinned ? "Pinned - click to unpin" : "Pin"}
+          variant="subtle"
+          color="gray"
+          size={20}
+          onClick={() => useTodos.getState().togglePin(item.id)}
+          style={{
+            flexShrink: 0,
+            opacity: item.pinned || hovered ? 1 : 0,
+            pointerEvents: item.pinned || hovered ? "auto" : "none",
+            transition: "opacity 120ms ease",
+          }}
+        >
+          {item.pinned ? (
             <IconPinnedFilled size={14} stroke={1.8} />
-          </ActionIcon>
-        </Box>
-      )}
+          ) : (
+            <IconPinned size={14} stroke={1.8} />
+          )}
+        </ActionIcon>
+      </Box>
       {/* Pending reminder: a quiet, dimmed bell while a reminder is scheduled but
           hasn't fired (distinct from the amber fired bell below, and not
           dismissable). Gives setting a reminder - including from a comment -
