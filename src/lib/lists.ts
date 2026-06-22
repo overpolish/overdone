@@ -104,6 +104,13 @@ function loadOpenIds(): string[] {
 
 const persistOpenIds = (ids: string[]) => lsSet(OPEN_KEY, JSON.stringify(ids));
 
+/** Whether tab state has ever been saved. Distinguishes a first run / upgrade
+ * from a pre-tabs build (no key yet - open an existing list) from a deliberately
+ * emptied tab bar (key present but empty - honour the empty state). */
+export function hasPersistedTabs(): boolean {
+  return lsGet(OPEN_KEY) != null;
+}
+
 // Cross-window channel. `applyingRemote` breaks the received -> set -> broadcast
 // echo, mirroring the settings store's approach.
 const channel =
